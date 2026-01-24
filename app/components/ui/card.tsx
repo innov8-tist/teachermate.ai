@@ -1,23 +1,22 @@
 import React from 'react';
-import { View, ViewProps } from 'react-native';
+import { View, type ViewProps, Text } from 'react-native';
+import { cn } from '@/lib/utils';
 
 interface CardProps extends ViewProps {
   children: React.ReactNode;
   className?: string;
 }
 
-export function Card({ children, className = '', ...props }: CardProps) {
+export function Card({ children, className, ...props }: CardProps) {
   return (
     <View
-      className={`bg-white rounded-3xl p-6 ${className}`}
+      className={cn('bg-white rounded-2xl p-5 border border-gray-100', className)}
       style={{
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.1,
-        shadowRadius: 30,
-        elevation: 15,
-        borderWidth: 1,
-        borderColor: '#e5e7eb',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        elevation: 3,
       }}
       {...props}
     >
@@ -26,25 +25,50 @@ export function Card({ children, className = '', ...props }: CardProps) {
   );
 }
 
-export function CardHeader({ children, className = '' }: CardProps) {
+export function CardHeader({ children, className, ...props }: CardProps) {
   return (
-    <View className={`flex-row items-center mb-6 ${className}`}>
+    <View className={cn('mb-4', className)} {...props}>
       {children}
     </View>
   );
 }
 
-export function CardTitle({ children, className = '' }: CardProps) {
-  return (
-    <View className="flex-row items-center">
-      <View className="w-1 h-8 bg-black rounded-full mr-3" />
-      <View className={className}>
-        {children}
-      </View>
+export function CardTitle({ children, className, ...props }: CardProps) {
+  return typeof children === 'string' ? (
+    <Text className={cn('text-xl font-semibold text-gray-900', className)} {...props}>
+      {children}
+    </Text>
+  ) : (
+    <View className={cn('', className)} {...props}>
+      {children}
     </View>
   );
 }
 
-export function CardContent({ children, className = '' }: CardProps) {
-  return <View className={className}>{children}</View>;
+export function CardDescription({ children, className, ...props }: CardProps) {
+  return typeof children === 'string' ? (
+    <Text className={cn('text-sm text-gray-500 mt-1', className)} {...props}>
+      {children}
+    </Text>
+  ) : (
+    <View className={cn('mt-1', className)} {...props}>
+      {children}
+    </View>
+  );
+}
+
+export function CardContent({ children, className, ...props }: CardProps) {
+  return (
+    <View className={cn('', className)} {...props}>
+      {children}
+    </View>
+  );
+}
+
+export function CardFooter({ children, className, ...props }: CardProps) {
+  return (
+    <View className={cn('flex-row items-center mt-4', className)} {...props}>
+      {children}
+    </View>
+  );
 }

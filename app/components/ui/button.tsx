@@ -1,88 +1,90 @@
 import React from 'react';
-import { ActivityIndicator, Text, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, Text, TouchableOpacity, type TouchableOpacityProps } from 'react-native';
+import { cva, type VariantProps } from 'class-variance-authority';
+import { cn } from '@/lib/utils';
 
-interface ButtonProps {
+const buttonVariants = cva(
+  'flex-row items-center justify-center rounded-xl active:opacity-90',
+  {
+    variants: {
+      variant: {
+        default: 'bg-[#4FD1C5] shadow-lg shadow-[#4FD1C5]/30',
+        destructive: 'bg-red-500 shadow-lg shadow-red-500/30',
+        outline: 'border-2 border-[#4FD1C5] bg-transparent',
+        secondary: 'bg-gray-100',
+        ghost: 'bg-transparent',
+        link: 'bg-transparent',
+      },
+      size: {
+        default: 'h-12 px-6 py-3',
+        sm: 'h-10 px-4 py-2',
+        lg: 'h-14 px-8 py-4',
+        icon: 'h-12 w-12',
+      },
+    },
+    defaultVariants: {
+      variant: 'default',
+      size: 'default',
+    },
+  }
+);
+
+const buttonTextVariants = cva('font-semibold text-center', {
+  variants: {
+    variant: {
+      default: 'text-white',
+      destructive: 'text-white',
+      outline: 'text-[#4FD1C5]',
+      secondary: 'text-gray-900',
+      ghost: 'text-gray-900',
+      link: 'text-[#4FD1C5] underline',
+    },
+    size: {
+      default: 'text-base',
+      sm: 'text-sm',
+      lg: 'text-lg',
+      icon: 'text-base',
+    },
+  },
+  defaultVariants: {
+    variant: 'default',
+    size: 'default',
+  },
+});
+
+interface ButtonProps
+  extends TouchableOpacityProps,
+    VariantProps<typeof buttonVariants> {
   children: React.ReactNode;
-  onPress?: () => void;
-  variant?: 'default' | 'outline' | 'ghost' | 'gradient';
-  size?: 'sm' | 'md' | 'lg';
-  disabled?: boolean;
   loading?: boolean;
   className?: string;
+  textClassName?: string;
 }
 
 export function Button({
   children,
-  onPress,
-  variant = 'default',
-  size = 'md',
-  disabled = false,
+  variant,
+  size,
   loading = false,
-  className = '',
+  disabled,
+  className,
+  textClassName,
+  ...props
 }: ButtonProps) {
-  const sizeStyles = {
-    sm: 'py-2 px-4',
-    md: 'py-4 px-6',
-    lg: 'py-5 px-8',
-  };
-
-  const textSizeStyles = {
-    sm: 'text-sm',
-    md: 'text-base',
-    lg: 'text-lg',
-  };
-
-  if (variant === 'gradient') {
-    return (
-      <TouchableOpacity
-        onPress={onPress}
-        disabled={disabled || loading}
-        activeOpacity={0.8}
-        className={`bg-black rounded-2xl ${sizeStyles[size]} items-center justify-center ${className}`}
-        style={{
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.3,
-          shadowRadius: 20,
-          elevation: 12,
-        }}
-      >
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text className={`text-white font-black tracking-wide ${textSizeStyles[size]}`}>
-            {children}
-          </Text>
-        )}
-      </TouchableOpacity>
-    );
-  }
-
-  const variantStyles = {
-    default: 'bg-black',
-    outline: 'bg-white border-2 border-black',
-    ghost: 'bg-transparent',
-  };
-
-  const textVariantStyles = {
-    default: 'text-white',
-    outline: 'text-black',
-    ghost: 'text-black',
-  };
-
   return (
     <TouchableOpacity
-      onPress={onPress}
       disabled={disabled || loading}
-      activeOpacity={0.8}
-      className={`${variantStyles[variant]} rounded-2xl ${sizeStyles[size]} items-center justify-center ${className}`}
+      className={cn(buttonVariants({ variant, size }), disabled && 'opacity-50', className)}
+      {...props}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'default' ? '#fff' : '#3b82f6'} />
-      ) : (
-        <Text className={`${textVariantStyles[variant]} font-bold ${textSizeStyles[size]}`}>
+        <ActivityIndicator color={variant === 'outline' || variant === 'ghost' ? '#4FD1C5' : '#fff'} />
+      ) : typeof children === 'string' ? (
+        <Text className={cn(buttonTextVariants({ variant, size }), textClassName)}>
           {children}
         </Text>
+      ) : (
+        children
       )}
     </TouchableOpacity>
   );

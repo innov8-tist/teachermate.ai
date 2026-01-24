@@ -1,17 +1,23 @@
 import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
 import {
-    Alert,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Image,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { SplashScreen } from '@/components/splash-screen';
 
 export default function HomeScreen() {
+  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'home' | 'evaluation' | 'co' | 'profile'>('home');
   const [showMenu, setShowMenu] = useState(false);
   const [coSubScreen, setCoSubScreen] = useState<'creation' | 'studentSheet'>('creation');
@@ -94,721 +100,402 @@ export default function HomeScreen() {
     Alert.alert('Success', 'Student image submitted successfully!');
   };
 
+  if (isLoading) {
+    return <SplashScreen onFinish={() => setIsLoading(false)} />;
+  }
+
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-gray-50">
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.menuButton}
-          onPress={() => {
-            if (activeTab === 'co') {
-              setShowMenu(!showMenu);
-            }
-          }}
-        >
-          <Text style={styles.menuIcon}>☰</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Teachermate AI</Text>
-        
-        <TouchableOpacity style={styles.profileButton}>
-          <View style={styles.profileIcon}>
-            <Text style={styles.profileIconText}>👤</Text>
-          </View>
-        </TouchableOpacity>
+      <View className="bg-white px-5 py-4 border-b border-gray-100">
+        <View className="flex-row items-center justify-between">
+          <TouchableOpacity 
+            className="p-2"
+            onPress={() => {
+              if (activeTab === 'co') {
+                setShowMenu(!showMenu);
+              }
+            }}
+          >
+            <Text className="text-2xl text-gray-800">☰</Text>
+          </TouchableOpacity>
+          
+          <Text className="text-lg font-semibold text-gray-900">Teachermate AI</Text>
+          
+          <TouchableOpacity>
+            <Avatar>
+              <AvatarFallback>
+                <Text className="text-xl">👤</Text>
+              </AvatarFallback>
+            </Avatar>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Dropdown Menu */}
+      {/* Drawer Menu */}
       {showMenu && activeTab === 'co' && (
         <>
           <TouchableOpacity 
-            style={styles.drawerOverlay}
+            className="absolute top-0 left-0 right-0 bottom-0 bg-black/50 z-10"
             activeOpacity={1}
             onPress={() => setShowMenu(false)}
           />
-          <View style={styles.drawer}>
-            <View style={styles.drawerHeader}>
-              <Text style={styles.drawerHeaderText}>CO Mapper</Text>
+          <View className="absolute top-0 left-0 bottom-0 w-72 bg-white z-20">
+            <View className="bg-[#4FD1C5] py-10 px-5 border-b border-gray-100">
+              <Text className="text-xl font-bold text-white">CO Mapper</Text>
             </View>
-            <View style={styles.drawerContent}>
+            <View className="flex-1 pt-2">
               <TouchableOpacity 
-                style={styles.drawerItem}
+                className="flex-row items-center py-4 px-5 border-b border-gray-50"
                 onPress={() => {
                   setShowMenu(false);
                   setCoSubScreen('studentSheet');
                 }}
               >
-                <Text style={styles.drawerItemIcon}>📷</Text>
-                <Text style={styles.drawerItemText}>Student Answer Sheet</Text>
+                <Text className="text-2xl mr-4 w-8">📷</Text>
+                <Text className="text-base font-medium text-gray-900 flex-1">
+                  Student Answer Sheet
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
         </>
       )}
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <ScrollView className="flex-1" contentContainerClassName="p-5 pb-24">
         {activeTab === 'home' ? (
-          <>
+          <View>
             {/* Welcome Section */}
-            <Text style={styles.welcomeText}>Welcome, Teacher</Text>
+            <View className="mb-6">
+              <Text className="text-3xl font-bold text-gray-900 mb-1">Welcome, Teacher</Text>
+              <Text className="text-base text-gray-500">Manage your evaluations efficiently</Text>
+            </View>
+
+            {/* Stats Cards */}
+            <View className="flex-row gap-3 mb-5">
+              <Card className="flex-1">
+                <CardContent>
+                  <Text className="text-2xl font-bold text-[#4FD1C5] mb-1">24</Text>
+                  <Text className="text-xs text-gray-500 font-medium">Pending</Text>
+                </CardContent>
+              </Card>
+              <Card className="flex-1">
+                <CardContent>
+                  <Text className="text-2xl font-bold text-green-500 mb-1">156</Text>
+                  <Text className="text-xs text-gray-500 font-medium">Completed</Text>
+                </CardContent>
+              </Card>
+            </View>
 
             {/* Menu Cards */}
             <TouchableOpacity 
-              style={styles.menuCard}
               onPress={() => setActiveTab('co')}
+              activeOpacity={0.7}
             >
-              <View style={[styles.iconContainer, { backgroundColor: '#B8E6E1' }]}>
-                <Text style={styles.cardIcon}>☁️</Text>
-              </View>
-              <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>Upload Answer Schema</Text>
-                <Text style={styles.cardSubtitle}>Upload the answer key document</Text>
-              </View>
+              <Card className="mb-4">
+                <CardContent className="flex-row items-center">
+                  <View className="w-14 h-14 bg-[#B8E6E1] rounded-xl items-center justify-center mr-4">
+                    <Text className="text-3xl">☁️</Text>
+                  </View>
+                  <View className="flex-1">
+                    <CardTitle className="mb-1">Upload Answer Schema</CardTitle>
+                    <CardDescription>Upload the answer key document</CardDescription>
+                  </View>
+                  <Text className="text-gray-400 text-xl">›</Text>
+                </CardContent>
+              </Card>
             </TouchableOpacity>
 
             <TouchableOpacity 
-              style={styles.menuCard}
               onPress={() => setActiveTab('evaluation')}
+              activeOpacity={0.7}
             >
-              <View style={[styles.iconContainer, { backgroundColor: '#B8E6E1' }]}>
-                <Text style={styles.cardIcon}>📷</Text>
-              </View>
-              <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>Upload Answer Sheets</Text>
-                <Text style={styles.cardSubtitle}>Capture or upload student answers</Text>
-              </View>
+              <Card className="mb-4">
+                <CardContent className="flex-row items-center">
+                  <View className="w-14 h-14 bg-[#B8E6E1] rounded-xl items-center justify-center mr-4">
+                    <Text className="text-3xl">📷</Text>
+                  </View>
+                  <View className="flex-1">
+                    <CardTitle className="mb-1">Upload Answer Sheets</CardTitle>
+                    <CardDescription>Capture or upload student answers</CardDescription>
+                  </View>
+                  <Text className="text-gray-400 text-xl">›</Text>
+                </CardContent>
+              </Card>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.menuCard}>
-              <View style={[styles.iconContainer, { backgroundColor: '#B8E6E1' }]}>
-                <Text style={styles.cardIcon}>📊</Text>
-              </View>
-              <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>View Evaluation Results</Text>
-                <Text style={styles.cardSubtitle}>Check evaluation analytics</Text>
-              </View>
+            <TouchableOpacity activeOpacity={0.7}>
+              <Card className="mb-4">
+                <CardContent className="flex-row items-center">
+                  <View className="w-14 h-14 bg-[#B8E6E1] rounded-xl items-center justify-center mr-4">
+                    <Text className="text-3xl">📊</Text>
+                  </View>
+                  <View className="flex-1">
+                    <CardTitle className="mb-1">View Evaluation Results</CardTitle>
+                    <CardDescription>Check evaluation analytics</CardDescription>
+                  </View>
+                  <Text className="text-gray-400 text-xl">›</Text>
+                </CardContent>
+              </Card>
             </TouchableOpacity>
-          </>
+          </View>
         ) : activeTab === 'co' ? (
           // CO Creation Full Screen
           coSubScreen === 'creation' ? (
-            <View style={styles.fullScreenForm}>
-              <Text style={styles.pageTitle}>CO Creation</Text>
+            <View className="flex-1">
+              <Text className="text-2xl font-bold text-gray-900 mb-6">CO Creation</Text>
 
-              <View style={styles.formCard}>
-                <Text style={styles.formLabel}>SUBJECT NAME</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={coSubjectName}
-                  onChangeText={setCoSubjectName}
-                  placeholder="Enter subject name"
-                  placeholderTextColor="#9ca3af"
-                />
-              </View>
+              <Card className="mb-4">
+                <CardContent>
+                  <Input
+                    label="SUBJECT NAME"
+                    value={coSubjectName}
+                    onChangeText={setCoSubjectName}
+                    placeholder="Enter subject name"
+                    containerClassName="mb-0"
+                  />
+                </CardContent>
+              </Card>
 
-              <View style={styles.formCard}>
-                <Text style={styles.formLabel}>I4 1 OR 2</Text>
-                <View style={styles.radioGroup}>
-                  <TouchableOpacity
-                    style={[styles.radioButton, coSelectedOption === '1' && styles.radioButtonActive]}
-                    onPress={() => setCoSelectedOption('1')}
-                  >
-                    <View style={[styles.radioOuter, coSelectedOption === '1' && styles.radioOuterActive]}>
-                      {coSelectedOption === '1' && <View style={styles.radioInner} />}
-                    </View>
-                    <Text style={[styles.radioText, coSelectedOption === '1' && styles.radioTextActive]}>1</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.radioButton, coSelectedOption === '2' && styles.radioButtonActive]}
-                    onPress={() => setCoSelectedOption('2')}
-                  >
-                    <View style={[styles.radioOuter, coSelectedOption === '2' && styles.radioOuterActive]}>
-                      {coSelectedOption === '2' && <View style={styles.radioInner} />}
-                    </View>
-                    <Text style={[styles.radioText, coSelectedOption === '2' && styles.radioTextActive]}>2</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.formCard}>
-                <Text style={styles.formLabel}>UPLOAD CO TABLE</Text>
-                <TouchableOpacity style={styles.uploadArea} onPress={pickCOImageFromGallery}>
-                  {coUploadedImage ? (
-                    <Image source={{ uri: coUploadedImage }} style={styles.uploadedImage} />
-                  ) : (
-                    <View style={styles.uploadPlaceholder}>
-                      <View style={styles.uploadIconCircle}>
-                        <Text style={styles.uploadIcon}>📤</Text>
+              <Card className="mb-4">
+                <CardContent>
+                  <Text className="text-xs font-semibold text-gray-600 mb-3 uppercase tracking-wider">
+                    I4 1 OR 2
+                  </Text>
+                  <View className="flex-row gap-3">
+                    <TouchableOpacity
+                      className={`flex-1 flex-row items-center justify-center gap-3 py-4 px-5 rounded-xl border-2 ${
+                        coSelectedOption === '1'
+                          ? 'bg-[#4FD1C5] border-[#4FD1C5]'
+                          : 'bg-white border-[#B8E6E1]'
+                      }`}
+                      onPress={() => setCoSelectedOption('1')}
+                      activeOpacity={0.7}
+                    >
+                      <View
+                        className={`w-6 h-6 rounded-full border-2 items-center justify-center ${
+                          coSelectedOption === '1'
+                            ? 'border-white bg-[#4FD1C5]'
+                            : 'border-[#B8E6E1] bg-white'
+                        }`}
+                      >
+                        {coSelectedOption === '1' && (
+                          <View className="w-3 h-3 rounded-full bg-white" />
+                        )}
                       </View>
-                      <Text style={styles.uploadText}>Tap to upload document</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              </View>
+                      <Text
+                        className={`text-lg font-bold ${
+                          coSelectedOption === '1' ? 'text-white' : 'text-gray-900'
+                        }`}
+                      >
+                        1
+                      </Text>
+                    </TouchableOpacity>
 
-              <TouchableOpacity style={styles.submitButton} onPress={handleCOSubmit}>
-                <Text style={styles.submitButtonText}>Create CO</Text>
-              </TouchableOpacity>
+                    <TouchableOpacity
+                      className={`flex-1 flex-row items-center justify-center gap-3 py-4 px-5 rounded-xl border-2 ${
+                        coSelectedOption === '2'
+                          ? 'bg-[#4FD1C5] border-[#4FD1C5]'
+                          : 'bg-white border-[#B8E6E1]'
+                      }`}
+                      onPress={() => setCoSelectedOption('2')}
+                      activeOpacity={0.7}
+                    >
+                      <View
+                        className={`w-6 h-6 rounded-full border-2 items-center justify-center ${
+                          coSelectedOption === '2'
+                            ? 'border-white bg-[#4FD1C5]'
+                            : 'border-[#B8E6E1] bg-white'
+                        }`}
+                      >
+                        {coSelectedOption === '2' && (
+                          <View className="w-3 h-3 rounded-full bg-white" />
+                        )}
+                      </View>
+                      <Text
+                        className={`text-lg font-bold ${
+                          coSelectedOption === '2' ? 'text-white' : 'text-gray-900'
+                        }`}
+                      >
+                        2
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </CardContent>
+              </Card>
+
+              <Card className="mb-6">
+                <CardContent>
+                  <Text className="text-xs font-semibold text-gray-600 mb-3 uppercase tracking-wider">
+                    UPLOAD CO TABLE
+                  </Text>
+                  <TouchableOpacity
+                    className="bg-gray-50 border-2 border-dashed border-[#B8E6E1] rounded-xl h-48 overflow-hidden"
+                    onPress={pickCOImageFromGallery}
+                    activeOpacity={0.7}
+                  >
+                    {coUploadedImage ? (
+                      <Image source={{ uri: coUploadedImage }} className="w-full h-full" resizeMode="cover" />
+                    ) : (
+                      <View className="flex-1 items-center justify-center">
+                        <View className="w-16 h-16 bg-[#B8E6E1] rounded-full items-center justify-center mb-3">
+                          <Text className="text-3xl">📤</Text>
+                        </View>
+                        <Text className="text-base font-medium text-gray-600">Tap to upload document</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                </CardContent>
+              </Card>
+
+              <Button onPress={handleCOSubmit} size="lg">
+                Create CO
+              </Button>
             </View>
           ) : (
             // Student Answer Sheet within CO Mapper
-            <View style={styles.fullScreenForm}>
+            <View className="flex-1">
               <TouchableOpacity 
-                style={styles.backButton}
+                className="mb-4"
                 onPress={() => setCoSubScreen('creation')}
               >
-                <Text style={styles.backButtonText}>← Back to CO Creation</Text>
+                <Text className="text-base font-semibold text-[#4FD1C5]">← Back to CO Creation</Text>
               </TouchableOpacity>
 
-              <Text style={styles.pageTitle}>Student Answer Sheet</Text>
+              <Text className="text-2xl font-bold text-gray-900 mb-6">Student Answer Sheet</Text>
 
-              <View style={styles.actionButtonsRow}>
-                <TouchableOpacity style={styles.actionCard} onPress={pickImageFromCamera}>
-                  <View style={styles.actionIconCircle}>
-                    <Text style={styles.actionIcon}>📷</Text>
-                  </View>
-                  <Text style={styles.actionText}>Take Picture</Text>
+              <View className="flex-row gap-3 mb-5">
+                <TouchableOpacity className="flex-1" onPress={pickImageFromCamera} activeOpacity={0.7}>
+                  <Card>
+                    <CardContent className="items-center py-2">
+                      <View className="w-14 h-14 bg-[#B8E6E1] rounded-full items-center justify-center mb-3">
+                        <Text className="text-3xl">📷</Text>
+                      </View>
+                      <Text className="text-sm font-semibold text-gray-900 text-center">Take Picture</Text>
+                    </CardContent>
+                  </Card>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.actionCard} onPress={pickStudentImageFromGallery}>
-                  <View style={styles.actionIconCircle}>
-                    <Text style={styles.actionIcon}>📁</Text>
-                  </View>
-                  <Text style={styles.actionText}>Upload Manually</Text>
+                <TouchableOpacity className="flex-1" onPress={pickStudentImageFromGallery} activeOpacity={0.7}>
+                  <Card>
+                    <CardContent className="items-center py-2">
+                      <View className="w-14 h-14 bg-[#B8E6E1] rounded-full items-center justify-center mb-3">
+                        <Text className="text-3xl">📁</Text>
+                      </View>
+                      <Text className="text-sm font-semibold text-gray-900 text-center">Upload Manually</Text>
+                    </CardContent>
+                  </Card>
                 </TouchableOpacity>
               </View>
 
               {selectedImage && (
-                <View style={styles.imagePreviewContainer}>
-                  <Image source={{ uri: selectedImage }} style={styles.imagePreview} />
-                </View>
+                <Card className="mb-5">
+                  <CardContent className="p-0">
+                    <Image source={{ uri: selectedImage }} className="w-full h-72 rounded-xl" resizeMode="cover" />
+                  </CardContent>
+                </Card>
               )}
 
-              <TouchableOpacity style={styles.submitButton} onPress={handleStudentSubmit}>
-                <Text style={styles.submitButtonText}>Submit Answer Sheet</Text>
-              </TouchableOpacity>
+              <Button onPress={handleStudentSubmit} size="lg">
+                Submit Answer Sheet
+              </Button>
             </View>
           )
         ) : activeTab === 'evaluation' ? (
           // Student Image Full Screen
-          <View style={styles.fullScreenForm}>
-            <Text style={styles.pageTitle}>Upload Answer Sheets</Text>
+          <View className="flex-1">
+            <Text className="text-2xl font-bold text-gray-900 mb-6">Upload Answer Sheets</Text>
 
-            <View style={styles.actionButtonsRow}>
-              <TouchableOpacity 
-                style={[styles.actionCard, { flex: 0, width: '100%' }]} 
-                onPress={pickImageFromCamera}
-              >
-                <View style={styles.actionIconCircle}>
-                  <Text style={styles.actionIcon}>📷</Text>
-                </View>
-                <Text style={styles.actionText}>Take Picture</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity onPress={pickImageFromCamera} activeOpacity={0.7}>
+              <Card className="mb-5">
+                <CardContent className="items-center py-6">
+                  <View className="w-16 h-16 bg-[#B8E6E1] rounded-full items-center justify-center mb-3">
+                    <Text className="text-4xl">📷</Text>
+                  </View>
+                  <Text className="text-base font-semibold text-gray-900 text-center">Take Picture</Text>
+                </CardContent>
+              </Card>
+            </TouchableOpacity>
 
             {selectedImage && (
-              <View style={styles.imagePreviewContainer}>
-                <Image source={{ uri: selectedImage }} style={styles.imagePreview} />
-              </View>
+              <Card className="mb-5">
+                <CardContent className="p-0">
+                  <Image source={{ uri: selectedImage }} className="w-full h-72 rounded-xl" resizeMode="cover" />
+                </CardContent>
+              </Card>
             )}
 
-            <TouchableOpacity style={styles.submitButton} onPress={handleStudentSubmit}>
-              <Text style={styles.submitButtonText}>Submit Answer Sheet</Text>
-            </TouchableOpacity>
+            <Button onPress={handleStudentSubmit} size="lg">
+              Submit Answer Sheet
+            </Button>
           </View>
         ) : activeTab === 'profile' ? (
-          <View style={styles.fullScreenForm}>
-            <Text style={styles.pageTitle}>Profile</Text>
-            <Text style={styles.comingSoonText}>Profile page coming soon...</Text>
+          <View className="flex-1">
+            <Text className="text-2xl font-bold text-gray-900 mb-6">Profile</Text>
+            <Card>
+              <CardContent className="items-center py-8">
+                <Avatar className="w-24 h-24 mb-4">
+                  <AvatarFallback>
+                    <Text className="text-4xl">👤</Text>
+                  </AvatarFallback>
+                </Avatar>
+                <Text className="text-xl font-bold text-gray-900 mb-1">Teacher Name</Text>
+                <Badge variant="secondary" className="mb-6">
+                  <Text>Active</Text>
+                </Badge>
+                <Separator className="mb-6" />
+                <Text className="text-sm text-gray-500 text-center">Profile page coming soon...</Text>
+              </CardContent>
+            </Card>
           </View>
         ) : null}
       </ScrollView>
 
       {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
+      <View className="absolute bottom-0 left-0 right-0 bg-white flex-row py-3 px-2 border-t border-gray-100">
         <TouchableOpacity 
-          style={styles.navItem}
+          className="flex-1 items-center py-2"
           onPress={() => setActiveTab('home')}
         >
-          <Text style={[styles.navIcon, activeTab === 'home' && styles.navIconActive]}>🏠</Text>
-          <Text style={[styles.navLabel, activeTab === 'home' && styles.navLabelActive]}>Home</Text>
+          <Text className={`text-2xl mb-1 ${activeTab === 'home' ? 'opacity-100' : 'opacity-50'}`}>🏠</Text>
+          <Text className={`text-xs font-medium ${activeTab === 'home' ? 'text-[#4FD1C5]' : 'text-gray-500'}`}>
+            Home
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
-          style={styles.navItem}
+          className="flex-1 items-center py-2"
           onPress={() => setActiveTab('evaluation')}
         >
-          <Text style={[styles.navIcon, activeTab === 'evaluation' && styles.navIconActive]}>✓</Text>
-          <Text style={[styles.navLabel, activeTab === 'evaluation' && styles.navLabelActive]}>Evaluation</Text>
+          <Text className={`text-2xl mb-1 ${activeTab === 'evaluation' ? 'opacity-100' : 'opacity-50'}`}>✓</Text>
+          <Text className={`text-xs font-medium ${activeTab === 'evaluation' ? 'text-[#4FD1C5]' : 'text-gray-500'}`}>
+            Evaluation
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
-          style={styles.navItem}
+          className="flex-1 items-center py-2"
           onPress={() => {
             setActiveTab('co');
             setCoSubScreen('creation');
           }}
         >
-          <Text style={[styles.navIcon, activeTab === 'co' && styles.navIconActive]}>🗺️</Text>
-          <Text style={[styles.navLabel, activeTab === 'co' && styles.navLabelActive]}>CO Mapper</Text>
+          <Text className={`text-2xl mb-1 ${activeTab === 'co' ? 'opacity-100' : 'opacity-50'}`}>🗺️</Text>
+          <Text className={`text-xs font-medium ${activeTab === 'co' ? 'text-[#4FD1C5]' : 'text-gray-500'}`}>
+            CO Mapper
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
-          style={styles.navItem}
+          className="flex-1 items-center py-2"
           onPress={() => setActiveTab('profile')}
         >
-          <Text style={[styles.navIcon, activeTab === 'profile' && styles.navIconActive]}>👤</Text>
-          <Text style={[styles.navLabel, activeTab === 'profile' && styles.navLabelActive]}>Profile</Text>
+          <Text className={`text-2xl mb-1 ${activeTab === 'profile' ? 'opacity-100' : 'opacity-50'}`}>👤</Text>
+          <Text className={`text-xs font-medium ${activeTab === 'profile' ? 'text-[#4FD1C5]' : 'text-gray-500'}`}>
+            Profile
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F5F5',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E5',
-  },
-  menuButton: {
-    padding: 8,
-  },
-  menuIcon: {
-    fontSize: 24,
-    color: '#2D3748',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#2D3748',
-  },
-  profileButton: {
-    padding: 4,
-  },
-  profileIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#B8E6E1',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileIconText: {
-    fontSize: 20,
-  },
-  menuDotsIcon: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#2D3748',
-    lineHeight: 28,
-  },
-  dropdownMenu: {
-    position: 'absolute',
-    top: 60,
-    left: 20,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-    zIndex: 1000,
-    minWidth: 200,
-  },
-  drawerOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    zIndex: 999,
-  },
-  drawer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    bottom: 0,
-    width: 280,
-    backgroundColor: '#FFFFFF',
-    zIndex: 1000,
-    shadowColor: '#000',
-    shadowOffset: { width: 2, height: 0 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 16,
-  },
-  drawerHeader: {
-    backgroundColor: '#4FD1C5',
-    paddingVertical: 40,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E5',
-  },
-  drawerHeaderText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  drawerContent: {
-    flex: 1,
-    paddingTop: 10,
-  },
-  drawerItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F5F5F5',
-  },
-  drawerItemIcon: {
-    fontSize: 24,
-    marginRight: 16,
-    width: 32,
-  },
-  drawerItemText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#2D3748',
-    flex: 1,
-  },
-  drawerItemActive: {
-    backgroundColor: '#F0FDFA',
-  },
-  menuItem: {
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-  },
-  menuItemText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#2D3748',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 100,
-  },
-  welcomeText: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#2D3748',
-    marginBottom: 24,
-  },
-  fullScreenForm: {
-    flex: 1,
-  },
-  pageTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#2D3748',
-    marginBottom: 24,
-  },
-  formCard: {
-    marginBottom: 20,
-  },
-  formLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#718096',
-    marginBottom: 10,
-    letterSpacing: 1.5,
-  },
-  formInput: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#B8E6E1',
-    borderRadius: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2D3748',
-  },
-  radioGroup: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  radioButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#B8E6E1',
-    backgroundColor: '#FFFFFF',
-  },
-  radioButtonActive: {
-    backgroundColor: '#4FD1C5',
-    borderColor: '#4FD1C5',
-  },
-  radioOuter: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#B8E6E1',
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioOuterActive: {
-    borderColor: '#FFFFFF',
-    backgroundColor: '#4FD1C5',
-  },
-  radioInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#FFFFFF',
-  },
-  radioText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#2D3748',
-  },
-  radioTextActive: {
-    color: '#FFFFFF',
-  },
-  comingSoonText: {
-    fontSize: 16,
-    color: '#718096',
-    textAlign: 'center',
-    marginTop: 40,
-  },
-  backButton: {
-    marginBottom: 16,
-  },
-  backButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#4FD1C5',
-  },
-  menuCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  iconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  cardIcon: {
-    fontSize: 28,
-  },
-  cardContent: {
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#2D3748',
-    marginBottom: 4,
-  },
-  cardSubtitle: {
-    fontSize: 14,
-    color: '#718096',
-  },
-  modal: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 24,
-    width: '100%',
-    maxWidth: 400,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#2D3748',
-  },
-  closeButton: {
-    fontSize: 24,
-    color: '#718096',
-    fontWeight: '300',
-  },
-  uploadArea: {
-    backgroundColor: '#F7FAFC',
-    borderWidth: 2,
-    borderColor: '#B8E6E1',
-    borderStyle: 'dashed',
-    borderRadius: 16,
-    height: 200,
-    marginBottom: 20,
-    overflow: 'hidden',
-  },
-  uploadPlaceholder: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  uploadIconCircle: {
-    width: 64,
-    height: 64,
-    backgroundColor: '#B8E6E1',
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  uploadIcon: {
-    fontSize: 32,
-  },
-  uploadText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#4A5568',
-  },
-  uploadedImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  actionButtonsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 20,
-  },
-  actionCard: {
-    flex: 1,
-    backgroundColor: '#F7FAFC',
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  actionIconCircle: {
-    width: 56,
-    height: 56,
-    backgroundColor: '#B8E6E1',
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  actionIcon: {
-    fontSize: 28,
-  },
-  actionText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#2D3748',
-    textAlign: 'center',
-  },
-  imagePreviewContainer: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 20,
-    height: 300,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  imagePreview: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  submitButton: {
-    backgroundColor: '#4FD1C5',
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    shadowColor: '#4FD1C5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  submitButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  bottomNav: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5E5',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  navIcon: {
-    fontSize: 24,
-    marginBottom: 4,
-    opacity: 0.5,
-  },
-  navIconActive: {
-    opacity: 1,
-  },
-  navLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#718096',
-  },
-  navLabelActive: {
-    color: '#4FD1C5',
-    fontWeight: '600',
-  },
-});
