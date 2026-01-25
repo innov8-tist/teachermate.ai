@@ -3,10 +3,15 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import os
 import uuid
+import tempfile
 from pathlib import Path
 from models.pydanticmodel import CoCreationModel
 from db_operation.db_server import DBServiceForServer
 from comapping.teacher_co_processing.extracting import main_func
+from routes.auth import router as auth_router
+from auth.dependencies import get_current_teacher
+from db_service.db_schema import Teacher
+from services.s3_service import s3_service
 
 app = FastAPI()
 
@@ -18,8 +23,11 @@ app.add_middleware(
     allow_headers=["*"],  
 )
 
-CO_IMAGE_FOLDER = Path("public/co_image")
-CO_IMAGE_FOLDER.mkdir(parents=True, exist_ok=True)
+app.include_router(auth_router)
+
+# Temp folder for processing images before uploading to S3
+TEMP_FOLDER = Path(tempfile.gettempdir()) / "co_images"
+TEMP_FOLDER.mkdir(parents=True, exist_ok=True)
 
 def get_db_service():
     db_service = DBServiceForServer()
@@ -43,6 +51,7 @@ async def co_creation(
     sem: int = Form(...),
     ia_number: int = Form(...),
     co_image: UploadFile = File(...),
+    current_teacher: Teacher = Depends(get_current_teacher),
     db_service: DBServiceForServer = Depends(get_db_service)
 ):
     co_data = CoCreationModel(
@@ -53,18 +62,32 @@ async def co_creation(
     
     unique_id = str(uuid.uuid4())
     file_extension = os.path.splitext(co_image.filename)[1]
-    image_filename = f"{unique_id}{file_extension}"
-    image_path = CO_IMAGE_FOLDER / image_filename
-    with open(image_path, "wb") as buffer:
-        content = await co_image.read()
-        buffer.write(content)
+    
+    # Read file content
+    file_content = await co_image.read()
+    
+    # Upload to S3
+    s3_url = None
+    if s3_service.is_available:
+        s3_url = s3_service.upload_co_image(file_content, file_extension)
+        print(f"✓ Uploaded CO image to S3: {s3_url}")
+    
+    # Save to temp folder for processing
+    temp_filename = f"{unique_id}{file_extension}"
+    temp_path = TEMP_FOLDER / temp_filename
+    with open(temp_path, "wb") as buffer:
+        buffer.write(file_content)
+    
     print("=" * 50)
     print("CO Creation Details:")
+    print(f"Teacher ID: {current_teacher.id}")
+    print(f"Teacher Name: {current_teacher.name}")
     print(f"Subject Name: {co_data.subject_name}")
     print(f"Semester: {co_data.sem}")
     print(f"IA Number: {co_data.ia_number}")
     print(f"Image Unique ID: {unique_id}")
-    print(f"Image Path: {image_path}")
+    print(f"S3 URL: {s3_url or 'S3 not available'}")
+    print(f"Temp Path: {temp_path}")
     print("=" * 50)
     
     try:
@@ -72,10 +95,19 @@ async def co_creation(
             subject_name=co_data.subject_name,
             sem=co_data.sem,
             ia_number=co_data.ia_number,
-            teacher_id=1,
-            image_path=str(image_path)
+            teacher_id=current_teacher.id,
+            image_path=s3_url or str(temp_path)  # Use S3 URL if available, else temp path
         )
-        main_func(image_path=str(image_path), subject_id=created_subject.id)
+        
+        # Process the image from temp path
+        main_func(image_path=str(temp_path), subject_id=created_subject.id)
+        
+        # Clean up temp file after processing
+        try:
+            os.remove(temp_path)
+            print(f"✓ Cleaned up temp file: {temp_path}")
+        except Exception as e:
+            print(f"⚠ Failed to clean up temp file: {e}")
         
         return {
             "status": "success",
@@ -91,11 +123,17 @@ async def co_creation(
             }
         }
     except ValueError as e:
+        # Clean up temp file on error
+        if temp_path.exists():
+            os.remove(temp_path)
         return {
             "status": "error",
             "message": str(e)
         }
     except Exception as e:
+        # Clean up temp file on error
+        if temp_path.exists():
+            os.remove(temp_path)
         return {
             "status": "error",
             "message": f"Failed to create CO: {str(e)}"

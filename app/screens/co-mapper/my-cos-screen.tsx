@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, Alert, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { coService, CO } from '@/services/api/co-service';
+import { useAuth } from '@/contexts/auth-context';
 import { Feather } from '@expo/vector-icons';
 
 interface MyCOsScreenProps {
@@ -12,14 +13,18 @@ interface MyCOsScreenProps {
 export const MyCOsScreen: React.FC<MyCOsScreenProps> = ({ 
   onCOClick
 }) => {
+  const { teacher } = useAuth();
   const [myCOs, setMyCOs] = useState<CO[]>([]);
 
   useEffect(() => {
-    fetchCOs();
-  }, []);
+    if (teacher) {
+      fetchCOs();
+    }
+  }, [teacher]);
 
   const fetchCOs = async () => {
-    const data = await coService.fetchMyCOs();
+    if (!teacher) return;
+    const data = await coService.fetchMyCOs(teacher.id);
     setMyCOs(data);
   };
 
