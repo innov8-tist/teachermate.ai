@@ -15,6 +15,7 @@ export const MyCOsScreen: React.FC<MyCOsScreenProps> = ({
 }) => {
   const { teacher } = useAuth();
   const [myCOs, setMyCOs] = useState<CO[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (teacher) {
@@ -23,9 +24,11 @@ export const MyCOsScreen: React.FC<MyCOsScreenProps> = ({
   }, [teacher]);
 
   const fetchCOs = async () => {
+    setIsLoading(true);
     if (!teacher) return;
     const data = await coService.fetchMyCOs(teacher.id);
     setMyCOs(data);
+    setIsLoading(false);
   };
 
   const handleDelete = (coId: number, coName: string) => {
@@ -59,7 +62,13 @@ export const MyCOsScreen: React.FC<MyCOsScreenProps> = ({
             </Text> */}
           </View>
 
-          {myCOs.length === 0 ? (
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <View style={styles.loadingSpinner}>
+                <Text style={styles.loadingText}>Loading...</Text>
+              </View>
+            </View>
+          ) : myCOs.length === 0 ? (
             <View style={styles.emptyState}>
               <View style={styles.emptyIcon}>
                 <Feather name="folder" size={48} color="#d0d0d0" />
@@ -223,5 +232,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 280,
     lineHeight: 20,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 60,
+    marginBottom: 60,
+  },
+  loadingSpinner: {
+    padding: 20,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#999',
+    fontWeight: '500',
   },
 });

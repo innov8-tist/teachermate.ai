@@ -12,6 +12,8 @@ from routes.auth import router as auth_router
 from auth.dependencies import get_current_teacher
 from db_service.db_schema import Teacher
 from services.s3_service import s3_service
+from comapping.answer_sheet_processing.cutting import ImageProcess
+from comapping.answer_sheet_processing.extraction_pipeline import ExtractionPipeline
 
 app = FastAPI()
 
@@ -28,6 +30,12 @@ app.include_router(auth_router)
 # Temp folder for processing images before uploading to S3
 TEMP_FOLDER = Path(tempfile.gettempdir()) / "co_images"
 TEMP_FOLDER.mkdir(parents=True, exist_ok=True)
+
+STUDENT_IMAGE_FOLDER = Path("public/co_student_image")
+STUDENT_IMAGE_FOLDER.mkdir(parents=True, exist_ok=True)
+
+TOP_BOTTOM_FOLDER = Path("public/co_top_bottom")
+TOP_BOTTOM_FOLDER.mkdir(parents=True, exist_ok=True)
 
 def get_db_service():
     db_service = DBServiceForServer()
@@ -156,6 +164,107 @@ def delete_co(subject_id: int, db_service: DBServiceForServer = Depends(get_db_s
         return {"status": "success", "message": "CO deleted successfully"}
     else:
         return {"status": "error", "message": "CO not found"}
+
+@app.get("/students_by_subject/{subject_id}")
+def get_students(subject_id: int, db_service: DBServiceForServer = Depends(get_db_service)):
+    students = db_service.get_students_by_subject(subject_id)
+    return students
+
+@app.get("/student_marks/{subject_id}/{regno}")
+def get_student_marks(subject_id: int, regno: str, db_service: DBServiceForServer = Depends(get_db_service)):
+    marks = db_service.get_student_marks_detail(subject_id, regno)
+    return marks
+
+@app.delete("/student_marks/{subject_id}/{regno}")
+def delete_student_marks(subject_id: int, regno: str, db_service: DBServiceForServer = Depends(get_db_service)):
+    success = db_service.delete_student_marks(subject_id, regno)
+    if success:
+        return {"status": "success", "message": "Student marks deleted successfully"}
+    else:
+        return {"status": "error", "message": "Student marks not found"}
+
+@app.post("/student_sheet_upload")
+async def student_sheet_upload(
+    subject_id: int = Form(...),
+    student_image: UploadFile = File(...),
+    db_service: DBServiceForServer = Depends(get_db_service)
+):
+    try:
+        unique_id = str(uuid.uuid4())
+        file_extension = os.path.splitext(student_image.filename)[1]
+        image_filename = f"{subject_id}_{unique_id}{file_extension}"
+        image_path = STUDENT_IMAGE_FOLDER / image_filename
+        
+        with open(image_path, "wb") as buffer:
+            content = await student_image.read()
+            buffer.write(content)
+        
+        print("=" * 50)
+        print("Student Sheet Upload Details:")
+        print(f"Subject ID: {subject_id}")
+        print(f"Image Unique ID: {unique_id}")
+        print(f"Image Path: {image_path}")
+        print("=" * 50)
+        
+        from db_service import Subject
+        subject = db_service.db.query(Subject).filter(Subject.id == subject_id).first()
+        if not subject:
+            return {"status": "error", "message": "Subject not found"}
+        ia_number = int(subject.ia.replace("IA", ""))
+    
+        image_processor = ImageProcess()
+        processed_images = image_processor.process_student_image(
+            image_path=str(image_path),
+            subject_id=subject_id,
+            unique_id=unique_id,
+            output_dir=str(TOP_BOTTOM_FOLDER)
+        )
+        
+        print("=" * 50)
+        print("Processed Images:")
+        print(f"Top Image: {processed_images['top_image']}")
+        print(f"Bottom Image: {processed_images['bot_image']}")
+        print("=" * 50)
+        
+        extraction_pipeline = ExtractionPipeline()
+        extracted_data = extraction_pipeline.process_student_sheet(
+            top_image_path=processed_images['top_image'],
+            bottom_image_path=processed_images['bot_image'],
+            subject_id=subject_id,
+            ia_id=ia_number,
+            save_to_db=True
+        )
+        
+        print("=" * 50)
+        print("Extracted Data:")
+        print(f"Registration No: {extracted_data['regno']}")
+        print(f"Marks: {extracted_data['marks']}")
+        print(f"IA Number: {ia_number}")
+        print("Data saved to database!")
+        print("=" * 50)
+        
+        return {
+            "status": "success",
+            "message": "Student answer sheet uploaded, processed, extracted, and saved to database successfully",
+            "data": {
+                "subject_id": subject_id,
+                "ia_number": ia_number,
+                "image_id": unique_id,
+                "original_image": str(image_path),
+                "top_image": processed_images['top_image'],
+                "bot_image": processed_images['bot_image'],
+                "regno": extracted_data['regno'],
+                "marks": extracted_data['marks']
+            }
+        }
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to upload: {str(e)}"
+        }
+
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
