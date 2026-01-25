@@ -22,7 +22,11 @@ CO_IMAGE_FOLDER = Path("public/co_image")
 CO_IMAGE_FOLDER.mkdir(parents=True, exist_ok=True)
 
 def get_db_service():
-    return DBServiceForServer()
+    db_service = DBServiceForServer()
+    try:
+        yield db_service
+    finally:
+        db_service.close()
 
 @app.get("/")
 def read_root():
@@ -38,7 +42,8 @@ async def co_creation(
     subject_name: str = Form(...),
     sem: int = Form(...),
     ia_number: int = Form(...),
-    co_image: UploadFile = File(...)
+    co_image: UploadFile = File(...),
+    db_service: DBServiceForServer = Depends(get_db_service)
 ):
     co_data = CoCreationModel(
         subject_name=subject_name,
@@ -61,7 +66,7 @@ async def co_creation(
     print(f"Image Unique ID: {unique_id}")
     print(f"Image Path: {image_path}")
     print("=" * 50)
-    db_service = get_db_service()
+    
     try:
         created_subject = db_service.create_co_subject(
             subject_name=co_data.subject_name,

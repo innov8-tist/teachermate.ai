@@ -1,0 +1,485 @@
+'use client';
+
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, Image, Alert, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { useImagePicker } from '@/hooks/use-image-picker';
+import { coService, Subject } from '@/services/api/co-service';
+import { Feather } from '@expo/vector-icons';
+
+interface COCreationScreenProps {
+  // No props needed anymore
+}
+
+interface COCreationScreenProps {
+  onSuccess?: () => void;
+}
+
+export const COCreationScreen: React.FC<COCreationScreenProps> = ({ onSuccess }) => {
+  const [selectedSemester, setSelectedSemester] = useState<string>('');
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [subjectName, setSubjectName] = useState('');
+  const [selectedOption, setSelectedOption] = useState<'1' | '2' | null>(null);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { pickFromGallery } = useImagePicker();
+
+  const handleSemesterSelect = async (sem: string) => {
+    setSelectedSemester(sem);
+    const fetchedSubjects = await coService.fetchSubjects(sem);
+    setSubjects(fetchedSubjects);
+  };
+
+  const handleImagePick = async () => {
+    const uri = await pickFromGallery();
+    if (uri) setUploadedImage(uri);
+  };
+
+  const handleSubmit = async () => {
+    if (!selectedSemester || !subjectName || !selectedOption || !uploadedImage) {
+      Alert.alert('Missing Information', 'Please fill all fields and upload CO table');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const uriParts = uploadedImage.split('.');
+      const fileType = uriParts[uriParts.length - 1];
+
+      const result = await coService.createCO({
+        subject_name: subjectName,
+        sem: selectedSemester,
+        ia_number: selectedOption,
+        co_image: {
+          uri: uploadedImage,
+          name: `co_table.${fileType}`,
+          type: `image/${fileType}`,
+        },
+      });
+
+      if (result.status === 'success') {
+        Alert.alert('Success', 'CO created successfully!', [
+          {
+            text: 'OK',
+            onPress: () => {
+              // Reset form
+              setSelectedSemester('');
+              setSubjectName('');
+              setSelectedOption(null);
+              setUploadedImage(null);
+              setSubjects([]);
+              // Navigate back to My CO's
+              onSuccess?.();
+            }
+          }
+        ]);
+      } else {
+        Alert.alert('Error', result.message || 'Failed to create CO');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to submit CO creation');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <View style={styles.content}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>Create CO Mapping</Text>
+          <Text style={styles.subtitle}>Define course outcomes for your class</Text>
+        </View>
+
+        {/* Semester Selection */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.stepBadge}>
+              <Text style={styles.stepNumber}>1</Text>
+            </View>
+            <View style={styles.stepContent}>
+              <Text style={styles.sectionTitle}>Select Semester</Text>
+              <Text style={styles.sectionDesc}>Choose the academic semester</Text>
+            </View>
+          </View>
+          <View style={styles.semesterGrid}>
+            {['1', '2', '3', '4', '5', '6', '7', '8'].map((sem) => (
+              <Pressable
+                key={sem}
+                style={[styles.semesterBtn, selectedSemester === sem && styles.semesterBtnActive]}
+                onPress={() => handleSemesterSelect(sem)}
+              >
+                <Text style={[styles.semesterText, selectedSemester === sem && styles.semesterTextActive]}>
+                  {sem}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        {/* Subject Selection */}
+        {selectedSemester && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.stepBadge}>
+                <Text style={styles.stepNumber}>2</Text>
+              </View>
+              <View style={styles.stepContent}>
+                <Text style={styles.sectionTitle}>Select Subject</Text>
+                <Text style={styles.sectionDesc}>Choose the subject for this CO</Text>
+              </View>
+            </View>
+            <View style={styles.subjectList}>
+              {subjects.map((subject, index) => (
+                <Pressable
+                  key={index}
+                  style={[styles.subjectBtn, subjectName === subject.name && styles.subjectBtnActive]}
+                  onPress={() => setSubjectName(subject.name)}
+                >
+                  <Text style={[styles.subjectText, subjectName === subject.name && styles.subjectTextActive]}>
+                    {subject.name}
+                  </Text>
+                  {subjectName === subject.name && (
+                    <Feather name="check" size={20} color="#000" />
+                  )}
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* IA Selection */}
+        {selectedSemester && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.stepBadge}>
+                <Text style={styles.stepNumber}>3</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sectionTitle}>Assessment Type</Text>
+                <Text style={styles.sectionDesc}>Internal assessment 1 or 2</Text>
+              </View>
+            </View>
+            <View style={styles.iaGrid}>
+              {['1', '2'].map((option) => (
+                <Pressable
+                  key={option}
+                  style={[styles.iaBtn, selectedOption === option && styles.iaBtnActive]}
+                  onPress={() => setSelectedOption(option as '1' | '2')}
+                >
+                  <View
+                    style={[
+                      styles.iaRadio,
+                      selectedOption === option && styles.iaRadioActive,
+                    ]}
+                  >
+                    {selectedOption === option && (
+                      <View style={styles.iaRadioDot} />
+                    )}
+                  </View>
+                  <Text style={[styles.iaText, selectedOption === option && styles.iaTextActive]}>
+                    IA {option}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Image Upload */}
+        {selectedSemester && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.stepBadge}>
+                <Text style={styles.stepNumber}>4</Text>
+              </View>
+              <View style={styles.stepContent}>
+                <Text style={styles.sectionTitle}>Upload CO Mapping</Text>
+                <Text style={styles.sectionDesc}>Photo of question to CO mapping</Text>
+                <Text style={styles.cropHint}>💡 Tip: After selecting image, crop it and tap "CROP" to confirm your selection</Text>
+              </View>
+            </View>
+            <Pressable style={styles.uploadBox} onPress={handleImagePick}>
+              {uploadedImage ? (
+                <>
+                  <Image
+                    source={{ uri: uploadedImage }}
+                    style={styles.uploadedImage}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.uploadedOverlay}>
+                    <Feather name="check-circle" size={32} color="#fff" />
+                  </View>
+                </>
+              ) : (
+                <View style={styles.uploadContent}>
+                  <View style={styles.uploadIconBox}>
+                    <Feather name="upload-cloud" size={28} color="#000" />
+                  </View>
+                  <Text style={styles.uploadText}>Tap to upload</Text>
+                  <Text style={styles.uploadSubtext}>PNG, JPG up to 5MB</Text>
+                </View>
+              )}
+            </Pressable>
+          </View>
+        )}
+
+        {/* Submit Button */}
+        <Pressable
+          style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
+          onPress={handleSubmit}
+          disabled={isSubmitting}
+        >
+          <Text style={styles.submitText}>
+            {isSubmitting ? 'Creating...' : 'Create CO Mapping'}
+          </Text>
+        </Pressable>
+      </View>
+    </ScrollView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+  content: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    paddingBottom: 32,
+  },
+  header: {
+    marginBottom: 32,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#000',
+    marginBottom: 6,
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '400',
+  },
+  section: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+    gap: 12,
+  },
+  stepBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#000000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stepNumber: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  stepContent: {
+    flex: 1,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#000',
+    marginBottom: 4,
+  },
+  sectionDesc: {
+    fontSize: 13,
+    color: '#666',
+  },
+  cropHint: {
+    fontSize: 12,
+    color: '#4CAF50',
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  semesterGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    justifyContent: 'space-between',
+  },
+  semesterBtn: {
+    width: '22%',
+    aspectRatio: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e9ecef',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  semesterBtnActive: {
+    backgroundColor: '#000000',
+    borderColor: '#000000',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  semesterText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333333',
+  },
+  semesterTextActive: {
+    color: '#ffffff',
+  },
+  subjectList: {
+    gap: 8,
+  },
+  subjectBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+  },
+  subjectBtnActive: {
+    backgroundColor: '#000',
+    borderColor: '#000',
+  },
+  subjectText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#000',
+  },
+  subjectTextActive: {
+    color: '#fff',
+  },
+  iaGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  iaBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+    gap: 10,
+  },
+  iaBtnActive: {
+    backgroundColor: '#000',
+    borderColor: '#000',
+  },
+  iaRadio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#d0d0d0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iaRadioActive: {
+    borderColor: '#fff',
+  },
+  iaRadioDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#fff',
+  },
+  iaText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#000',
+  },
+  iaTextActive: {
+    color: '#fff',
+  },
+  uploadBox: {
+    height: 160,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#f0f0f0',
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  uploadContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  uploadIconBox: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  uploadText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#000',
+    marginBottom: 2,
+  },
+  uploadSubtext: {
+    fontSize: 11,
+    color: '#999',
+  },
+  uploadedImage: {
+    width: '100%',
+    height: '100%',
+  },
+  uploadedOverlay: {
+    position: 'absolute',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  submitBtn: {
+    backgroundColor: '#000',
+    paddingVertical: 16,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  submitBtnDisabled: {
+    backgroundColor: '#ccc',
+  },
+  submitText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+});
