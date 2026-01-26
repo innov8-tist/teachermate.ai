@@ -1,5 +1,5 @@
 from db_service import get_db
-from db_service import AllSubject, Subject, StudentMark
+from db_service import AllSubject, Subject, StudentMark,COMAPPEDQUESTION
 from sqlalchemy.orm import Session
 class DBServiceForServer:
     def __init__(self):
@@ -56,9 +56,69 @@ class DBServiceForServer:
         questions = self.db.query(COMAPPEDQUESTION).filter(COMAPPEDQUESTION.subject_id == subject_id).all()
         return [{"q_no": q.q_no, "co_no": q.co_no} for q in questions]
 
+    def get_subject_info(self, subject_id: int):
+        subject = self.db.query(Subject).filter(Subject.id == subject_id).first()
+        if not subject:
+            return None
+        return {
+            "name": subject.name,
+            "ia": subject.ia,
+            "branch": subject.branch,
+            "sem": subject.sem
+        }
+
+    def get_co_mapped_data_for_excel(self, subject_id: int):
+        co_mappings = self.db.query(COMAPPEDQUESTION).filter(
+            COMAPPEDQUESTION.subject_id == subject_id
+        ).all()
+        question_to_co = {}
+        co_structure = {}
+        
+        for mapping in co_mappings:
+            question_to_co[mapping.q_no] = mapping.co_no
+            if mapping.co_no not in co_structure:
+                co_structure[mapping.co_no] = []
+            co_structure[mapping.co_no].append(mapping.q_no)
+        co_structure = {co: sorted(questions) for co, questions in sorted(co_structure.items())}
+
+        students_marks = self.db.query(StudentMark).filter(
+            StudentMark.subject_id == subject_id
+        ).all()
+        
+        student_data = {}
+        for mark in students_marks:
+            regno = mark.regno
+            question_no = mark.question_no
+            mark_value = float(mark.mark) if mark.mark else 0
+            
+            if regno not in student_data:
+                student_data[regno] = {}
+            
+            co = question_to_co.get(question_no)
+            if co:
+                if co not in student_data[regno]:
+                    student_data[regno][co] = {}
+                student_data[regno][co][question_no] = mark_value
+        
+        for regno in student_data:
+            for co in student_data[regno]:
+                student_data[regno][co]['total'] = sum(student_data[regno][co].values())
+        
+        students_list = [
+            {
+                'regno': regno,
+                'marks': marks
+            }
+            for regno, marks in student_data.items()
+        ]
+        
+        return {
+            'students': students_list,
+            'co_structure': co_structure
+        }
+
     def get_students_by_subject(self, subject_id: int):
         from db_service import StudentMark
-        # Get unique registration numbers for this subject
         students = self.db.query(StudentMark.regno).filter(
             StudentMark.subject_id == subject_id
         ).distinct().all()

@@ -1,10 +1,14 @@
 from fastapi import FastAPI, Depends, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 import uvicorn
 import os
 import uuid
 import tempfile
 from pathlib import Path
+from io import BytesIO
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from models.pydanticmodel import CoCreationModel
 from db_operation.db_server import DBServiceForServer
 from comapping.teacher_co_processing.extracting import main_func
@@ -156,6 +160,132 @@ def all_co_of_teacher(teacher_id: int, db_service: DBServiceForServer = Depends(
 def co_details(subject_id: int, db_service: DBServiceForServer = Depends(get_db_service)):
     details = db_service.get_co_details(subject_id)
     return details
+
+@app.get("/co_subject_info/{subject_id}")
+def co_subject_info(subject_id: int, db_service: DBServiceForServer = Depends(get_db_service)):
+    subject_info = db_service.get_subject_info(subject_id)
+    return subject_info
+
+@app.get("/co_download_excel/{subject_id}")
+def download_co_excel(subject_id: int, db_service: DBServiceForServer = Depends(get_db_service)):
+    """
+    Generate and download Excel file with student marks mapped to COs with question breakdown
+    Format: Register Number | CO1 (Q1, Q2, Total) | CO2 (Q3, Q4, Total) | ...
+    """
+    try:
+        subject_info = db_service.get_subject_info(subject_id)
+        if not subject_info:
+            return {"status": "error", "message": "Subject not found"}
+        data = db_service.get_co_mapped_data_for_excel(subject_id)
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "CO Mapping"
+
+
+        border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+        
+        total_cols = 1  
+        for co, questions in data['co_structure'].items():
+            total_cols += len(questions) + 1  
+        
+        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=total_cols)
+        title_cell = ws.cell(row=1, column=1)
+        title_cell.value = f"{subject_info['name']} - {subject_info['ia']} - CO Mapping"
+        title_cell.font = Font(bold=True, size=14)
+        title_cell.alignment = Alignment(horizontal='center', vertical='center')
+        
+        col_idx = 1
+        cell = ws.cell(row=2, column=col_idx)
+        cell.value = "Register Number"
+        cell.font = Font(bold=True, size=11)
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = border
+        ws.merge_cells(start_row=2, start_column=col_idx, end_row=3, end_column=col_idx)
+        col_idx += 1
+        
+ 
+        for co, questions in data['co_structure'].items():
+            start_col = col_idx
+            end_col = col_idx + len(questions)  
+            
+            ws.merge_cells(start_row=2, start_column=start_col, end_row=2, end_column=end_col)
+            cell = ws.cell(row=2, column=start_col)
+            cell.value = co
+            cell.font = Font(bold=True, size=10)
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = border
+            
+            col_idx = end_col + 1
+        
+        col_idx = 2  
+        
+        for co, questions in data['co_structure'].items():
+            for question in questions:
+                cell = ws.cell(row=3, column=col_idx)
+                cell.value = question
+                cell.font = Font(bold=True, size=9)
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                cell.border = border
+                ws.column_dimensions[chr(64 + col_idx)].width = 8
+                col_idx += 1
+            
+            cell = ws.cell(row=3, column=col_idx)
+            cell.value = f"Total {co}"
+            cell.font = Font(bold=True, size=9)
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = border
+            ws.column_dimensions[chr(64 + col_idx)].width = 10
+            col_idx += 1
+        
+        for row_idx, student in enumerate(data['students'], start=4):
+            col_idx = 1
+            
+            cell = ws.cell(row=row_idx, column=col_idx)
+            cell.value = student['regno']
+            cell.border = border
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            col_idx += 1
+            
+            for co, questions in data['co_structure'].items():
+                student_co_marks = student['marks'].get(co, {})
+                
+                for question in questions:
+                    cell = ws.cell(row=row_idx, column=col_idx)
+                    cell.value = student_co_marks.get(question, 0)
+                    cell.border = border
+                    cell.alignment = Alignment(horizontal='center', vertical='center')
+                    col_idx += 1
+                
+                cell = ws.cell(row=row_idx, column=col_idx)
+                cell.value = student_co_marks.get('total', 0)
+                cell.border = border
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                cell.font = Font(bold=True)
+                col_idx += 1
+  
+        ws.column_dimensions['A'].width = 18
+        
+        excel_file = BytesIO()
+        wb.save(excel_file)
+        excel_file.seek(0)
+        
+        filename = f"{subject_info['name']}_{subject_info['ia']}_CO_Mapping.xlsx"
+        
+        return StreamingResponse(
+            excel_file,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except Exception as e:
+        print(f"Error generating Excel: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"status": "error", "message": f"Failed to generate Excel: {str(e)}"}
 
 @app.delete("/co_delete/{subject_id}")
 def delete_co(subject_id: int, db_service: DBServiceForServer = Depends(get_db_service)):

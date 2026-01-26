@@ -13,6 +13,12 @@
     },
     "android": {
       "package": "com.myapp",
+      "permissions": [
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VIDEO"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -45,6 +51,14 @@
         {
           "photosPermission": "The app needs access to your photos to upload images.",
           "cameraPermission": "The app needs access to your camera to take photos."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow the app to save files to your device.",
+          "savePhotosPermission": "Allow the app to save files to your device.",
+          "isAccessMediaLocationEnabled": true
         }
       ]
     ],
