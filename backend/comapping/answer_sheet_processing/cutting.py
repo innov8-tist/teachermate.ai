@@ -65,63 +65,89 @@ class ImageProcess:
         sharpened = cv2.filter2D(denoised, -1, kernel)
         cv2.imwrite(image_name, sharpened)
 
-    def process_student_image(self, image_path: str, subject_id: int, unique_id: str, output_dir: str):
+    def process_student_image(self, image_path: str, subject_id: int, unique_id: str, output_dir: str = None):
         """
-        Process student answer sheet image and save top/bottom parts
+        Process student answer sheet image and return top/bottom parts as bytes
         
         Args:
             image_path: Path to the uploaded image
             subject_id: Subject ID for naming
             unique_id: Unique identifier for the image
-            output_dir: Directory to save processed images
+            output_dir: Optional directory to save processed images locally (for fallback)
         
         Returns:
-            dict with paths to top and bottom images
+            dict with paths and bytes for top and bottom images
         """
-        # Create output directory if it doesn't exist
-        os.makedirs(output_dir, exist_ok=True)
-        
-        # Define output paths
-        top_output = os.path.join(output_dir, f"{subject_id}_{unique_id}_top.png")
-        bot_output = os.path.join(output_dir, f"{subject_id}_{unique_id}_bot.png")
-        
         # Temporary files for processing
-        temp_top = "temp_top.png"
-        temp_bot = "temp_bot.png"
+        temp_top = f"temp_top_{unique_id}.png"
+        temp_bot = f"temp_bot_{unique_id}.png"
+        temp_split_top = f"temp_split_top_{unique_id}.png"
+        temp_split_bot = f"temp_split_bot_{unique_id}.png"
         
         try:
             # Split image into top and bottom halves
-            self.split_image_half(image_path)
+            img = Image.open(image_path)
+            width, height = img.size
+            mid_y = height // 2
+
+            img.crop((0, 0, width, mid_y)).save(temp_split_top)
+            img.crop((0, mid_y, width, height)).save(temp_split_bot)
             
             # Crop the middle sections
-            self.middle_croping_top("top.png", temp_top)
-            self.middle_croping_bottom("bot.png", temp_bot)
+            self.middle_croping_top(temp_split_top, temp_top)
+            self.middle_croping_bottom(temp_split_bot, temp_bot)
             
             # Apply OCR enhancement
             self.ocr_enhancement(temp_top)
             self.ocr_enhancement(temp_bot)
             
-            # Move to final destination
-            shutil.move(temp_top, top_output)
-            shutil.move(temp_bot, bot_output)
+            # Read processed images as bytes
+            with open(temp_top, 'rb') as f:
+                top_bytes = f.read()
+            with open(temp_bot, 'rb') as f:
+                bot_bytes = f.read()
             
-            # Clean up temporary files
-            for temp_file in ["top.png", "bot.png"]:
+            result = {
+                "top_image_bytes": top_bytes,
+                "bot_image_bytes": bot_bytes,
+                "top_image_path": temp_top,
+                "bot_image_path": temp_bot
+            }
+            
+            # Optionally save to output directory for fallback
+            if output_dir:
+                os.makedirs(output_dir, exist_ok=True)
+                top_output = os.path.join(output_dir, f"{subject_id}_{unique_id}_top.png")
+                bot_output = os.path.join(output_dir, f"{subject_id}_{unique_id}_bot.png")
+                shutil.copy(temp_top, top_output)
+                shutil.copy(temp_bot, bot_output)
+                result["top_image_fallback"] = top_output
+                result["bot_image_fallback"] = bot_output
+            
+            # Clean up temporary split files
+            for temp_file in [temp_split_top, temp_split_bot]:
                 if os.path.exists(temp_file):
                     os.remove(temp_file)
             
-            print(f"Processed images saved to {output_dir}")
+            print(f"Processed images ready for upload")
             
-            return {
-                "top_image": top_output,
-                "bot_image": bot_output
-            }
+            return result
         except Exception as e:
             # Clean up on error
-            for temp_file in ["top.png", "bot.png", temp_top, temp_bot]:
+            for temp_file in [temp_split_top, temp_split_bot, temp_top, temp_bot]:
                 if os.path.exists(temp_file):
                     os.remove(temp_file)
             raise e
+    
+    def cleanup_temp_files(self, temp_top: str, temp_bot: str):
+        """Clean up temporary processing files"""
+        for temp_file in [temp_top, temp_bot]:
+            if os.path.exists(temp_file):
+                try:
+                    os.remove(temp_file)
+                    print(f"✓ Cleaned up temp file: {temp_file}")
+                except Exception as e:
+                    print(f"⚠ Failed to clean up {temp_file}: {e}")
 
 
 if __name__ == "__main__":

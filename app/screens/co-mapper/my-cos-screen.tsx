@@ -142,11 +142,12 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   title: {
-    fontSize: 32,
-    fontWeight: '700',
+    fontSize: 36,
+    fontWeight: '800',
     color: '#000',
     marginBottom: 6,
-    letterSpacing: -0.5,
+    letterSpacing: -1.5,
+    fontFamily: 'System',
   },
   subtitle: {
     fontSize: 14,

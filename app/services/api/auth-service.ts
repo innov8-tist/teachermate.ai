@@ -1,4 +1,4 @@
-const BASE_URL = 'http://10.0.2.2:8000';
+import { API_BASE_URL } from '@/constants/api';
 
 export interface LoginRequest {
   email: string;
@@ -34,11 +34,10 @@ export const authService = {
     formData.append('email', data.email);
     formData.append('password', data.password);
 
-    const response = await fetch(`${BASE_URL}/auth/login`, {
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: 'POST',
       body: formData,
     });
-
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Login failed');
@@ -59,7 +58,7 @@ export const authService = {
       formData.append('pfp', data.pfp as any);
     }
 
-    const response = await fetch(`${BASE_URL}/auth/signup`, {
+    const response = await fetch(`${API_BASE_URL}/auth/signup`, {
       method: 'POST',
       body: formData,
     });

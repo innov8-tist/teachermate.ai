@@ -147,8 +147,8 @@ class ExtractionPipeline:
         Complete pipeline to extract both regno and marks
         
         Args:
-            top_image_path: Path to top processed image
-            bottom_image_path: Path to bottom processed image
+            top_image_path: Path to top processed image (can be temp file)
+            bottom_image_path: Path to bottom processed image (can be temp file)
             subject_id: Subject ID for database storage
             ia_id: IA number (1 or 2)
             save_to_db: Whether to save to database

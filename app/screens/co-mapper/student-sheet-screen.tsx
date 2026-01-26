@@ -1,11 +1,10 @@
-'use client';
-
 import React, { useState, useEffect } from 'react';
 import { View, Text, Image, Alert, StyleSheet, ScrollView, Pressable, Modal, ActivityIndicator } from 'react-native';
 import { useImagePicker } from '@/hooks/use-image-picker';
 import { useAuth } from '@/contexts/auth-context';
 import { Feather } from '@expo/vector-icons';
 import { coService, CO } from '@/services/api/co-service';
+import { API_BASE_URL } from '@/constants/api';
 
 interface StudentSheetScreenProps {
   onViewCompletedStudents: (coId: number, coName: string) => void;
@@ -51,11 +50,11 @@ export const StudentSheetScreen: React.FC<StudentSheetScreenProps> = ({ onViewCo
 
   const handleSubmit = async () => {
     if (!selectedImage) {
-      Alert.alert('Missing Information', 'Please select or capture an image');
+      Alert.alert('Missing Information', 'Please select or capture an answer sheet image');
       return;
     }
     if (!selectedCO) {
-      Alert.alert('Missing Information', 'Please select a CO mapping');
+      Alert.alert('Missing Information', 'Please select a CO template');
       return;
     }
 
@@ -77,7 +76,7 @@ export const StudentSheetScreen: React.FC<StudentSheetScreenProps> = ({ onViewCo
 
       setProcessingStep('Processing image...');
 
-      const response = await fetch('http://10.0.2.2:8000/student_sheet_upload', {
+      const response = await fetch(`${API_BASE_URL}/student_sheet_upload`, {
         method: 'POST',
         body: formData,
         headers: {
@@ -91,16 +90,16 @@ export const StudentSheetScreen: React.FC<StudentSheetScreenProps> = ({ onViewCo
       if (result.status === 'success') {
         setProcessingStep('Saving to database...');
         setTimeout(() => {
-          Alert.alert('Success', 'Student answer sheet processed and saved successfully!');
+          Alert.alert('Success', 'Answer sheet analyzed and CO mappings saved successfully!');
           setSelectedImage(null);
           setSelectedCO(null);
           setProcessingStep('');
         }, 500);
       } else {
-        Alert.alert('Error', result.message || 'Failed to upload');
+        Alert.alert('Error', result.message || 'Failed to analyze answer sheet');
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to upload student answer sheet');
+      Alert.alert('Error', 'Failed to analyze answer sheet');
       console.error(error);
     } finally {
       setIsSubmitting(false);
@@ -114,19 +113,19 @@ export const StudentSheetScreen: React.FC<StudentSheetScreenProps> = ({ onViewCo
         <View style={styles.content}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>Student Answer Sheet</Text>
-            <Text style={styles.subtitle}>Capture or upload student Answer</Text>
+            <Text style={styles.title}>Analyze Answer Sheet</Text>
+            <Text style={styles.subtitle}>Upload student answers to map them to COs</Text>
           </View>
 
           {/* CO Selection Dropdown */}
           <View style={styles.dropdownSection}>
-            <Text style={styles.dropdownLabel}>Select CO Mapping *</Text>
+            <Text style={styles.dropdownLabel}>Select CO Template *</Text>
             <Pressable
               style={[styles.dropdownButton, selectedCO && styles.dropdownButtonSelected]}
               onPress={() => setShowDropdown(!showDropdown)}
             >
               <Text style={[styles.dropdownText, !selectedCO && styles.dropdownPlaceholder]}>
-                {selectedCO ? `${selectedCO.name} - ${selectedCO.ia}` : 'Choose a CO mapping'}
+                {selectedCO ? `${selectedCO.name} - ${selectedCO.ia}` : 'Choose a CO template'}
               </Text>
               <Feather name={showDropdown ? 'chevron-up' : 'chevron-down'} size={20} color="#666" />
             </Pressable>
@@ -135,7 +134,7 @@ export const StudentSheetScreen: React.FC<StudentSheetScreenProps> = ({ onViewCo
               <View style={styles.dropdownList}>
                 {myCOs.length === 0 ? (
                   <View style={styles.dropdownEmpty}>
-                    <Text style={styles.dropdownEmptyText}>No CO mappings available</Text>
+                    <Text style={styles.dropdownEmptyText}>No CO templates available</Text>
                   </View>
                 ) : (
                   myCOs.map((co) => (
@@ -224,12 +223,12 @@ export const StudentSheetScreen: React.FC<StudentSheetScreenProps> = ({ onViewCo
             <Feather name="upload-cloud" size={20} color="#fff" style={{ marginRight: 8 }} />
             <Text style={styles.submitText}>
               {isSubmitting
-                ? 'Uploading...'
+                ? 'Analyzing...'
                 : !selectedCO
-                  ? 'Select CO mapping first'
+                  ? 'Select CO template first'
                   : !selectedImage
                     ? 'Select an image first'
-                    : 'Submit Answer Sheet'}
+                    : 'Analyze Answer Sheet'}
             </Text>
           </Pressable>
         </View>
@@ -244,7 +243,7 @@ export const StudentSheetScreen: React.FC<StudentSheetScreenProps> = ({ onViewCo
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <ActivityIndicator size="large" color="#000" />
-            <Text style={styles.modalTitle}>Processing Answer Sheet</Text>
+            <Text style={styles.modalTitle}>Analyzing Answer Sheet</Text>
             <Text style={styles.modalStep}>{processingStep}</Text>
             <View style={styles.modalSteps}>
               <View style={styles.stepItem}>
@@ -254,12 +253,12 @@ export const StudentSheetScreen: React.FC<StudentSheetScreenProps> = ({ onViewCo
               <View style={styles.stepDivider} />
               <View style={styles.stepItem}>
                 <Feather name="scissors" size={16} color="#999" />
-                <Text style={styles.stepText}>Process</Text>
+                <Text style={styles.stepText}>Segment</Text>
               </View>
               <View style={styles.stepDivider} />
               <View style={styles.stepItem}>
-                <Feather name="eye" size={16} color="#999" />
-                <Text style={styles.stepText}>Extract</Text>
+                <Feather name="target" size={16} color="#999" />
+                <Text style={styles.stepText}>Map COs</Text>
               </View>
               <View style={styles.stepDivider} />
               <View style={styles.stepItem}>

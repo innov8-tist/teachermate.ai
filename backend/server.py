@@ -35,12 +35,6 @@ app.include_router(auth_router)
 TEMP_FOLDER = Path(tempfile.gettempdir()) / "co_images"
 TEMP_FOLDER.mkdir(parents=True, exist_ok=True)
 
-STUDENT_IMAGE_FOLDER = Path("public/co_student_image")
-STUDENT_IMAGE_FOLDER.mkdir(parents=True, exist_ok=True)
-
-TOP_BOTTOM_FOLDER = Path("public/co_top_bottom")
-TOP_BOTTOM_FOLDER.mkdir(parents=True, exist_ok=True)
-
 def get_db_service():
     db_service = DBServiceForServer()
     try:
@@ -322,44 +316,82 @@ async def student_sheet_upload(
     try:
         unique_id = str(uuid.uuid4())
         file_extension = os.path.splitext(student_image.filename)[1]
-        image_filename = f"{subject_id}_{unique_id}{file_extension}"
-        image_path = STUDENT_IMAGE_FOLDER / image_filename
         
-        with open(image_path, "wb") as buffer:
-            content = await student_image.read()
-            buffer.write(content)
+        # Read file content
+        file_content = await student_image.read()
+        
+        # Upload original image to S3
+        original_s3_url = None
+        if s3_service.is_available:
+            original_s3_url = s3_service.upload_student_sheet(
+                file_content=file_content,
+                file_extension=file_extension,
+                subject_id=subject_id,
+                unique_id=unique_id
+            )
+        
+        # Save to temp file for processing
+        temp_filename = f"{subject_id}_{unique_id}{file_extension}"
+        temp_path = TEMP_FOLDER / temp_filename
+        with open(temp_path, "wb") as buffer:
+            buffer.write(file_content)
         
         print("=" * 50)
         print("Student Sheet Upload Details:")
         print(f"Subject ID: {subject_id}")
         print(f"Image Unique ID: {unique_id}")
-        print(f"Image Path: {image_path}")
+        print(f"Original S3 URL: {original_s3_url or 'S3 not available'}")
+        print(f"Temp Path: {temp_path}")
         print("=" * 50)
         
-        from db_service import Subject
-        subject = db_service.db.query(Subject).filter(Subject.id == subject_id).first()
-        if not subject:
-            return {"status": "error", "message": "Subject not found"}
-        ia_number = int(subject.ia.replace("IA", ""))
+        from db_service import COTemplate
+        template = db_service.db.query(COTemplate).filter(COTemplate.id == subject_id).first()
+        if not template:
+            # Clean up temp file
+            if temp_path.exists():
+                os.remove(temp_path)
+            return {"status": "error", "message": "CO template not found"}
+        ia_number = int(template.ia.replace("IA", ""))
     
+        # Process the image
         image_processor = ImageProcess()
         processed_images = image_processor.process_student_image(
-            image_path=str(image_path),
+            image_path=str(temp_path),
             subject_id=subject_id,
             unique_id=unique_id,
-            output_dir=str(TOP_BOTTOM_FOLDER)
+            output_dir=None  # Don't save locally, we'll upload to S3
         )
+        
+        # Upload processed images to S3
+        top_s3_url = None
+        bot_s3_url = None
+        if s3_service.is_available:
+            top_s3_url = s3_service.upload_processed_image(
+                file_content=processed_images['top_image_bytes'],
+                file_extension='.png',
+                subject_id=subject_id,
+                unique_id=unique_id,
+                image_type='top'
+            )
+            bot_s3_url = s3_service.upload_processed_image(
+                file_content=processed_images['bot_image_bytes'],
+                file_extension='.png',
+                subject_id=subject_id,
+                unique_id=unique_id,
+                image_type='bot'
+            )
         
         print("=" * 50)
         print("Processed Images:")
-        print(f"Top Image: {processed_images['top_image']}")
-        print(f"Bottom Image: {processed_images['bot_image']}")
+        print(f"Top S3 URL: {top_s3_url or 'S3 not available'}")
+        print(f"Bottom S3 URL: {bot_s3_url or 'S3 not available'}")
         print("=" * 50)
         
+        # Extract data using temporary files
         extraction_pipeline = ExtractionPipeline()
         extracted_data = extraction_pipeline.process_student_sheet(
-            top_image_path=processed_images['top_image'],
-            bottom_image_path=processed_images['bot_image'],
+            top_image_path=processed_images['top_image_path'],
+            bottom_image_path=processed_images['bot_image_path'],
             subject_id=subject_id,
             ia_id=ia_number,
             save_to_db=True
@@ -373,6 +405,18 @@ async def student_sheet_upload(
         print("Data saved to database!")
         print("=" * 50)
         
+        # Clean up all temporary files
+        try:
+            if temp_path.exists():
+                os.remove(temp_path)
+            image_processor.cleanup_temp_files(
+                processed_images['top_image_path'],
+                processed_images['bot_image_path']
+            )
+            print("✓ All temporary files cleaned up")
+        except Exception as e:
+            print(f"⚠ Failed to clean up some temp files: {e}")
+        
         return {
             "status": "success",
             "message": "Student answer sheet uploaded, processed, extracted, and saved to database successfully",
@@ -380,15 +424,26 @@ async def student_sheet_upload(
                 "subject_id": subject_id,
                 "ia_number": ia_number,
                 "image_id": unique_id,
-                "original_image": str(image_path),
-                "top_image": processed_images['top_image'],
-                "bot_image": processed_images['bot_image'],
+                "original_image_url": original_s3_url,
+                "top_image_url": top_s3_url,
+                "bot_image_url": bot_s3_url,
                 "regno": extracted_data['regno'],
                 "marks": extracted_data['marks']
             }
         }
     except Exception as e:
         print(f"Error: {str(e)}")
+        # Clean up temp files on error
+        try:
+            if 'temp_path' in locals() and temp_path.exists():
+                os.remove(temp_path)
+            if 'processed_images' in locals():
+                image_processor.cleanup_temp_files(
+                    processed_images.get('top_image_path'),
+                    processed_images.get('bot_image_path')
+                )
+        except:
+            pass
         return {
             "status": "error",
             "message": f"Failed to upload: {str(e)}"
