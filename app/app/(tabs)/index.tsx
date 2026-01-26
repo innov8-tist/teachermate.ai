@@ -135,14 +135,14 @@ export default function HomeScreenRefactored() {
             onPress={() => setCoSubScreen('studentSheet')}
             activeOpacity={0.8}
           >
-            <Text style={{ fontSize: 20 }}>📄</Text>
+            <Feather name="file-text" size={24} color="#000000" />
           </TouchableOpacity>
           <TouchableOpacity 
             style={fabStyles.fabPrimary} 
             onPress={() => setCoSubScreen('creation')}
             activeOpacity={0.8}
           >
-            <Text style={{ fontSize: 28, color: 'white' }}>+</Text>
+            <Feather name="plus" size={28} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
       )}
@@ -151,11 +151,11 @@ export default function HomeScreenRefactored() {
       {activeTab === 'evaluation' && evaluationSubScreen === 'list' && (
         <View style={fabStyles.fabContainer}>
           <TouchableOpacity 
-            style={[fabStyles.fabPrimary, { backgroundColor: '#4FD1C5' }]} 
+            style={[fabStyles.fabPrimary, { backgroundColor: '#000000' }]} 
             onPress={() => setEvaluationSubScreen('upload')}
             activeOpacity={0.8}
           >
-            <Text style={{ fontSize: 28, color: 'white' }}>+</Text>
+            <Feather name="plus" size={28} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
       )}

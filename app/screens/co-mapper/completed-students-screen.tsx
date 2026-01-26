@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { API_BASE_URL } from '@/constants/api';
 
 interface CompletedStudentsScreenProps {
   subjectId: number;
@@ -38,14 +39,14 @@ export const CompletedStudentsScreen: React.FC<CompletedStudentsScreenProps> = (
   const fetchStudents = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`http://10.0.2.2:8000/students_by_subject/${subjectId}`);
+      const response = await fetch(`${API_BASE_URL}/students_by_subject/${subjectId}`);
       const data = await response.json();
 
       // Fetch total marks for each student
       const studentsWithMarks = await Promise.all(
         data.map(async (student: Student) => {
           try {
-            const marksResponse = await fetch(`http://10.0.2.2:8000/student_marks/${subjectId}/${student.regno}`);
+            const marksResponse = await fetch(`${API_BASE_URL}/student_marks/${subjectId}/${student.regno}`);
             const marks = await marksResponse.json();
             const total = marks.reduce((sum: number, mark: StudentMark) => sum + parseFloat(mark.mark || '0'), 0);
             return { ...student, totalMarks: total };
@@ -65,7 +66,7 @@ export const CompletedStudentsScreen: React.FC<CompletedStudentsScreenProps> = (
 
   const fetchStudentMarks = async (regno: string) => {
     try {
-      const response = await fetch(`http://10.0.2.2:8000/student_marks/${subjectId}/${regno}`);
+      const response = await fetch(`${API_BASE_URL}/student_marks/${subjectId}/${regno}`);
       const data = await response.json();
       setStudentMarks(data);
       setSelectedStudent(regno);
@@ -85,7 +86,7 @@ export const CompletedStudentsScreen: React.FC<CompletedStudentsScreenProps> = (
           style: 'destructive',
           onPress: async () => {
             try {
-              const response = await fetch(`http://10.0.2.2:8000/student_marks/${subjectId}/${regno}`, {
+              const response = await fetch(`${API_BASE_URL}/student_marks/${subjectId}/${regno}`, {
                 method: 'DELETE',
               });
               const result = await response.json();
