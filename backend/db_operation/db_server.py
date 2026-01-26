@@ -76,7 +76,7 @@ class DBServiceForServer:
     def get_co_mapped_data_for_excel(self, subject_id: int):
         """Get student marks mapped to COs for Excel export with detailed question breakdown"""
         co_mappings = self.db.query(COMAPPEDQUESTION).filter(
-            COMAPPEDQUESTION.subject_id == subject_id
+            COMAPPEDQUESTION.template_id == subject_id
         ).all()
         question_to_co = {}
         co_structure = {}
@@ -89,7 +89,7 @@ class DBServiceForServer:
         co_structure = {co: sorted(questions) for co, questions in sorted(co_structure.items())}
 
         students_marks = self.db.query(StudentMark).filter(
-            StudentMark.subject_id == subject_id
+            StudentMark.template_id == subject_id
         ).all()
         
         student_data = {}
