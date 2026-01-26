@@ -6,12 +6,15 @@
 const BASE_URL = 'http://10.0.2.2:8000';
 // const BASE_URL = 'http://192.168.1.3:8000';
 
+export const API_BASE_URL = BASE_URL;
+
 export const API_ENDPOINTS = {
   SUBJECT_FETCH: (semester: string) => `${BASE_URL}/subject_fetch/${semester}`,
   CO_CREATION: `${BASE_URL}/co_creation`,
   CO_FETCH: (teacherId: number) => `${BASE_URL}/co_fetch/${teacherId}`,
   CO_FETCH_DETAILS: (subjectId: number) => `${BASE_URL}/co_fetch_details/${subjectId}`,
   CO_DELETE: (coId: number) => `${BASE_URL}/co_delete/${coId}`,
+  PDF_CONVERT: `${BASE_URL}/api/pdf/convert-to-images`,
 };
 
 export const TEACHER_ID = 1; // Replace with actual teacher_id from auth system
