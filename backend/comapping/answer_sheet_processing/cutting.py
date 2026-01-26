@@ -65,33 +65,87 @@ class ImageProcess:
         sharpened = cv2.filter2D(denoised, -1, kernel)
         cv2.imwrite(image_name, sharpened)
 
+    def process_student_image(self, image_path: str, subject_id: int, unique_id: str, output_dir: str):
+        """
+        Process student answer sheet image and save top/bottom parts
+        
+        Args:
+            image_path: Path to the uploaded image
+            subject_id: Subject ID for naming
+            unique_id: Unique identifier for the image
+            output_dir: Directory to save processed images
+        
+        Returns:
+            dict with paths to top and bottom images
+        """
+        # Create output directory if it doesn't exist
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Define output paths
+        top_output = os.path.join(output_dir, f"{subject_id}_{unique_id}_top.png")
+        bot_output = os.path.join(output_dir, f"{subject_id}_{unique_id}_bot.png")
+        
+        # Temporary files for processing
+        temp_top = "temp_top.png"
+        temp_bot = "temp_bot.png"
+        
+        try:
+            # Split image into top and bottom halves
+            self.split_image_half(image_path)
+            
+            # Crop the middle sections
+            self.middle_croping_top("top.png", temp_top)
+            self.middle_croping_bottom("bot.png", temp_bot)
+            
+            # Apply OCR enhancement
+            self.ocr_enhancement(temp_top)
+            self.ocr_enhancement(temp_bot)
+            
+            # Move to final destination
+            shutil.move(temp_top, top_output)
+            shutil.move(temp_bot, bot_output)
+            
+            # Clean up temporary files
+            for temp_file in ["top.png", "bot.png"]:
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+            
+            print(f"Processed images saved to {output_dir}")
+            
+            return {
+                "top_image": top_output,
+                "bot_image": bot_output
+            }
+        except Exception as e:
+            # Clean up on error
+            for temp_file in ["top.png", "bot.png", temp_top, temp_bot]:
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+            raise e
 
 
+if __name__ == "__main__":
+    pipeline = ImageProcess()
+    pdf_path="../answer_sheet_pdfs/ARJUN A.pdf"
+
+    pipeline.save_first_page_as_png(pdf_path, "first_page.png")
+    pipeline.split_image_half("first_page.png")
+    pipeline.middle_croping_top("top.png")
+    pipeline.middle_croping_bottom("bot.png")
+    pipeline.ocr_enhancement("top.png")
+    pipeline.ocr_enhancement("bot.png")
+
+    student_name = os.path.splitext(os.path.basename(pdf_path))[0]
+    base_output_dir = os.path.join("..", "answer_sheet_processed_images")
+    student_dir = os.path.join(base_output_dir, student_name)
+    os.makedirs(student_dir, exist_ok=True)
 
 
+    for img in ["top.png", "bot.png"]:
+        if os.path.exists(img):
+            shutil.move(img, os.path.join(student_dir, img))
 
-pipeline = ImageProcess()
-pdf_path="../answer_sheet_pdfs/ARJUN A.pdf"
-
-pipeline.save_first_page_as_png(pdf_path, "first_page.png")
-pipeline.split_image_half("first_page.png")
-pipeline.middle_croping_top("top.png")
-pipeline.middle_croping_bottom("bot.png")
-pipeline.ocr_enhancement("top.png")
-pipeline.ocr_enhancement("bot.png")
-
-student_name = os.path.splitext(os.path.basename(pdf_path))[0]
-base_output_dir = os.path.join("..", "answer_sheet_processed_images")
-student_dir = os.path.join(base_output_dir, student_name)
-os.makedirs(student_dir, exist_ok=True)
-
-
-for img in ["top.png", "bot.png"]:
-    if os.path.exists(img):
-        shutil.move(img, os.path.join(student_dir, img))
-
-print(f"Moved images to {student_dir}")
-if os.path.exists("first_page.png"):
-    os.remove("first_page.png")
-    print("first_page.png removed")
-
+    print(f"Moved images to {student_dir}")
+    if os.path.exists("first_page.png"):
+        os.remove("first_page.png")
+        print("first_page.png removed")

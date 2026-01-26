@@ -1,5 +1,6 @@
 import { Alert } from 'react-native';
-import { API_ENDPOINTS, TEACHER_ID } from '@/constants/api';
+import axios from 'axios';
+import { API_ENDPOINTS } from '@/constants/api';
 
 export interface Subject {
   name: string;
@@ -42,32 +43,56 @@ export const coService = {
     }
   },
 
-  async createCO(data: COCreationData): Promise<{ status: string; message?: string }> {
+  async createCO(data: COCreationData, token: string, retryCount = 0): Promise<{ status: string; message?: string }> {
     try {
       const formData = new FormData();
       formData.append('subject_name', data.subject_name);
       formData.append('sem', data.sem);
       formData.append('ia_number', data.ia_number);
-      formData.append('co_image', data.co_image as any);
+      formData.append('co_image', {
+        uri: data.co_image.uri,
+        name: data.co_image.name,
+        type: data.co_image.type,
+      } as any);
 
-      const response = await fetch(API_ENDPOINTS.CO_CREATION, {
-        method: 'POST',
-        body: formData,
+      console.log(`Sending CO creation (attempt ${retryCount + 1})`);
+
+      const response = await axios.post(API_ENDPOINTS.CO_CREATION, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${token}`,
+        },
+        timeout: 60000,
+        transformRequest: (data, headers) => {
+          return data;
         },
       });
 
-      return await response.json();
-    } catch (error) {
-      console.error(error);
-      throw error;
+      console.log('CO creation success:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error(`CO creation error (attempt ${retryCount + 1}):`, error.response?.data || error.message);
+      
+      // Retry on network error (max 2 retries)
+      if (error.message === 'Network Error' && retryCount < 2) {
+        console.log(`Retrying... (${retryCount + 1}/2)`);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+        return this.createCO(data, token, retryCount + 1);
+      }
+      
+      if (error.response) {
+        throw new Error(error.response.data?.detail || error.response.data?.message || 'Failed to create CO');
+      }
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timeout - please try again');
+      }
+      throw new Error(error.message || 'Network request failed');
     }
   },
 
-  async fetchMyCOs(): Promise<CO[]> {
+  async fetchMyCOs(teacherId: number): Promise<CO[]> {
     try {
-      const response = await fetch(API_ENDPOINTS.CO_FETCH(TEACHER_ID));
+      const response = await fetch(API_ENDPOINTS.CO_FETCH(teacherId));
       const data = await response.json();
       return data;
     } catch (error) {

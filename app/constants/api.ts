@@ -14,7 +14,10 @@ export const API_ENDPOINTS = {
   CO_FETCH: (teacherId: number) => `${BASE_URL}/co_fetch/${teacherId}`,
   CO_FETCH_DETAILS: (subjectId: number) => `${BASE_URL}/co_fetch_details/${subjectId}`,
   CO_DELETE: (coId: number) => `${BASE_URL}/co_delete/${coId}`,
+  AUTH_LOGIN: `${BASE_URL}/auth/login`,
+  AUTH_SIGNUP: `${BASE_URL}/auth/signup`,
+  AUTH_ME: `${BASE_URL}/auth/me`,
   PDF_CONVERT: `${BASE_URL}/api/pdf/convert-to-images`,
 };
 
-export const TEACHER_ID = 1; // Replace with actual teacher_id from auth system
+export { BASE_URL };

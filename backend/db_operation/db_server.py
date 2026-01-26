@@ -1,7 +1,6 @@
 from db_service import get_db
-from db_service import AllSubject, Subject
+from db_service import AllSubject, Subject, StudentMark
 from sqlalchemy.orm import Session
-
 class DBServiceForServer:
     def __init__(self):
         self.db_generator = get_db()
@@ -56,6 +55,41 @@ class DBServiceForServer:
         from db_service import COMAPPEDQUESTION
         questions = self.db.query(COMAPPEDQUESTION).filter(COMAPPEDQUESTION.subject_id == subject_id).all()
         return [{"q_no": q.q_no, "co_no": q.co_no} for q in questions]
+
+    def get_students_by_subject(self, subject_id: int):
+        from db_service import StudentMark
+        # Get unique registration numbers for this subject
+        students = self.db.query(StudentMark.regno).filter(
+            StudentMark.subject_id == subject_id
+        ).distinct().all()
+        
+        return [{"regno": student.regno} for student in students]
+
+    def get_student_marks_detail(self, subject_id: int, regno: str):
+        
+        marks = self.db.query(StudentMark).filter(
+            StudentMark.subject_id == subject_id,
+            StudentMark.regno == regno
+        ).all()
+        
+        return [{
+            "question_no": mark.question_no,
+            "mark": mark.mark,
+            "ia_id": mark.ia_id
+        } for mark in marks]
+
+    def delete_student_marks(self, subject_id: int, regno: str):
+        try:
+            deleted_count = self.db.query(StudentMark).filter(
+                StudentMark.subject_id == subject_id,
+                StudentMark.regno == regno
+            ).delete()
+            
+            self.db.commit()
+            return deleted_count > 0
+        except Exception as e:
+            self.db.rollback()
+            raise e
 
     def delete_co_subject(self, subject_id: int):
         try:

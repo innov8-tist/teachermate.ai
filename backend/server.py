@@ -3,10 +3,17 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import os
 import uuid
+import tempfile
 from pathlib import Path
 from models.pydanticmodel import CoCreationModel
 from db_operation.db_server import DBServiceForServer
 from comapping.teacher_co_processing.extracting import main_func
+from routes.auth import router as auth_router
+from auth.dependencies import get_current_teacher
+from db_service.db_schema import Teacher
+from services.s3_service import s3_service
+from comapping.answer_sheet_processing.cutting import ImageProcess
+from comapping.answer_sheet_processing.extraction_pipeline import ExtractionPipeline
 
 app = FastAPI()
 
@@ -18,8 +25,17 @@ app.add_middleware(
     allow_headers=["*"],  
 )
 
-CO_IMAGE_FOLDER = Path("public/co_image")
-CO_IMAGE_FOLDER.mkdir(parents=True, exist_ok=True)
+app.include_router(auth_router)
+
+# Temp folder for processing images before uploading to S3
+TEMP_FOLDER = Path(tempfile.gettempdir()) / "co_images"
+TEMP_FOLDER.mkdir(parents=True, exist_ok=True)
+
+STUDENT_IMAGE_FOLDER = Path("public/co_student_image")
+STUDENT_IMAGE_FOLDER.mkdir(parents=True, exist_ok=True)
+
+TOP_BOTTOM_FOLDER = Path("public/co_top_bottom")
+TOP_BOTTOM_FOLDER.mkdir(parents=True, exist_ok=True)
 
 def get_db_service():
     db_service = DBServiceForServer()
@@ -43,6 +59,7 @@ async def co_creation(
     sem: int = Form(...),
     ia_number: int = Form(...),
     co_image: UploadFile = File(...),
+    current_teacher: Teacher = Depends(get_current_teacher),
     db_service: DBServiceForServer = Depends(get_db_service)
 ):
     co_data = CoCreationModel(
@@ -53,18 +70,32 @@ async def co_creation(
     
     unique_id = str(uuid.uuid4())
     file_extension = os.path.splitext(co_image.filename)[1]
-    image_filename = f"{unique_id}{file_extension}"
-    image_path = CO_IMAGE_FOLDER / image_filename
-    with open(image_path, "wb") as buffer:
-        content = await co_image.read()
-        buffer.write(content)
+    
+    # Read file content
+    file_content = await co_image.read()
+    
+    # Upload to S3
+    s3_url = None
+    if s3_service.is_available:
+        s3_url = s3_service.upload_co_image(file_content, file_extension)
+        print(f"✓ Uploaded CO image to S3: {s3_url}")
+    
+    # Save to temp folder for processing
+    temp_filename = f"{unique_id}{file_extension}"
+    temp_path = TEMP_FOLDER / temp_filename
+    with open(temp_path, "wb") as buffer:
+        buffer.write(file_content)
+    
     print("=" * 50)
     print("CO Creation Details:")
+    print(f"Teacher ID: {current_teacher.id}")
+    print(f"Teacher Name: {current_teacher.name}")
     print(f"Subject Name: {co_data.subject_name}")
     print(f"Semester: {co_data.sem}")
     print(f"IA Number: {co_data.ia_number}")
     print(f"Image Unique ID: {unique_id}")
-    print(f"Image Path: {image_path}")
+    print(f"S3 URL: {s3_url or 'S3 not available'}")
+    print(f"Temp Path: {temp_path}")
     print("=" * 50)
     
     try:
@@ -72,10 +103,19 @@ async def co_creation(
             subject_name=co_data.subject_name,
             sem=co_data.sem,
             ia_number=co_data.ia_number,
-            teacher_id=1,
-            image_path=str(image_path)
+            teacher_id=current_teacher.id,
+            image_path=s3_url or str(temp_path)  # Use S3 URL if available, else temp path
         )
-        main_func(image_path=str(image_path), subject_id=created_subject.id)
+        
+        # Process the image from temp path
+        main_func(image_path=str(temp_path), subject_id=created_subject.id)
+        
+        # Clean up temp file after processing
+        try:
+            os.remove(temp_path)
+            print(f"✓ Cleaned up temp file: {temp_path}")
+        except Exception as e:
+            print(f"⚠ Failed to clean up temp file: {e}")
         
         return {
             "status": "success",
@@ -91,11 +131,17 @@ async def co_creation(
             }
         }
     except ValueError as e:
+        # Clean up temp file on error
+        if temp_path.exists():
+            os.remove(temp_path)
         return {
             "status": "error",
             "message": str(e)
         }
     except Exception as e:
+        # Clean up temp file on error
+        if temp_path.exists():
+            os.remove(temp_path)
         return {
             "status": "error",
             "message": f"Failed to create CO: {str(e)}"
@@ -118,6 +164,107 @@ def delete_co(subject_id: int, db_service: DBServiceForServer = Depends(get_db_s
         return {"status": "success", "message": "CO deleted successfully"}
     else:
         return {"status": "error", "message": "CO not found"}
+
+@app.get("/students_by_subject/{subject_id}")
+def get_students(subject_id: int, db_service: DBServiceForServer = Depends(get_db_service)):
+    students = db_service.get_students_by_subject(subject_id)
+    return students
+
+@app.get("/student_marks/{subject_id}/{regno}")
+def get_student_marks(subject_id: int, regno: str, db_service: DBServiceForServer = Depends(get_db_service)):
+    marks = db_service.get_student_marks_detail(subject_id, regno)
+    return marks
+
+@app.delete("/student_marks/{subject_id}/{regno}")
+def delete_student_marks(subject_id: int, regno: str, db_service: DBServiceForServer = Depends(get_db_service)):
+    success = db_service.delete_student_marks(subject_id, regno)
+    if success:
+        return {"status": "success", "message": "Student marks deleted successfully"}
+    else:
+        return {"status": "error", "message": "Student marks not found"}
+
+@app.post("/student_sheet_upload")
+async def student_sheet_upload(
+    subject_id: int = Form(...),
+    student_image: UploadFile = File(...),
+    db_service: DBServiceForServer = Depends(get_db_service)
+):
+    try:
+        unique_id = str(uuid.uuid4())
+        file_extension = os.path.splitext(student_image.filename)[1]
+        image_filename = f"{subject_id}_{unique_id}{file_extension}"
+        image_path = STUDENT_IMAGE_FOLDER / image_filename
+        
+        with open(image_path, "wb") as buffer:
+            content = await student_image.read()
+            buffer.write(content)
+        
+        print("=" * 50)
+        print("Student Sheet Upload Details:")
+        print(f"Subject ID: {subject_id}")
+        print(f"Image Unique ID: {unique_id}")
+        print(f"Image Path: {image_path}")
+        print("=" * 50)
+        
+        from db_service import Subject
+        subject = db_service.db.query(Subject).filter(Subject.id == subject_id).first()
+        if not subject:
+            return {"status": "error", "message": "Subject not found"}
+        ia_number = int(subject.ia.replace("IA", ""))
+    
+        image_processor = ImageProcess()
+        processed_images = image_processor.process_student_image(
+            image_path=str(image_path),
+            subject_id=subject_id,
+            unique_id=unique_id,
+            output_dir=str(TOP_BOTTOM_FOLDER)
+        )
+        
+        print("=" * 50)
+        print("Processed Images:")
+        print(f"Top Image: {processed_images['top_image']}")
+        print(f"Bottom Image: {processed_images['bot_image']}")
+        print("=" * 50)
+        
+        extraction_pipeline = ExtractionPipeline()
+        extracted_data = extraction_pipeline.process_student_sheet(
+            top_image_path=processed_images['top_image'],
+            bottom_image_path=processed_images['bot_image'],
+            subject_id=subject_id,
+            ia_id=ia_number,
+            save_to_db=True
+        )
+        
+        print("=" * 50)
+        print("Extracted Data:")
+        print(f"Registration No: {extracted_data['regno']}")
+        print(f"Marks: {extracted_data['marks']}")
+        print(f"IA Number: {ia_number}")
+        print("Data saved to database!")
+        print("=" * 50)
+        
+        return {
+            "status": "success",
+            "message": "Student answer sheet uploaded, processed, extracted, and saved to database successfully",
+            "data": {
+                "subject_id": subject_id,
+                "ia_number": ia_number,
+                "image_id": unique_id,
+                "original_image": str(image_path),
+                "top_image": processed_images['top_image'],
+                "bot_image": processed_images['bot_image'],
+                "regno": extracted_data['regno'],
+                "marks": extracted_data['marks']
+            }
+        }
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to upload: {str(e)}"
+        }
+
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -12,29 +12,11 @@ import base64
 load_dotenv()
 
 class QuestionMarkScheme(BaseModel):
-    Name: str = Field(
-        default=None,
-        description="Exact student name from the image"
-    )
-    Semester:int= Field(
-        default=None,
-        description=("Extract the student current semester (1-8) maximum That is mentiond in Branch&Semester row")
-    )
-    Branch: str = Field(
-        default=None,
-        description=(
-            "Extract Branch written in the 'Branch & Semester' field (e.g., CS, IT, EL, ME, EC, etc."
-        )
-    )
     Reg_No: str = Field(
         default=None,
         description=(
             "Extract University Reg.no in the image.Valid format ONLY if clearly written as:'TOC' + 2 digits (year) + 2 LETTERS (branch code) + 3 digits. Branch code maybe IT,CS,EL,ME,EC etc. make sure there is NO spaces, NO separators, NO corrections. eg: TOC22IT083 like this"
         )    
-    )
-    Roll_No:int= Field(
-        default=None,
-        description="Numeric roll number if clearly visible. Otherwise None."
     )
 llm = ChatGoogleGenerativeAI(
             model="gemini-3-flash-preview",

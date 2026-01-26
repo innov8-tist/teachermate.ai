@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Image, Alert, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { useImagePicker } from '@/hooks/use-image-picker';
+import { useAuth } from '@/contexts/auth-context';
 import { coService, Subject } from '@/services/api/co-service';
 import { Feather } from '@expo/vector-icons';
 
@@ -15,6 +16,7 @@ interface COCreationScreenProps {
 }
 
 export const COCreationScreen: React.FC<COCreationScreenProps> = ({ onSuccess }) => {
+  const { token } = useAuth();
   const [selectedSemester, setSelectedSemester] = useState<string>('');
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [subjectName, setSubjectName] = useState('');
@@ -41,6 +43,16 @@ export const COCreationScreen: React.FC<COCreationScreenProps> = ({ onSuccess })
       return;
     }
 
+    if (!token) {
+      Alert.alert('Authentication Error', 'Please login again');
+      return;
+    }
+
+    console.log('=== CO Creation Debug ===');
+    console.log('Token (first 50 chars):', token.substring(0, 50));
+    console.log('Token length:', token.length);
+    console.log('========================');
+    
     setIsSubmitting(true);
 
     try {
@@ -56,7 +68,7 @@ export const COCreationScreen: React.FC<COCreationScreenProps> = ({ onSuccess })
           name: `co_table.${fileType}`,
           type: `image/${fileType}`,
         },
-      });
+      }, token);
 
       if (result.status === 'success') {
         Alert.alert('Success', 'CO created successfully!', [
@@ -77,8 +89,9 @@ export const COCreationScreen: React.FC<COCreationScreenProps> = ({ onSuccess })
       } else {
         Alert.alert('Error', result.message || 'Failed to create CO');
       }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to submit CO creation');
+    } catch (error: any) {
+      console.error('CO Creation Error:', error);
+      Alert.alert('Error', error.message || 'Failed to submit CO creation');
     } finally {
       setIsSubmitting(false);
     }
@@ -230,7 +243,7 @@ export const COCreationScreen: React.FC<COCreationScreenProps> = ({ onSuccess })
         <Pressable
           style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
           onPress={handleSubmit}
-          disabled={isSubmitting}
+          disabled={isSubmitting || !selectedSemester || !subjectName || !selectedOption || !uploadedImage}
         >
           <Text style={styles.submitText}>
             {isSubmitting ? 'Creating...' : 'Create CO Mapping'}
