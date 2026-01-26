@@ -97,7 +97,7 @@ class MarksProcessor:
 class ExtractionPipeline:
     def __init__(self):
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-3-flash-preview",
+            model="gemini-2.5-flash",
             google_api_key=os.getenv("GOOGLE_GEMINI_API_KEY"),
             temperature=0
         )

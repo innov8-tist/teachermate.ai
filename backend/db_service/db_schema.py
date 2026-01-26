@@ -1,4 +1,4 @@
-from sqlalchemy import Column,Integer,Boolean,String,ForeignKey
+from sqlalchemy import Column,Integer,Boolean,String,ForeignKey,Text,JSON
 from .db import Base
 
 
@@ -43,3 +43,15 @@ class AllSubject(Base):
     name = Column(String, nullable=False)
     branch = Column(String, nullable=False)
     sem=Column(Integer, nullable=False)
+
+
+class AnswerSchema(Base):
+    __tablename__="answer_schema_extraction"
+    id=Column(Integer,primary_key=True,index=True)
+    subject_id=Column(Integer,ForeignKey("co_mapped_subjects.id"),nullable=False)
+    question_no=Column(Integer,nullable=False)
+    question=Column(Text,nullable=False)
+    total_mark=Column(Integer,nullable=False)
+    mark_criteria=Column(JSON,nullable=False)
+    answer=Column(Text,nullable=False)
+    image_explanation=Column(Text,nullable=True)
