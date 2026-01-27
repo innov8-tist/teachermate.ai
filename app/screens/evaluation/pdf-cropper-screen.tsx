@@ -272,34 +272,133 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
         setPreviewUri(croppedImage.uri);
         setShowPreview(true);
       } else {
-        // Crop spans multiple pages - for now, just crop from the first page
-        Alert.alert('Multi-page Crop', 'Crop spans multiple pages. Cropping from first page only.');
-        const pageLocalY = actualCropY - (startPage * pageHeight);
+        // Crop spans multiple pages - stitch them together
+        console.log(`🔗 Multi-page crop: pages ${startPage + 1} to ${endPage + 1}`);
         
-        const pageInfo = await new Promise<{width: number, height: number}>((resolve, reject) => {
-          Image.getSize(localImagePaths[startPage], (width, height) => resolve({width, height}), reject);
-        });
+        const croppedParts: string[] = [];
         
-        const scaleX = pageInfo.width / SCREEN_WIDTH;
-        const scaleY = pageInfo.height / pageHeight;
+        // Helper function to get scale factors for a page
+        const getPageScaleFactors = async (pageIndex: number) => {
+          const pageInfo = await new Promise<{width: number, height: number}>((resolve, reject) => {
+            Image.getSize(localImagePaths[pageIndex], (width, height) => resolve({width, height}), reject);
+          });
+          
+          const imageAspect = pageInfo.width / pageInfo.height;
+          const containerAspect = SCREEN_WIDTH / pageHeight;
+          
+          let scaleX, scaleY, offsetX, offsetY;
+          
+          if (imageAspect > containerAspect) {
+            scaleY = pageInfo.height / pageHeight;
+            scaleX = scaleY;
+            offsetX = (pageInfo.width - (SCREEN_WIDTH * scaleX)) / 2;
+            offsetY = 0;
+          } else {
+            scaleX = pageInfo.width / SCREEN_WIDTH;
+            scaleY = scaleX;
+            offsetX = 0;
+            offsetY = (pageInfo.height - (pageHeight * scaleY)) / 2;
+          }
+          
+          return { pageInfo, scaleX, scaleY, offsetX, offsetY };
+        };
         
-        const croppedImage = await manipulateAsync(
-          localImagePaths[startPage],
-          [
-            {
-              crop: {
-                originX: Math.round(cropX.value * scaleX),
-                originY: Math.round(pageLocalY * scaleY),
-                width: Math.round(cropWidth.value * scaleX),
-                height: Math.round(cropHeight.value * scaleY),
+        // Process each page in the crop range
+        for (let pageIndex = startPage; pageIndex <= endPage; pageIndex++) {
+          const { pageInfo, scaleX, scaleY, offsetX, offsetY } = await getPageScaleFactors(pageIndex);
+          
+          let cropYOnPage, cropHeightOnPage;
+          
+          if (pageIndex === startPage) {
+            // First page: crop from actualCropY to bottom of page
+            const pageLocalY = actualCropY - (pageIndex * pageHeight);
+            cropYOnPage = Math.round(pageLocalY * scaleY + offsetY);
+            const remainingHeight = pageHeight - pageLocalY;
+            cropHeightOnPage = Math.round(remainingHeight * scaleY);
+            console.log(`✂️ First page ${pageIndex + 1}: Y=${cropYOnPage}, H=${cropHeightOnPage}`);
+          } else if (pageIndex === endPage) {
+            // Last page: crop from top to the end of crop rectangle
+            const cropEndY = actualCropY + cropHeight.value;
+            const pageLocalEndY = cropEndY - (pageIndex * pageHeight);
+            cropYOnPage = Math.round(offsetY);
+            cropHeightOnPage = Math.round(pageLocalEndY * scaleY);
+            console.log(`✂️ Last page ${pageIndex + 1}: Y=${cropYOnPage}, H=${cropHeightOnPage}`);
+          } else {
+            // Middle page: crop full height at the crop X position
+            cropYOnPage = Math.round(offsetY);
+            cropHeightOnPage = Math.round(pageHeight * scaleY);
+            console.log(`✂️ Middle page ${pageIndex + 1}: Y=${cropYOnPage}, H=${cropHeightOnPage}`);
+          }
+          
+          const cropXOnImage = Math.round(cropX.value * scaleX + offsetX);
+          const cropWidthOnImage = Math.round(cropWidth.value * scaleX);
+          
+          const croppedPart = await manipulateAsync(
+            localImagePaths[pageIndex],
+            [
+              {
+                crop: {
+                  originX: Math.max(0, cropXOnImage),
+                  originY: Math.max(0, cropYOnPage),
+                  width: Math.min(cropWidthOnImage, pageInfo.width - Math.max(0, cropXOnImage)),
+                  height: Math.min(cropHeightOnPage, pageInfo.height - Math.max(0, cropYOnPage)),
+                },
               },
-            },
-          ],
-          { compress: 0.9, format: SaveFormat.PNG }
-        );
-
-        setPreviewUri(croppedImage.uri);
-        setShowPreview(true);
+            ],
+            { compress: 0.9, format: SaveFormat.PNG }
+          );
+          
+          croppedParts.push(croppedPart.uri);
+          console.log(`✅ Cropped part ${pageIndex - startPage + 1}/${endPage - startPage + 1}`);
+        }
+        
+        // Now stitch all parts together vertically
+        console.log('🔗 Stitching cropped parts together...');
+        
+        if (croppedParts.length === 1) {
+          setPreviewUri(croppedParts[0]);
+          setShowPreview(true);
+        } else {
+          // Send parts to backend for stitching
+          console.log('📤 Sending parts to backend for stitching...');
+          
+          const formData = new FormData();
+          
+          // Add each cropped part as a file
+          for (let i = 0; i < croppedParts.length; i++) {
+            const uri = croppedParts[i];
+            console.log(`📎 Adding part ${i + 1}: ${uri}`);
+            
+            // React Native FormData expects this format
+            formData.append('image_files', {
+              uri: uri,
+              type: 'image/png',
+              name: `part_${i}.png`,
+            } as any);
+          }
+          
+          console.log('📤 Sending stitch request...');
+          
+          const stitchResponse = await fetch(`${BASE_URL}/api/evaluation/stitch-images`, {
+            method: 'POST',
+            body: formData,
+          });
+          
+          console.log('📥 Stitch response status:', stitchResponse.status);
+          
+          if (!stitchResponse.ok) {
+            const errorText = await stitchResponse.text();
+            console.error('❌ Stitch error response:', errorText);
+            throw new Error(`Failed to stitch images: ${errorText}`);
+          }
+          
+          const stitchData = await stitchResponse.json();
+          console.log('✅ Images stitched:', stitchData);
+          
+          const stitchedUri = `${BASE_URL}${stitchData.stitched_uri}`;
+          setPreviewUri(stitchedUri);
+          setShowPreview(true);
+        }
       }
     } catch (error) {
       console.error('❌ Failed to crop:', error);

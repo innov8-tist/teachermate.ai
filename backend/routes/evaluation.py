@@ -252,3 +252,60 @@ async def submit_answer_schema(
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to submit schema: {str(e)}")
+
+
+@router.post("/stitch-images")
+async def stitch_images(image_files: List[UploadFile] = File(...)):
+    """
+    Stitch multiple images together vertically
+    Used for multi-page crops
+    """
+    try:
+        print(f"🔗 Stitching {len(image_files)} images together")
+        
+        # Load all images
+        images = []
+        for img_file in image_files:
+            content = await img_file.read()
+            from io import BytesIO
+            img = Image.open(BytesIO(content))
+            images.append(img)
+            print(f"  Loaded image: {img.size}")
+        
+        # Calculate total height and max width
+        total_height = sum(img.height for img in images)
+        max_width = max(img.width for img in images)
+        
+        print(f"📐 Stitched size: {max_width}x{total_height}")
+        
+        # Create new image with combined height
+        stitched = Image.new('RGB', (max_width, total_height), (255, 255, 255))
+        
+        # Paste images vertically
+        y_offset = 0
+        for img in images:
+            # Center horizontally if image is narrower
+            x_offset = (max_width - img.width) // 2
+            stitched.paste(img, (x_offset, y_offset))
+            y_offset += img.height
+            print(f"  Pasted at y={y_offset - img.height}")
+        
+        # Save stitched image
+        stitched_id = str(uuid.uuid4())
+        stitched_path = CROPPED_STORAGE / f"{stitched_id}.png"
+        stitched.save(stitched_path, 'PNG')
+        
+        print(f"✅ Stitched image saved: {stitched_path}")
+        
+        return {
+            "success": True,
+            "stitched_uri": f"/public/evaluation_crops/{stitched_id}.png",
+            "width": max_width,
+            "height": total_height
+        }
+    
+    except Exception as e:
+        print(f"❌ Stitch error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to stitch images: {str(e)}")
