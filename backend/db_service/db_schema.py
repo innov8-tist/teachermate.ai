@@ -65,3 +65,12 @@ class EvaluationSchema(Base):
     mark_criteria = Column(JSON, nullable=False)  # Marking scheme
     answer = Column(Text, nullable=False)  # Expected answer
     image_explanation = Column(Text, nullable=True)
+
+class STUDENTINFO(Base):
+    __tablename__="student_info"
+    id=Column(Integer,primary_key=True,index=True)
+    reg_no=Column(String,nullable=False)
+    name=Column(String,nullable=False)
+    branch=Column(String,nullable=False)
+    division=Column(String,nullable=False)
+    
