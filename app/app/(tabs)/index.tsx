@@ -7,30 +7,32 @@ import { HomeScreen } from '@/screens/home/home-screen';
 import { EvaluationScreen } from '@/screens/evaluation/evaluation-screen';
 import { UploadSchemaScreen } from '@/screens/evaluation/upload-schema-screen';
 import { AttachImagesScreen, Question } from '@/screens/evaluation/attach-images-screen';
+import { PDFCropperScreen, CroppedSection } from '@/screens/evaluation/pdf-cropper-screen';
 import { ProfileScreen } from '@/screens/profile/profile-screen';
 import { COMapperContainer, COSubScreen } from '@/screens/co-mapper/co-mapper-container';
 import { Feather } from '@expo/vector-icons';
-import { useImagePicker } from '@/hooks/use-image-picker';
 
-type EvaluationSubScreen = 'list' | 'upload' | 'attachImages';
+type EvaluationSubScreen = 'list' | 'upload' | 'attachImages' | 'pdfCropper';
 
 export default function HomeScreenRefactored() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('home');
   const [coSubScreen, setCoSubScreen] = useState<COSubScreen>('myCOs');
   const [evaluationSubScreen, setEvaluationSubScreen] = useState<EvaluationSubScreen>('list');
-  const { pickFromGallery } = useImagePicker();
+  const [pdfUri, setPdfUri] = useState<string>('');
+  const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [currentQuestionId, setCurrentQuestionId] = useState<string>('');
 
   // Dummy questions - will be fetched from database later
   const [questions, setQuestions] = useState<Question[]>([
-    { id: '1', label: 'Question 1', images: [] },
-    { id: '2a', label: 'Question 2(a)', images: [] },
-    { id: '2b', label: 'Question 2(b)', images: [] },
-    { id: '3', label: 'Question 3', images: [] },
-    { id: '4a', label: 'Question 4(a)', images: [] },
-    { id: '4b', label: 'Question 4(b)', images: [] },
-    { id: '5', label: 'Question 5', images: [] },
-    { id: '6', label: 'Question 6', images: [] },
+    { id: '1', label: 'Question 1', images: [], croppedSections: [] },
+    { id: '2a', label: 'Question 2(a)', images: [], croppedSections: [] },
+    { id: '2b', label: 'Question 2(b)', images: [], croppedSections: [] },
+    { id: '3', label: 'Question 3', images: [], croppedSections: [] },
+    { id: '4a', label: 'Question 4(a)', images: [], croppedSections: [] },
+    { id: '4b', label: 'Question 4(b)', images: [], croppedSections: [] },
+    { id: '5', label: 'Question 5', images: [], croppedSections: [] },
+    { id: '6', label: 'Question 6', images: [], croppedSections: [] },
   ]);
 
   // Handle Android back button
@@ -38,43 +40,76 @@ export default function HomeScreenRefactored() {
     const backAction = () => {
       if (activeTab === 'co' && coSubScreen !== 'myCOs') {
         setCoSubScreen('myCOs');
-        return true; // Prevent default back action
+        return true;
       }
-      if (activeTab === 'evaluation' && evaluationSubScreen !== 'list') {
-        setEvaluationSubScreen('list');
-        return true; // Prevent default back action
+      if (activeTab === 'evaluation') {
+        if (evaluationSubScreen === 'pdfCropper') {
+          setEvaluationSubScreen('attachImages');
+          return true;
+        }
+        if (evaluationSubScreen === 'attachImages') {
+          setEvaluationSubScreen('upload');
+          return true;
+        }
+        if (evaluationSubScreen === 'upload') {
+          setEvaluationSubScreen('list');
+          return true;
+        }
       }
-      return false; // Allow default back action
+      return false;
     };
 
     const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
-
     return () => backHandler.remove();
   }, [activeTab, coSubScreen, evaluationSubScreen]);
 
   const handleTabChange = (tab: TabType) => {
     setActiveTab(tab);
     if (tab === 'co') {
-      setCoSubScreen('myCOs'); // Always show My COs when tab is clicked
+      setCoSubScreen('myCOs');
     }
     if (tab === 'evaluation') {
-      setEvaluationSubScreen('list'); // Always show list when tab is clicked
+      setEvaluationSubScreen('list');
     }
   };
 
-  const handleUploadSchema = async () => {
-    // Navigate to attach images screen instead of directly uploading
+  const handleUploadSchemaSuccess = (uri: string, subject: string) => {
+    setPdfUri(uri);
+    setSelectedSubject(subject);
+    setEvaluationSubScreen('attachImages');
+  };
+
+  const handleOpenCropper = (questionId: string) => {
+    setCurrentQuestionId(questionId);
+    setEvaluationSubScreen('pdfCropper');
+  };
+
+  const handleCropConfirm = (croppedSection: CroppedSection) => {
+    const updatedQuestions = questions.map(q =>
+      q.id === croppedSection.questionId
+        ? { 
+            ...q, 
+            croppedSections: [...(q.croppedSections || []), croppedSection] 
+          }
+        : q
+    );
+    setQuestions(updatedQuestions);
     setEvaluationSubScreen('attachImages');
   };
 
   const handleSubmitImages = () => {
-    const questionsWithImages = questions.filter(q => q.images.length > 0);
-    if (questionsWithImages.length === 0) {
-      Alert.alert('No Images', 'Please attach at least one image to submit');
+    const questionsWithSections = questions.filter(q => (q.croppedSections?.length || 0) > 0);
+    if (questionsWithSections.length === 0) {
+      Alert.alert('No Sections', 'Please crop at least one answer section to submit');
       return;
     }
-    Alert.alert('Success', 'Images submitted successfully!', [
-      { text: 'OK', onPress: () => setEvaluationSubScreen('list') }
+    Alert.alert('Success', 'Answer schema submitted successfully!', [
+      { text: 'OK', onPress: () => {
+        setEvaluationSubScreen('list');
+        setPdfUri('');
+        setSelectedSubject('');
+        setQuestions(questions.map(q => ({ ...q, croppedSections: [] })));
+      }}
     ]);
   };
 
@@ -87,45 +122,60 @@ export default function HomeScreenRefactored() {
       <View className="flex-1 bg-white">
         <Header showMenuButton={false} />
 
-        <ScrollView className="flex-1" contentContainerClassName="p-5 pb-24">
-        {activeTab === 'home' && (
-          <HomeScreen
-            onNavigateToCO={() => setActiveTab('co')}
-            onNavigateToEvaluation={() => setActiveTab('evaluation')}
-          />
-        )}
-
-        {activeTab === 'evaluation' && (
-          <>
-            {evaluationSubScreen === 'list' && <EvaluationScreen />}
-            {evaluationSubScreen === 'upload' && (
-              <UploadSchemaScreen
-                onBack={() => setEvaluationSubScreen('list')}
-                onSuccess={() => setEvaluationSubScreen('list')}
-                onUpload={handleUploadSchema}
+        {/* Conditionally render ScrollView - disable for PDF cropper */}
+        {evaluationSubScreen === 'pdfCropper' ? (
+          <View className="flex-1">
+            {activeTab === 'evaluation' && pdfUri && (
+              <PDFCropperScreen
+                pdfUri={pdfUri}
+                questionId={currentQuestionId}
+                onBack={() => setEvaluationSubScreen('attachImages')}
+                onConfirm={handleCropConfirm}
               />
             )}
-            {evaluationSubScreen === 'attachImages' && (
-              <AttachImagesScreen
-                onBack={() => setEvaluationSubScreen('upload')}
-                onSubmit={() => setEvaluationSubScreen('list')}
-                questions={questions}
-                onQuestionsChange={setQuestions}
+          </View>
+        ) : (
+          <ScrollView className="flex-1" contentContainerClassName="p-5 pb-24">
+            {activeTab === 'home' && (
+              <HomeScreen
+                onNavigateToCO={() => setActiveTab('co')}
+                onNavigateToEvaluation={() => setActiveTab('evaluation')}
               />
             )}
-          </>
-        )}
 
-        {activeTab === 'co' && (
-          <COMapperContainer
-            onMenuPress={() => {}}
-            initialSubScreen={coSubScreen}
-            onSubScreenChange={setCoSubScreen}
-          />
-        )}
+            {activeTab === 'evaluation' && (
+              <>
+                {evaluationSubScreen === 'list' && <EvaluationScreen />}
+                {evaluationSubScreen === 'upload' && (
+                  <UploadSchemaScreen
+                    onBack={() => setEvaluationSubScreen('list')}
+                    onSuccess={handleUploadSchemaSuccess}
+                  />
+                )}
+                {evaluationSubScreen === 'attachImages' && (
+                  <AttachImagesScreen
+                    onBack={() => setEvaluationSubScreen('upload')}
+                    onSubmit={handleSubmitImages}
+                    questions={questions}
+                    onQuestionsChange={setQuestions}
+                    onOpenCropper={handleOpenCropper}
+                    pdfUri={pdfUri}
+                  />
+                )}
+              </>
+            )}
 
-        {activeTab === 'profile' && <ProfileScreen />}
-      </ScrollView>
+            {activeTab === 'co' && (
+              <COMapperContainer
+                onMenuPress={() => {}}
+                initialSubScreen={coSubScreen}
+                onSubScreenChange={setCoSubScreen}
+              />
+            )}
+
+            {activeTab === 'profile' && <ProfileScreen />}
+          </ScrollView>
+        )}
 
       {/* FABs for CO Mapper - positioned at app level */}
       {activeTab === 'co' && coSubScreen === 'myCOs' && (
@@ -156,38 +206,6 @@ export default function HomeScreenRefactored() {
             activeOpacity={0.8}
           >
             <Text style={{ fontSize: 28, color: 'white' }}>+</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Upload Button for Evaluation Upload Screen */}
-      {activeTab === 'evaluation' && evaluationSubScreen === 'upload' && (
-        <View style={fabStyles.uploadButtonContainer}>
-          {/* Guidelines above button */}
-          <View 
-            style={fabStyles.guidelinesCard}
-          >
-            <Feather name="info" size={22} color="#3B82F6" style={{ marginTop: 2 }} />
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={fabStyles.guidelinesTitle}>
-                Upload Guidelines
-              </Text>
-              <Text style={fabStyles.guidelinesText}>
-                • Select the subject for the answer schema{'\n'}
-                • Upload a clear image or PDF of the schema{'\n'}
-                • Ensure all questions are visible
-              </Text>
-            </View>
-          </View>
-
-          {/* Upload Button */}
-          <TouchableOpacity
-            onPress={handleUploadSchema}
-            style={fabStyles.uploadButton}
-            activeOpacity={0.8}
-          >
-            <Feather name="upload-cloud" size={24} color="#fff" />
-            <Text style={fabStyles.uploadButtonText}>Upload Answer Schema</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -254,45 +272,6 @@ const fabStyles = StyleSheet.create({
     left: 20,
     right: 20,
     zIndex: 9999,
-  },
-  guidelinesCard: {
-    backgroundColor: '#EFF6FF',
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    marginBottom: 12,
-    opacity: 0.5,
-  },
-  guidelinesTitle: {
-    color: '#1E3A8A',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  guidelinesText: {
-    color: '#1D4ED8',
-    fontSize: 14,
-    lineHeight: 22,
-  },
-  uploadButton: {
-    backgroundColor: '#4FD1C5',
-    borderRadius: 12,
-    paddingVertical: 20,
-    paddingHorizontal: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#4FD1C5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  uploadButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-    marginLeft: 12,
   },
   submitButtonContainer: {
     position: 'absolute',
