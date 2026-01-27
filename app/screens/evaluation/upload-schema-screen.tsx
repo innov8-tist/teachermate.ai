@@ -1,30 +1,67 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { BASE_URL } from '../../constants/api';
+import { useAuth } from '../../contexts/auth-context';
+
+interface COTemplate {
+  id: number;
+  ia: string;
+  name: string;
+  branch: string;
+  sem: string;
+}
 
 interface UploadSchemaScreenProps {
   onBack: () => void;
-  onSuccess: (pdfId: string, subject: string) => void;
+  onSuccess: (pdfId: string, subject: string, subjectId: number) => void;
 }
 
 export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, onSuccess }) => {
+  const { teacher } = useAuth();
   const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [selectedSubjectId, setSelectedSubjectId] = useState<number | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [pdfUri, setPdfUri] = useState<string>('');
-  const [pdfName, setPdfName] = useState<string>('');
   const [uploading, setUploading] = useState(false);
+  const [loadingCOs, setLoadingCOs] = useState(false);
+  const [coTemplates, setCoTemplates] = useState<COTemplate[]>([]);
 
-  // Dummy subjects - will be fetched from database later
-  const subjects = [
-    'MSS - IA 1',
-    'MPMC - IA 1',
-    'MSS - IA 2',
-  ];
+  // Fetch CO templates when component mounts
+  useEffect(() => {
+    fetchCOTemplates();
+  }, []);
 
-  const handleSubjectSelect = (subject: string) => {
-    setSelectedSubject(subject);
+  const fetchCOTemplates = async () => {
+    if (!teacher?.id) {
+      Alert.alert('Error', 'Teacher ID not found. Please log in again.');
+      return;
+    }
+
+    setLoadingCOs(true);
+    try {
+      console.log('📥 Fetching CO templates for teacher:', teacher.id);
+      const response = await fetch(`${BASE_URL}/co_fetch/${teacher.id}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch CO templates');
+      }
+
+      const data = await response.json();
+      console.log('✅ CO templates fetched:', data);
+      setCoTemplates(data);
+    } catch (error) {
+      console.error('❌ Error fetching CO templates:', error);
+      Alert.alert('Error', 'Failed to load subjects. Please try again.');
+    } finally {
+      setLoadingCOs(false);
+    }
+  };
+
+  const handleSubjectSelect = (template: COTemplate) => {
+    const displayName = `${template.name} - ${template.ia}`;
+    setSelectedSubject(displayName);
+    setSelectedSubjectId(template.id);
     setShowDropdown(false);
   };
 
@@ -50,9 +87,6 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
         console.log('  - URI:', file.uri);
         console.log('  - Size:', file.size);
         console.log('  - Type:', file.mimeType);
-        
-        setPdfUri(file.uri);
-        setPdfName(file.name);
         
         // Upload PDF to backend
         setUploading(true);
@@ -92,8 +126,12 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
           
           if (responseData.success) {
             console.log('✅ PDF uploaded successfully, ID:', responseData.pdf_id);
-            // Pass the PDF ID to the next screen
-            onSuccess(responseData.pdf_id, selectedSubject);
+            // Pass the PDF ID, subject name, and subject ID to the next screen
+            if (selectedSubjectId) {
+              onSuccess(responseData.pdf_id, selectedSubject, selectedSubjectId);
+            } else {
+              throw new Error('Subject ID not found');
+            }
           } else {
             throw new Error('Upload failed');
           }
@@ -149,22 +187,40 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
           {/* Dropdown List */}
           {showDropdown && (
             <View style={styles.dropdownList}>
-              {subjects.map((subject, index) => (
-                <TouchableOpacity
-                  key={index}
-                  onPress={() => handleSubjectSelect(subject)}
-                  style={[
-                    styles.dropdownItem,
-                    index !== subjects.length - 1 && styles.dropdownItemBorder
-                  ]}
-                  activeOpacity={0.6}
-                >
-                  <Text style={styles.dropdownItemText}>{subject}</Text>
-                  {selectedSubject === subject && (
-                    <Feather name="check" size={20} color="#14B8A6" />
-                  )}
-                </TouchableOpacity>
-              ))}
+              {loadingCOs ? (
+                <View style={styles.dropdownLoading}>
+                  <ActivityIndicator size="small" color="#14B8A6" />
+                  <Text style={styles.dropdownLoadingText}>Loading subjects...</Text>
+                </View>
+              ) : coTemplates.length === 0 ? (
+                <View style={styles.dropdownEmpty}>
+                  <Feather name="inbox" size={32} color="#9CA3AF" />
+                  <Text style={styles.dropdownEmptyText}>No subjects found</Text>
+                  <Text style={styles.dropdownEmptySubtext}>Create a CO template first</Text>
+                </View>
+              ) : (
+                coTemplates.map((template, index) => (
+                  <TouchableOpacity
+                    key={template.id}
+                    onPress={() => handleSubjectSelect(template)}
+                    style={[
+                      styles.dropdownItem,
+                      index !== coTemplates.length - 1 && styles.dropdownItemBorder
+                    ]}
+                    activeOpacity={0.6}
+                  >
+                    <View style={styles.dropdownItemContent}>
+                      <Text style={styles.dropdownItemText}>{template.name} - {template.ia}</Text>
+                      <Text style={styles.dropdownItemSubtext}>
+                        {template.branch} • Sem {template.sem}
+                      </Text>
+                    </View>
+                    {selectedSubjectId === template.id && (
+                      <Feather name="check" size={20} color="#14B8A6" />
+                    )}
+                  </TouchableOpacity>
+                ))
+              )}
             </View>
           )}
         </View>
@@ -325,14 +381,53 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  dropdownItemContent: {
+    flex: 1,
+    marginRight: 12,
+  },
   dropdownItemBorder: {
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
   },
   dropdownItemText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#374151',
+    marginBottom: 4,
+  },
+  dropdownItemSubtext: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#9CA3AF',
+  },
+  dropdownLoading: {
+    paddingVertical: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dropdownLoadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  dropdownEmpty: {
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dropdownEmptyText: {
+    marginTop: 12,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  dropdownEmptySubtext: {
+    marginTop: 4,
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#9CA3AF',
   },
   uploadSection: {
     marginBottom: 24,
