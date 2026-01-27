@@ -57,14 +57,22 @@ async def co_creation(
     subject_name: str = Form(...),
     sem: int = Form(...),
     ia_number: int = Form(...),
+    student_count: int = Form(...),
     co_image: UploadFile = File(...),
     current_teacher: Teacher = Depends(get_current_teacher),
     db_service: DBServiceForServer = Depends(get_db_service)
 ):
+    print(f"🔍 Received Form Data:")
+    print(f"  subject_name: {subject_name} (type: {type(subject_name)})")
+    print(f"  sem: {sem} (type: {type(sem)})")
+    print(f"  ia_number: {ia_number} (type: {type(ia_number)})")
+    print(f"  student_count: {student_count} (type: {type(student_count)})")
+    
     co_data = CoCreationModel(
         subject_name=subject_name,
         sem=sem,
-        ia_number=ia_number
+        ia_number=ia_number,
+        student_count=student_count
     )
     
     unique_id = str(uuid.uuid4())
@@ -92,6 +100,7 @@ async def co_creation(
     print(f"Subject Name: {co_data.subject_name}")
     print(f"Semester: {co_data.sem}")
     print(f"IA Number: {co_data.ia_number}")
+    print(f"Student Count: {co_data.student_count}")
     print(f"Image Unique ID: {unique_id}")
     print(f"S3 URL: {s3_url or 'S3 not available'}")
     print(f"Temp Path: {temp_path}")
@@ -102,6 +111,7 @@ async def co_creation(
             subject_name=co_data.subject_name,
             sem=co_data.sem,
             ia_number=co_data.ia_number,
+            student_count=co_data.student_count,
             teacher_id=current_teacher.id,
             image_path=s3_url or str(temp_path)  # Use S3 URL if available, else temp path
         )

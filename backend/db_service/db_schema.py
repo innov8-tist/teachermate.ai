@@ -23,6 +23,7 @@ class COTemplate(Base):
     branch = Column(String, nullable=False)
     sem = Column(Integer, nullable=False)
     image_path = Column(String, nullable=False)  # Path to uploaded CO mapping image
+    student_count = Column(Integer, nullable=False)
 
 
 class COQuestionMapping(Base):

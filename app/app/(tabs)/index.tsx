@@ -131,13 +131,6 @@ export default function HomeScreenRefactored() {
       {activeTab === 'co' && coSubScreen === 'myCOs' && (
         <View style={fabStyles.fabContainer}>
           <TouchableOpacity 
-            style={fabStyles.fabSecondary} 
-            onPress={() => setCoSubScreen('studentSheet')}
-            activeOpacity={0.8}
-          >
-            <Feather name="file-text" size={24} color="#000000" />
-          </TouchableOpacity>
-          <TouchableOpacity 
             style={fabStyles.fabPrimary} 
             onPress={() => setCoSubScreen('creation')}
             activeOpacity={0.8}

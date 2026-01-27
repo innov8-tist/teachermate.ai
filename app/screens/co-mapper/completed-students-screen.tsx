@@ -4,6 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { API_BASE_URL } from '@/constants/api';
+import { coService } from '@/services/api/co-service';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 
 interface CompletedStudentsScreenProps {
   subjectId: number;
@@ -31,6 +34,7 @@ export const CompletedStudentsScreen: React.FC<CompletedStudentsScreenProps> = (
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
   const [studentMarks, setStudentMarks] = useState<StudentMark[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
     fetchStudents();
@@ -113,6 +117,53 @@ export const CompletedStudentsScreen: React.FC<CompletedStudentsScreenProps> = (
     );
   };
 
+  const handleDownloadExcel = async () => {
+    if (students.length === 0) {
+      Alert.alert('No Data', 'There are no student submissions to download');
+      return;
+    }
+
+    setIsDownloading(true);
+    try {
+      console.log('Starting Excel download for subject:', subjectId);
+
+      // Call API to generate Excel file
+      const base64Data = await coService.downloadCOExcel(subjectId);
+      console.log('Received base64 data, length:', base64Data.length);
+
+      // Create file name and path
+      const fileName = `CO_Results_${subjectName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+
+      console.log('Writing file to:', fileUri);
+
+      // Write base64 data to file
+      await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      console.log('File saved successfully');
+
+      // Use share dialog - works reliably on all devices
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          dialogTitle: 'Save Excel File',
+        });
+        console.log('Share dialog opened');
+      } else {
+        Alert.alert('File Ready', `File saved to: ${fileUri}`);
+      }
+    } catch (error: any) {
+      console.error('Download error:', error);
+      const errorMessage = error.message || 'Failed to download Excel file';
+      Alert.alert('Download Error', errorMessage);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   if (selectedStudent) {
     const totalMarks = studentMarks.reduce((sum, mark) => sum + parseFloat(mark.mark || '0'), 0);
 
@@ -120,9 +171,6 @@ export const CompletedStudentsScreen: React.FC<CompletedStudentsScreenProps> = (
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => setSelectedStudent(null)}>
-            <Feather name="arrow-left" size={24} color="#000" />
-          </Pressable>
           <View style={styles.headerContent}>
             <View style={styles.headerTitleRow}>
               <Text style={styles.headerTitle}>{selectedStudent}</Text>
@@ -169,9 +217,6 @@ export const CompletedStudentsScreen: React.FC<CompletedStudentsScreenProps> = (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable style={styles.backButton} onPress={onBack}>
-          <Feather name="arrow-left" size={24} color="#000" />
-        </Pressable>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Completed Students</Text>
           <Text style={styles.headerSubtitle}>{subjectName}</Text>
@@ -193,37 +238,55 @@ export const CompletedStudentsScreen: React.FC<CompletedStudentsScreenProps> = (
             <Text style={styles.emptyText}>No students answer sheets submited</Text>
           </View>
         ) : (
-          <View style={styles.studentsList}>
-            {students.map((student, index) => (
-              <Pressable
-                key={index}
-                style={styles.studentCard}
-                onPress={() => fetchStudentMarks(student.regno)}
-              >
-                <View style={styles.studentIconContainer}>
-                  <Feather name="user" size={24} color="#000" />
-                </View>
-                <View style={styles.studentInfo}>
-                  <Text style={styles.studentRegno}>{student.regno}</Text>
-                  <Text style={styles.studentLabel}>Registration Number</Text>
-                </View>
-                <View style={styles.totalMarksBadge}>
-                  <Text style={styles.totalMarksText}>
-                    {student.totalMarks?.toFixed(1) || '0.0'}
-                  </Text>
-                </View>
+          <>
+            <View style={styles.studentsList}>
+              {students.map((student, index) => (
                 <Pressable
-                  style={styles.deleteButton}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    handleDeleteStudent(student.regno);
-                  }}
+                  key={index}
+                  style={styles.studentCard}
+                  onPress={() => fetchStudentMarks(student.regno)}
                 >
-                  <Feather name="trash-2" size={18} color="#999" />
+                  <View style={styles.studentIconContainer}>
+                    <Feather name="user" size={24} color="#000" />
+                  </View>
+                  <View style={styles.studentInfo}>
+                    <Text style={styles.studentRegno}>{student.regno}</Text>
+                    <Text style={styles.studentLabel}>Registration Number</Text>
+                  </View>
+                  <View style={styles.totalMarksBadge}>
+                    <Text style={styles.totalMarksText}>
+                      {student.totalMarks?.toFixed(1) || '0.0'}
+                    </Text>
+                  </View>
+                  <Pressable
+                    style={styles.deleteButton}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleDeleteStudent(student.regno);
+                    }}
+                  >
+                    <Feather name="trash-2" size={18} color="#999" />
+                  </Pressable>
                 </Pressable>
-              </Pressable>
-            ))}
-          </View>
+              ))}
+            </View>
+
+            {/* Download Excel Button */}
+            <Pressable
+              style={[styles.downloadExcelButton, isDownloading && styles.downloadExcelButtonDisabled]}
+              onPress={handleDownloadExcel}
+              disabled={isDownloading}
+            >
+              <Feather
+                name={isDownloading ? "loader" : "download"}
+                size={20}
+                color="#fff"
+              />
+              <Text style={styles.downloadExcelButtonText}>
+                {isDownloading ? 'Downloading...' : 'Download Excel Report'}
+              </Text>
+            </Pressable>
+          </>
         )}
       </ScrollView>
     </View>
@@ -243,10 +306,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
     backgroundColor: '#ffffff',
-  },
-  backButton: {
-    padding: 8,
-    marginRight: 12,
   },
   headerContent: {
     flex: 1,
@@ -433,5 +492,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#000',
+  },
+  downloadExcelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#000',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginTop: 20,
+    marginBottom: 20,
+    gap: 10,
+  },
+  downloadExcelButtonDisabled: {
+    backgroundColor: '#999',
+  },
+  downloadExcelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
   },
 });

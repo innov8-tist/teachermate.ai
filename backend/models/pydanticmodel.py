@@ -6,4 +6,5 @@ class CoCreationModel(BaseModel):
     subject_name: str
     sem: int
     ia_number: int
+    student_count: int
 

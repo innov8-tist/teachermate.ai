@@ -1,15 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Image, Alert, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, TouchableOpacity, Image, Alert, StyleSheet, ScrollView, Pressable, TextInput } from 'react-native';
 import { useImagePicker } from '@/hooks/use-image-picker';
 import { useAuth } from '@/contexts/auth-context';
 import { coService, Subject } from '@/services/api/co-service';
 import { Feather } from '@expo/vector-icons';
-
-interface COCreationScreenProps {
-  // No props needed anymore
-}
 
 interface COCreationScreenProps {
   onSuccess?: () => void;
@@ -21,6 +17,7 @@ export const COCreationScreen: React.FC<COCreationScreenProps> = ({ onSuccess })
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [subjectName, setSubjectName] = useState('');
   const [selectedOption, setSelectedOption] = useState<'1' | '2' | null>(null);
+  const [studentCount, setStudentCount] = useState<string>('');
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -38,8 +35,14 @@ export const COCreationScreen: React.FC<COCreationScreenProps> = ({ onSuccess })
   };
 
   const handleSubmit = async () => {
-    if (!selectedSemester || !subjectName || !selectedOption || !uploadedImage) {
+    if (!selectedSemester || !subjectName || !selectedOption || !studentCount || !uploadedImage) {
       Alert.alert('Missing Information', 'Please fill all fields and upload CO table');
+      return;
+    }
+
+    const studentCountNum = parseInt(studentCount, 10);
+    if (isNaN(studentCountNum) || studentCountNum <= 0) {
+      Alert.alert('Invalid Input', 'Please enter a valid student count');
       return;
     }
 
@@ -51,6 +54,8 @@ export const COCreationScreen: React.FC<COCreationScreenProps> = ({ onSuccess })
     console.log('=== CO Creation Debug ===');
     console.log('Token (first 50 chars):', token.substring(0, 50));
     console.log('Token length:', token.length);
+    console.log('Student Count (string):', studentCount);
+    console.log('Student Count (number):', studentCountNum);
     console.log('========================');
     
     setIsSubmitting(true);
@@ -63,6 +68,7 @@ export const COCreationScreen: React.FC<COCreationScreenProps> = ({ onSuccess })
         subject_name: subjectName,
         sem: selectedSemester,
         ia_number: selectedOption,
+        student_count: studentCountNum,
         co_image: {
           uri: uploadedImage,
           name: `co_table.${fileType}`,
@@ -79,6 +85,7 @@ export const COCreationScreen: React.FC<COCreationScreenProps> = ({ onSuccess })
               setSelectedSemester('');
               setSubjectName('');
               setSelectedOption(null);
+              setStudentCount('');
               setUploadedImage(null);
               setSubjects([]);
               // Navigate back to My CO's
@@ -201,12 +208,36 @@ export const COCreationScreen: React.FC<COCreationScreenProps> = ({ onSuccess })
           </View>
         )}
 
-        {/* Image Upload */}
+        {/* Student Count */}
         {selectedSemester && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View style={styles.stepBadge}>
                 <Text style={styles.stepNumber}>4</Text>
+              </View>
+              <View style={styles.stepContent}>
+                <Text style={styles.sectionTitle}>Number of Students</Text>
+                <Text style={styles.sectionDesc}>Total students in this class</Text>
+              </View>
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter student count (e.g., 60)"
+              placeholderTextColor="#999"
+              keyboardType="number-pad"
+              value={studentCount}
+              onChangeText={setStudentCount}
+              maxLength={3}
+            />
+          </View>
+        )}
+
+        {/* Image Upload */}
+        {selectedSemester && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.stepBadge}>
+                <Text style={styles.stepNumber}>5</Text>
               </View>
               <View style={styles.stepContent}>
                 <Text style={styles.sectionTitle}>Upload CO Mapping</Text>
@@ -243,7 +274,7 @@ export const COCreationScreen: React.FC<COCreationScreenProps> = ({ onSuccess })
         <Pressable
           style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
           onPress={handleSubmit}
-          disabled={isSubmitting || !selectedSemester || !subjectName || !selectedOption || !uploadedImage}
+          disabled={isSubmitting || !selectedSemester || !subjectName || !selectedOption || !studentCount || !uploadedImage}
         >
           <Text style={styles.submitText}>
             {isSubmitting ? 'Creating...' : 'Create CO Mapping'}
@@ -434,6 +465,17 @@ const styles = StyleSheet.create({
   },
   iaTextActive: {
     color: '#fff',
+  },
+  input: {
+    backgroundColor: '#ffffff',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    fontSize: 15,
+    color: '#000',
+    fontWeight: '500',
   },
   uploadBox: {
     height: 160,

@@ -23,6 +23,7 @@ export interface COCreationData {
   subject_name: string;
   sem: string;
   ia_number: string;
+  student_count: number;
   co_image: {
     uri: string;
     name: string;
@@ -49,6 +50,7 @@ export const coService = {
       formData.append('subject_name', data.subject_name);
       formData.append('sem', data.sem);
       formData.append('ia_number', data.ia_number);
+      formData.append('student_count', data.student_count.toString());
       formData.append('co_image', {
         uri: data.co_image.uri,
         name: data.co_image.name,
@@ -56,6 +58,12 @@ export const coService = {
       } as any);
 
       console.log(`Sending CO creation (attempt ${retryCount + 1})`);
+      console.log('FormData contents:', {
+        subject_name: data.subject_name,
+        sem: data.sem,
+        ia_number: data.ia_number,
+        student_count: data.student_count,
+      });
 
       const response = await axios.post(API_ENDPOINTS.CO_CREATION, formData, {
         headers: {
@@ -121,6 +129,17 @@ export const coService = {
       return data;
     } catch (error) {
       console.error('Failed to fetch subject info:', error);
+      throw error;
+    }
+  },
+
+  async fetchCOWithStudentCount(subjectId: number): Promise<{ name: string; ia: string; branch: string; sem: number; student_count: number }> {
+    try {
+      const response = await fetch(API_ENDPOINTS.CO_SUBJECT_INFO(subjectId));
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Failed to fetch CO info:', error);
       throw error;
     }
   },
