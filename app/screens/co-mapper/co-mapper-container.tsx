@@ -3,10 +3,9 @@ import { View } from 'react-native';
 import { COCreationScreen } from './co-creation-screen';
 import { MyCOsScreen } from './my-cos-screen';
 import { CODetailsScreen } from './co-details-screen';
-import { StudentSheetScreen } from './student-sheet-screen';
 import { CompletedStudentsScreen } from './completed-students-screen';
 
-type COSubScreen = 'myCOs' | 'creation' | 'studentSheet' | 'coDetails' | 'completedStudents';
+type COSubScreen = 'myCOs' | 'creation' | 'coDetails' | 'completedStudents';
 
 interface COMapperContainerProps {
   onMenuPress: () => void;
@@ -49,6 +48,7 @@ export const COMapperContainer: React.FC<COMapperContainerProps> = ({
         return (
           <MyCOsScreen
             onCOClick={handleCOClick}
+            onViewCompletedStudents={handleViewCompletedStudents}
           />
         );
       case 'creation':
@@ -58,16 +58,15 @@ export const COMapperContainer: React.FC<COMapperContainerProps> = ({
           <CODetailsScreen
             coId={selectedCOId!}
             onBack={() => handleSubScreenChange('myCOs')}
+            onViewCompletedStudents={handleViewCompletedStudents}
           />
         );
-      case 'studentSheet':
-        return <StudentSheetScreen onViewCompletedStudents={handleViewCompletedStudents} />;
       case 'completedStudents':
         return (
           <CompletedStudentsScreen
             subjectId={selectedCOId!}
             subjectName={selectedCOName}
-            onBack={() => handleSubScreenChange('studentSheet')}
+            onBack={() => handleSubScreenChange('myCOs')}
           />
         );
       default:

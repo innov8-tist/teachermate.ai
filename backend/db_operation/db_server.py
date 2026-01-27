@@ -22,7 +22,7 @@ class DBServiceForServer:
         subjects = self.db.query(Subject).filter(Subject.sem == semester).all()
         return [{"name": sub.name} for sub in subjects]
 
-    def create_co_subject(self, subject_name: str, sem: int, ia_number: int, image_path: str, teacher_id: int):
+    def create_co_subject(self, subject_name: str, sem: int, ia_number: int, student_count: int, image_path: str, teacher_id: int):
         """Create a new CO template for a subject"""
         try:
             subject = self.db.query(Subject).filter(
@@ -39,6 +39,7 @@ class DBServiceForServer:
                 branch=subject.branch,
                 sem=sem,
                 teacher_id=teacher_id,
+                student_count=student_count,
                 image_path=image_path
             )
             self.db.add(new_template)
@@ -70,7 +71,8 @@ class DBServiceForServer:
             "name": template.name,
             "ia": template.ia,
             "branch": template.branch,
-            "sem": template.sem
+            "sem": template.sem,
+            "student_count": template.student_count
         }
     def get_co_question(self,subject_id:int):
         questions=self.db.query(COMAPPEDQUESTION).filter(COMAPPEDQUESTION.template_id==subject_id)
