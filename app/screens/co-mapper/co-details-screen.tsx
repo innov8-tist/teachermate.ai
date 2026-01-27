@@ -6,7 +6,6 @@ import { coService, CODetail } from '@/services/api/co-service';
 import { Feather } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import * as MediaLibrary from 'expo-media-library';
 
 interface CODetailsScreenProps {
   coId: number;
@@ -72,62 +71,18 @@ export const CODetailsScreen: React.FC<CODetailsScreenProps> = ({ coId, onBack }
         encoding: FileSystem.EncodingType.Base64,
       });
 
-      console.log('File saved to cache');
+      console.log('File saved successfully');
 
-      // Try to save to Downloads using MediaLibrary
-      if (Platform.OS === 'android') {
-        try {
-          const { status } = await MediaLibrary.requestPermissionsAsync();
-          console.log('Permission status:', status);
-
-          if (status === 'granted') {
-            // Use documentDirectory instead of cacheDirectory
-            const docFileUri = `${FileSystem.documentDirectory}${fileName}`;
-            await FileSystem.writeAsStringAsync(docFileUri, base64Data, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
-
-            const asset = await MediaLibrary.createAssetAsync(docFileUri);
-            console.log('Asset created:', asset.id);
-
-            Alert.alert(
-              'Success!',
-              'Excel file saved to Downloads folder.\n\nOpen Files app > Downloads to view it.',
-              [{ text: 'OK' }]
-            );
-          } else {
-            // Fallback to share
-            const canShare = await Sharing.isAvailableAsync();
-            if (canShare) {
-              await Sharing.shareAsync(fileUri, {
-                mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                dialogTitle: 'Save Excel File',
-                UTI: 'com.microsoft.excel.xlsx',
-              });
-            }
-          }
-        } catch (error) {
-          console.error('MediaLibrary error:', error);
-          // Fallback to share
-          const canShare = await Sharing.isAvailableAsync();
-          if (canShare) {
-            await Sharing.shareAsync(fileUri, {
-              mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-              dialogTitle: 'Save Excel File',
-              UTI: 'com.microsoft.excel.xlsx',
-            });
-          }
-        }
+      // Use share dialog - works reliably on all devices
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          dialogTitle: 'Save Excel File',
+        });
+        console.log('Share dialog opened');
       } else {
-        // iOS - use share dialog
-        const canShare = await Sharing.isAvailableAsync();
-        if (canShare) {
-          await Sharing.shareAsync(fileUri, {
-            mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            dialogTitle: 'Save Excel File',
-            UTI: 'com.microsoft.excel.xlsx',
-          });
-        }
+        Alert.alert('File Ready', `File saved to: ${fileUri}`);
       }
     } catch (error: any) {
       console.error('Download error:', error);

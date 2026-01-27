@@ -58,7 +58,8 @@
         {
           "photosPermission": "Allow the app to save files to your device.",
           "savePhotosPermission": "Allow the app to save files to your device.",
-          "isAccessMediaLocationEnabled": true
+          "isAccessMediaLocationEnabled": true,
+          "requestAudioPermission": false
         }
       ]
     ],
