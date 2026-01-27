@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 import uvicorn
 import os
 import uuid
@@ -13,6 +14,7 @@ from models.pydanticmodel import CoCreationModel
 from db_operation.db_server import DBServiceForServer
 from comapping.teacher_co_processing.extracting import main_func
 from routes.auth import router as auth_router
+from routes.evaluation import router as evaluation_router
 from auth.dependencies import get_current_teacher
 from db_service.db_schema import Teacher
 from services.s3_service import s3_service
@@ -31,6 +33,10 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(evaluation_router)
+
+# Mount static files for serving PDFs and cropped images
+app.mount("/public", StaticFiles(directory="public"), name="public")
 
 # Temp folder for processing images before uploading to S3
 TEMP_FOLDER = Path(tempfile.gettempdir()) / "co_images"

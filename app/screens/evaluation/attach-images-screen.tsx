@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Alert, Image } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useImagePicker } from '@/hooks/use-image-picker';
+import { CroppedSection } from './pdf-cropper-screen';
 
-interface Question {
+export interface Question {
   id: string;
   label: string;
   images: string[];
+  croppedSections?: CroppedSection[];
 }
 
 interface AttachImagesScreenProps {
@@ -14,51 +15,74 @@ interface AttachImagesScreenProps {
   onSubmit: () => void;
   questions: Question[];
   onQuestionsChange: (questions: Question[]) => void;
+  onOpenCropper: (questionId: string) => void;
+  pdfUri?: string;
 }
 
 export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({ 
   onBack, 
   onSubmit,
   questions,
-  onQuestionsChange 
+  onQuestionsChange,
+  onOpenCropper,
+  pdfUri
 }) => {
-  const { pickFromGallery } = useImagePicker();
-
-  const handleAddImage = async (questionId: string) => {
-    const uri = await pickFromGallery();
-    if (uri) {
-      const updatedQuestions = questions.map(q =>
-        q.id === questionId
-          ? { ...q, images: [...q.images, uri] }
-          : q
-      );
-      onQuestionsChange(updatedQuestions);
+  const handleAddImage = (questionId: string) => {
+    if (!pdfUri) {
+      Alert.alert('No PDF', 'Please upload a PDF first');
+      return;
     }
+    onOpenCropper(questionId);
   };
 
-  const handleRemoveImage = (questionId: string, imageIndex: number) => {
+  const handleRemoveImage = (questionId: string, sectionIndex: number) => {
     const updatedQuestions = questions.map(q =>
       q.id === questionId
-        ? { ...q, images: q.images.filter((_, idx) => idx !== imageIndex) }
+        ? { 
+            ...q, 
+            croppedSections: (q.croppedSections || []).filter((_, idx) => idx !== sectionIndex) 
+          }
         : q
     );
     onQuestionsChange(updatedQuestions);
   };
 
   const renderImageBox = (question: Question) => {
-    const visibleImages = question.images.slice(0, 2);
-    const remainingCount = question.images.length - 2;
+    const croppedSections = question.croppedSections || [];
+    const visibleSections = croppedSections.slice(0, 2);
+    const remainingCount = croppedSections.length - 2;
 
     return (
       <View className="flex-row flex-wrap" style={{ gap: 12 }}>
-        {/* Show up to 2 images */}
-        {visibleImages.map((imageUri, index) => (
+        {/* Show up to 2 cropped sections */}
+        {visibleSections.map((section, index) => (
           <View key={index} className="relative">
-            <Image
-              source={{ uri: imageUri }}
-              style={{ width: 120, height: 120, borderRadius: 12 }}
-              resizeMode="cover"
-            />
+            {section.previewUri ? (
+              <Image
+                source={{ uri: section.previewUri }}
+                style={{ 
+                  width: 120, 
+                  height: 120, 
+                  borderRadius: 12,
+                  backgroundColor: '#E5E7EB',
+                }}
+                resizeMode="cover"
+              />
+            ) : (
+              <View
+                style={{ 
+                  width: 120, 
+                  height: 120, 
+                  borderRadius: 12,
+                  backgroundColor: '#E5E7EB',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <Feather name="file-text" size={40} color="#9CA3AF" />
+                <Text className="text-xs text-gray-500 mt-2">Page {section.pageNumber}</Text>
+              </View>
+            )}
             <TouchableOpacity
               onPress={() => handleRemoveImage(question.id, index)}
               className="absolute -top-2 -right-2 bg-red-500 rounded-full w-7 h-7 items-center justify-center"
@@ -76,7 +100,7 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
         ))}
 
         {/* Add button or remaining count */}
-        {question.images.length < 2 ? (
+        {croppedSections.length < 2 ? (
           <TouchableOpacity
             onPress={() => handleAddImage(question.id)}
             style={{
@@ -172,5 +196,3 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
     </View>
   );
 };
-
-export type { Question };
