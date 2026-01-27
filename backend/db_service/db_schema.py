@@ -59,7 +59,7 @@ class EvaluationSchema(Base):
     __tablename__ = "evaluation_schemas"
     id = Column(Integer, primary_key=True, index=True)
     template_id = Column(Integer, ForeignKey("co_templates.id"), nullable=False)
-    question_no = Column(Integer, nullable=False)
+    question_no = Column(String, nullable=False)
     question = Column(Text, nullable=False)
     total_mark = Column(Integer, nullable=False)
     mark_criteria = Column(JSON, nullable=False)  # Marking scheme

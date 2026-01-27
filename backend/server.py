@@ -18,6 +18,7 @@ from db_service.db_schema import Teacher
 from services.s3_service import s3_service
 from comapping.answer_sheet_processing.cutting import ImageProcess
 from comapping.answer_sheet_processing.extraction_pipeline import ExtractionPipeline
+from critera_extraction.answer_schema import main as extract_main
 
 app = FastAPI()
 
@@ -453,6 +454,67 @@ async def student_sheet_upload(
             "message": f"Failed to upload: {str(e)}"
         }
 
+
+@app.post("/extract_answer_schema")
+async def extract_answer_schema(
+    question_no: str = Form(...),
+    subject_id: int = Form(...),
+    answer_images: list[UploadFile] = File(...),
+    current_teacher: Teacher = Depends(get_current_teacher)
+):
+    try:
+        temp_image_paths = []
+        temp_dir = Path(tempfile.gettempdir()) / "answer_extraction"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        
+        for idx, image in enumerate(answer_images):
+            file_extension = os.path.splitext(image.filename)[1]
+            temp_filename = f"{subject_id}_{question_no}_{idx}_{uuid.uuid4()}{file_extension}"
+            temp_path = temp_dir / temp_filename
+            
+            content = await image.read()
+            with open(temp_path, "wb") as f:
+                f.write(content)
+            
+            temp_image_paths.append(str(temp_path))
+        
+        print(f"Saved {len(temp_image_paths)} images for extraction")
+        
+        
+        result = extract_main(
+            image_path=temp_image_paths,
+            QUESTION_NO=question_no,
+            SUBJECT_ID=subject_id
+        )
+        
+        for temp_path in temp_image_paths:
+            try:
+                os.remove(temp_path)
+            except Exception as e:
+                print(f"Warning: Could not delete temp file {temp_path}: {e}")
+        
+        return {
+            "status": "success",
+            "message": "Answer schema extracted and saved successfully",
+            "data": result
+        }
+        
+    except Exception as e:
+        for temp_path in temp_image_paths:
+            try:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+            except:
+                pass
+        
+        print(f"Error extracting answer schema: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        return {
+            "status": "error",
+            "message": f"Failed to extract answer schema: {str(e)}"
+        }
 
 
 if __name__ == "__main__":

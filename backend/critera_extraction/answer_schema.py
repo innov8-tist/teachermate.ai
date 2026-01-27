@@ -6,7 +6,7 @@ from langchain_core.prompts import ChatPromptTemplate
 import base64
 from pathlib import Path
 from dotenv import load_dotenv
-from db_operation import insert_answer_schema
+from .db_operation import AnswerSchemaService
 
 load_dotenv()
 
@@ -82,47 +82,52 @@ def extract_from_images(image_paths: List[str]) -> QuestionAnswerExtraction:
     result = llm_structured.invoke(formatted_prompt)
     return result
 
-
-
-image_paths = [
-    "C:\\Users\\manum\\Desktop\\mini project s6\\teachermate.ai\\backend\\critera_extraction\\images\\Screenshot 2026-01-26 142606.png",
-]
-
-# Extract information from images
-result = extract_from_images(image_paths)
-
-# Print results
-print("=" * 50)
-print("EXTRACTED INFORMATION")
-print("=" * 50)
-print(f"\nNumber of images processed: {len(image_paths)}")
-print(f"\nQuestion: {result.question}")
-print(f"\nTotal Mark: {result.total_mark}")
-print(f"\nMark Criteria:")
-for i, criteria in enumerate(result.mark_criteria, 1):
-    print(f"  {i}. {criteria}")
-print(f"\nAnswer: {result.answer}")
-print(f"\nImage Explanation: {result.image_explanation if result.image_explanation else 'No images present'}")
-print("=" * 50)
-
-
-
-# Insert into database
-
-QUESTION_NO = 1  
-SUBJECT_ID = 2    
-
-try:
-    db_record = insert_answer_schema(
-        question_no=QUESTION_NO,
-        subject_id=SUBJECT_ID,
-        question=result.question,
-        total_mark=result.total_mark,
-        mark_criteria=result.mark_criteria,
-        answer=result.answer,
-        image_explanation=result.image_explanation
-    )
-    print(f"\n✓ Data saved to database with ID: {db_record.id}")
-except Exception as e:
-    print(f"\n✗ Failed to save to database: {e}")
+def main(image_path: list, QUESTION_NO: str, SUBJECT_ID: int):
+    result = extract_from_images(image_path)
+    
+    print("=" * 50)
+    print("EXTRACTED INFORMATION")
+    print("=" * 50)
+    print(f"\nNumber of images processed: {len(image_path)}")
+    print(f"\nQuestion: {result.question}")
+    print(f"\nTotal Mark: {result.total_mark}")
+    print(f"\nMark Criteria:")
+    for i, criteria in enumerate(result.mark_criteria, 1):
+        print(f"  {i}. {criteria}")
+    print(f"\nAnswer: {result.answer}")
+    print(f"\nImage Explanation: {result.image_explanation if result.image_explanation else 'No images present'}")
+    print("=" * 50)
+    
+    try:
+        with AnswerSchemaService() as service:
+            db_record = service.insert_answer_schema(
+                question_no=QUESTION_NO,
+                subject_id=SUBJECT_ID,
+                question=result.question,
+                total_mark=result.total_mark,
+                mark_criteria=result.mark_criteria,
+                answer=result.answer,
+                image_explanation=result.image_explanation
+            )
+            print(f"\nData saved to database with ID: {db_record.id}")
+            
+            return {
+                "status": "success",
+                "message": "Successfully inserted into database",
+                "data": {
+                    "id": db_record.id,
+                    "question_no": QUESTION_NO,
+                    "question": result.question,
+                    "total_mark": result.total_mark,
+                    "mark_criteria": result.mark_criteria,
+                    "answer": result.answer,
+                    "image_explanation": result.image_explanation
+                }
+            }
+    except Exception as e:
+        print(f"\n✗ Failed to save to database: {e}")
+        return {
+            "status": "error",
+            "message": f"Failed to save to database: {str(e)}"
+        }
 
