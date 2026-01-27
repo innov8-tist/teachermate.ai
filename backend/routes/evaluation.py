@@ -80,8 +80,14 @@ async def get_pdf_images(pdf_id: str):
             # Images already exist, just return URLs
             print(f"Using cached images from: {pdf_images_dir}")
             image_urls = []
-            for image_file in sorted(pdf_images_dir.glob("page_*.png")):
+            
+            # Sort by page number (not alphabetically)
+            image_files = list(pdf_images_dir.glob("page_*.png"))
+            image_files.sort(key=lambda x: int(x.stem.split('_')[1]))
+            
+            for image_file in image_files:
                 image_urls.append(f"/public/pdf_images/{pdf_id}/{image_file.name}")
+                print(f"  Found page: {image_file.name}")
         
         return {
             "success": True,
@@ -155,6 +161,110 @@ async def upload_schema_pdf(
         raise HTTPException(status_code=500, detail=f"Failed to upload PDF: {str(e)}")
 
 
+@router.post("/crop-pdf-multi-page")
+async def crop_pdf_multi_page(request: dict):
+    """
+    Crop sections from multiple PDF pages and stitch them together
+    """
+    try:
+        pdf_uri = request.get('pdf_uri')
+        crops = request.get('crops', [])
+        
+        print(f"🎯 Multi-page crop request:")
+        print(f"  PDF URI: {pdf_uri}")
+        print(f"  Pages: {len(crops)}")
+        
+        # Extract PDF ID from URI
+        pdf_id = pdf_uri.split('/')[-1].replace('.pdf', '')
+        pdf_path = PDF_STORAGE / f"{pdf_id}.pdf"
+        
+        if not pdf_path.exists():
+            raise HTTPException(status_code=404, detail="PDF not found")
+        
+        # Open PDF
+        doc = fitz.open(pdf_path)
+        cropped_images = []
+        
+        # Crop each page section
+        for crop_data in crops:
+            page_num = crop_data['page_number']
+            x_percent = crop_data['x']
+            y_percent = crop_data['y']
+            width_percent = crop_data['width']
+            height_percent = crop_data['height']
+            
+            print(f"  Page {page_num}: x={x_percent:.1f}%, y={y_percent:.1f}%, w={width_percent:.1f}%, h={height_percent:.1f}%")
+            
+            page = doc.load_page(page_num - 1)
+            
+            # Render at 300 DPI
+            mat = fitz.Matrix(300/72, 300/72)
+            pix = page.get_pixmap(matrix=mat)
+            
+            # Convert to PIL Image
+            img_data = pix.tobytes("png")
+            from io import BytesIO
+            img = Image.open(BytesIO(img_data))
+            
+            # Calculate crop coordinates
+            img_width, img_height = img.size
+            crop_x = int((x_percent / 100) * img_width)
+            crop_y = int((y_percent / 100) * img_height)
+            crop_width = int((width_percent / 100) * img_width)
+            crop_height = int((height_percent / 100) * img_height)
+            
+            # Crop this section
+            cropped = img.crop((
+                crop_x,
+                crop_y,
+                crop_x + crop_width,
+                crop_y + crop_height
+            ))
+            
+            cropped_images.append(cropped)
+            print(f"    Cropped: {cropped.size}")
+        
+        doc.close()
+        
+        # Stitch images vertically
+        total_height = sum(img.height for img in cropped_images)
+        max_width = max(img.width for img in cropped_images)
+        
+        # Create new image
+        stitched = Image.new('RGB', (max_width, total_height), 'white')
+        
+        # Paste each cropped section
+        y_offset = 0
+        for img in cropped_images:
+            stitched.paste(img, (0, y_offset))
+            y_offset += img.height
+        
+        print(f"✅ Stitched image size: {stitched.size}")
+        
+        # Save stitched image
+        crop_id = str(uuid.uuid4())
+        crop_filename = f"{crop_id}.png"
+        crop_path = CROPPED_STORAGE / crop_filename
+        stitched.save(crop_path, "PNG")
+        
+        print(f"💾 Saved to: {crop_path}")
+        
+        return {
+            "success": True,
+            "crop_id": crop_id,
+            "crop_uri": f"/public/evaluation_crops/{crop_filename}",
+            "width": stitched.width,
+            "height": stitched.height,
+            "pages": len(crops)
+        }
+    
+    except Exception as e:
+        print(f"❌ Multi-page crop error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to crop PDF: {str(e)}")
+
+
 @router.post("/crop-pdf-section")
 async def crop_pdf_section(crop_request: CropRequest):
     """
@@ -162,9 +272,16 @@ async def crop_pdf_section(crop_request: CropRequest):
     Returns the cropped image
     """
     try:
+        print(f"🎯 Crop request received:")
+        print(f"  PDF URI: {crop_request.pdf_uri}")
+        print(f"  Page: {crop_request.page_number}")
+        print(f"  Crop %: x={crop_request.x:.1f}, y={crop_request.y:.1f}, w={crop_request.width:.1f}, h={crop_request.height:.1f}")
+        
         # Extract PDF ID from URI
         pdf_id = crop_request.pdf_uri.split('/')[-1].replace('.pdf', '')
         pdf_path = PDF_STORAGE / f"{pdf_id}.pdf"
+        
+        print(f"📄 Looking for PDF: {pdf_path}")
         
         if not pdf_path.exists():
             raise HTTPException(status_code=404, detail="PDF not found")
@@ -176,6 +293,7 @@ async def crop_pdf_section(crop_request: CropRequest):
             raise HTTPException(status_code=400, detail="Invalid page number")
         
         page = doc.load_page(crop_request.page_number - 1)  # 0-indexed
+        print(f"📖 Loaded page {crop_request.page_number} (0-indexed: {crop_request.page_number - 1})")
         
         # Render page at high resolution (300 DPI)
         mat = fitz.Matrix(300/72, 300/72)  # 72 is default DPI
@@ -188,10 +306,14 @@ async def crop_pdf_section(crop_request: CropRequest):
         
         # Calculate crop coordinates from percentages
         img_width, img_height = img.size
+        print(f"📐 Rendered page size: {img_width} x {img_height}")
+        
         crop_x = int((crop_request.x / 100) * img_width)
         crop_y = int((crop_request.y / 100) * img_height)
         crop_width = int((crop_request.width / 100) * img_width)
         crop_height = int((crop_request.height / 100) * img_height)
+        
+        print(f"✂️ Crop coordinates (pixels): x={crop_x}, y={crop_y}, w={crop_width}, h={crop_height}")
         
         # Crop image
         cropped_img = img.crop((
@@ -201,11 +323,15 @@ async def crop_pdf_section(crop_request: CropRequest):
             crop_y + crop_height
         ))
         
+        print(f"✅ Cropped image size: {cropped_img.size}")
+        
         # Save cropped image
         crop_id = str(uuid.uuid4())
         crop_filename = f"{crop_id}.png"
         crop_path = CROPPED_STORAGE / crop_filename
         cropped_img.save(crop_path, "PNG")
+        
+        print(f"💾 Saved to: {crop_path}")
         
         doc.close()
         
@@ -218,6 +344,9 @@ async def crop_pdf_section(crop_request: CropRequest):
         }
     
     except Exception as e:
+        print(f"❌ Crop error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to crop PDF: {str(e)}")
 
 

@@ -1,121 +1,76 @@
-# Quick Fix Guide - Expo Go PDF Error
+# Quick Fix Guide - PDF Cropper Multi-Page Issue
 
-## The Error You Saw
+## Problem
+Cropping worked on page 1 but not on other pages.
+
+## Solution
+Changed from client-side image cropping to backend-based PDF cropping.
+
+## What to Test
+
+1. **Start backend**: `cd backend && python server.py`
+2. **Start app**: `cd app && npm start`
+3. **Upload PDF** with multiple pages
+4. **Crop page 1** - should work
+5. **Scroll to page 2** - footer shows "Page 2"
+6. **Crop page 2** - should now work! ✅
+
+## How It Works Now
+
 ```
-ERROR [Invariant Violation: Your JavaScript code tried to access a native module that doesn't exist]
-Code: pdf-cropper-screen.tsx:4
-```
-
-## What Was Wrong
-1. `react-native-pdf` doesn't work in Expo Go (needs native modules)
-2. PDF file URI was passed directly from phone storage
-3. Some hardcoded localhost URLs
-
-## What I Fixed
-
-### ✅ Backend
-Added endpoint to convert PDF pages to images:
-- `/api/evaluation/pdf-images/{pdf_id}`
-- Caches images for fast loading
-
-### ✅ Frontend - Upload Screen
-Now uploads PDF to backend first:
-```typescript
-// Before: Pass local file URI
-onSuccess(file.uri, subject)
-
-// After: Upload PDF, get ID, pass ID
-const response = await fetch(`${BASE_URL}/api/evaluation/upload-schema-pdf`, ...)
-onSuccess(responseData.pdf_id, subject)
-```
-
-### ✅ Frontend - PDF Cropper
-Now uses images instead of PDF:
-```typescript
-// Before: react-native-pdf (doesn't work in Expo Go)
-<Pdf source={{ uri: pdfUri }} />
-
-// After: Images from backend (works everywhere)
-<ScrollView>
-  {pageImages.map(imageUri => (
-    <Image source={{ uri: imageUri }} />
-  ))}
-</ScrollView>
+Frontend                          Backend
+--------                          -------
+1. User crops area
+2. Convert to %                   
+3. Send to API        ──────►     4. Open PDF
+                                  5. Load page 2
+                                  6. Render at 300 DPI
+                                  7. Crop using %
+                                  8. Save image
+9. Display preview    ◄──────     9. Return URL
 ```
 
-### ✅ Centralized BASE_URL
-All services now use:
-```typescript
-import { BASE_URL } from '../../constants/api';
+## Key Changes
+
+### Frontend (`app/screens/evaluation/pdf-cropper-screen.tsx`)
+- Removed: Client-side image manipulation
+- Added: API call to backend with percentages
+- Simpler: Just send crop coordinates as %
+
+### Backend (`backend/routes/evaluation.py`)
+- Added: Detailed logging
+- Already had: Crop endpoint working
+- Now: Better debugging output
+
+## Debugging
+
+**Frontend logs**:
+```
+🎯 Sending crop request to backend...
+📄 Page: 2  ← Should match current page
+📏 Crop percentages: { x: 25, y: 30, width: 50, height: 40 }
 ```
 
-## How to Test
-
-1. **Install dependencies:**
-   ```bash
-   cd app
-   npm install
-   ```
-
-2. **Make sure backend is running:**
-   ```bash
-   cd backend
-   python server.py
-   ```
-
-3. **Start Expo:**
-   ```bash
-   cd app
-   npm start
-   ```
-
-4. **On your phone:**
-   - Open Expo Go
-   - Scan QR code
-   - Go to Evaluation tab
-   - Upload a PDF
-   - Try cropping - it should work now!
-
-## Network Setup
-
-Your `app/constants/api.ts` is already set to:
-```typescript
-const BASE_URL = 'http://192.168.1.4:8000';
+**Backend logs**:
+```
+🎯 Crop request received:
+  Page: 2  ← Should match frontend
+📖 Loaded page 2 (0-indexed: 1)
+✂️ Crop coordinates (pixels): x=877, y=1488, w=1754, h=1984
+✅ Cropped image size: (1754, 1984)
 ```
 
-Make sure:
-- ✅ Your computer IP is `192.168.1.4`
-- ✅ Phone and computer on same WiFi
-- ✅ Backend running on port 8000
-- ✅ Firewall allows port 8000
+## If Still Not Working
 
-To verify your IP:
-```bash
-# macOS/Linux
-ifconfig | grep "inet "
+1. **Check page number** - Is it updating when you scroll?
+2. **Check backend logs** - Is it receiving the request?
+3. **Check network** - Any errors in the API call?
 
-# Windows
-ipconfig
-```
+## Files Modified
+- `app/screens/evaluation/pdf-cropper-screen.tsx`
+- `backend/routes/evaluation.py`
 
-## What Changed
-
-| File | Change |
-|------|--------|
-| `backend/routes/evaluation.py` | Added `/pdf-images/{pdf_id}` endpoint |
-| `app/screens/evaluation/upload-schema-screen.tsx` | Upload PDF to backend |
-| `app/screens/evaluation/pdf-cropper-screen.tsx` | Use images instead of PDF |
-| `app/services/api/evaluation-service.ts` | Import BASE_URL |
-| `app/app/(tabs)/index.tsx` | Handle PDF ID instead of URI |
-| `app/package.json` | Removed react-native-pdf |
-
-## Expected Behavior
-
-1. **Upload PDF** → Shows "Uploading..." → Success
-2. **Attach Images** → Shows questions
-3. **Tap + button** → Opens cropper with PDF pages as images
-4. **Scroll pages** → Smooth scrolling through images
-5. **Crop section** → Drag and resize crop box
-6. **Confirm** → Shows preview → Saves crop
-
-All of this now works in Expo Go! 🎉
+## Documentation
+- `FINAL_SOLUTION.md` - Complete explanation
+- `BACKEND_CROP_SOLUTION.md` - Detailed flow
+- This file - Quick reference

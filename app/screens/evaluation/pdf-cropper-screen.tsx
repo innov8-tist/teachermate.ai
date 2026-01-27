@@ -2,10 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Alert, Modal, Image, ScrollView, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import { captureRef } from 'react-native-view-shot';
-import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
-import { downloadAsync, cacheDirectory } from 'expo-file-system/legacy';
+import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { BASE_URL } from '../../constants/api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -65,17 +62,13 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
   console.log('Question ID:', questionId);
   console.log('='.repeat(50));
   
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(0);
   const [pageImages, setPageImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentImageDimensions, setCurrentImageDimensions] = useState({ width: SCREEN_WIDTH, height: PDF_CONTAINER_HEIGHT });
-  const [pdfDimensions, setPdfDimensions] = useState({ width: SCREEN_WIDTH, height: PDF_CONTAINER_HEIGHT });
-  const [isCropping, setIsCropping] = useState(true);
   const [showPreview, setShowPreview] = useState(false);
   const [previewUri, setPreviewUri] = useState<string>('');
+  const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number }[]>([]);
+  const [totalContentHeight, setTotalContentHeight] = useState(0);
 
-  const pdfContainerRef = useRef<View>(null);
   const scrollViewRef = useRef<ScrollView>(null);
 
   // Load PDF images from backend
@@ -85,14 +78,12 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
         setLoading(true);
         const images = await getPageImages(pdfUri);
         setPageImages(images);
-        setTotalPages(images.length);
         
         // Initialize crop position after images are loaded
-        // Set initial crop to center of screen
         cropX.value = SCREEN_WIDTH * 0.1;
-        cropY.value = PDF_CONTAINER_HEIGHT * 0.2;
+        cropY.value = 100;
         cropWidth.value = SCREEN_WIDTH * 0.8;
-        cropHeight.value = PDF_CONTAINER_HEIGHT * 0.4;
+        cropHeight.value = 200;
         
         setLoading(false);
       } catch (error) {
@@ -105,145 +96,205 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
     loadImages();
   }, [pdfUri]);
 
-  // Crop rectangle position and size (in pixels)
+  // Crop rectangle position and size (absolute pixels from top of content)
   const cropX = useSharedValue(SCREEN_WIDTH * 0.1);
-  const cropY = useSharedValue(PDF_CONTAINER_HEIGHT * 0.1);
+  const cropY = useSharedValue(100);
   const cropWidth = useSharedValue(SCREEN_WIDTH * 0.8);
-  const cropHeight = useSharedValue(PDF_CONTAINER_HEIGHT * 0.3);
+  const cropHeight = useSharedValue(200);
+  const scrollY = useSharedValue(0);
 
-  // Update dimensions when image loads
-  const handleImageLoad = (width: number, height: number) => {
-    const aspectRatio = width / height;
-    const containerWidth = SCREEN_WIDTH;
-    const containerHeight = PDF_CONTAINER_HEIGHT;
-    
-    let displayWidth = containerWidth;
-    let displayHeight = containerWidth / aspectRatio;
-    
-    if (displayHeight > containerHeight) {
-      displayHeight = containerHeight;
-      displayWidth = containerHeight * aspectRatio;
-    }
-    
-    setCurrentImageDimensions({ width: displayWidth, height: displayHeight });
-    setPdfDimensions({ width: displayWidth, height: displayHeight });
-  };
-
-  // Convert pixel coordinates to percentage
-  const getPercentageCrop = (): CropRect => {
-    return {
-      x: (cropX.value / pdfDimensions.width) * 100,
-      y: (cropY.value / pdfDimensions.height) * 100,
-      width: (cropWidth.value / pdfDimensions.width) * 100,
-      height: (cropHeight.value / pdfDimensions.height) * 100,
-    };
+  const handleImageLoad = (index: number, width: number, height: number) => {
+    setImageDimensions(prev => {
+      const newDims = [...prev];
+      newDims[index] = { width, height };
+      
+      // Calculate total height
+      if (newDims.length === pageImages.length && newDims.every(d => d)) {
+        const total = newDims.reduce((sum, dim) => sum + (SCREEN_WIDTH / dim.width) * dim.height, 0);
+        setTotalContentHeight(total);
+      }
+      
+      return newDims;
+    });
   };
 
   const handleConfirm = async () => {
-    const crop = getPercentageCrop();
+    // Calculate which pages the crop spans
+    let accumulatedHeight = 0;
+    let startPage = -1;
+    let endPage = -1;
+    let startYInPage = 0;
+    let endYInPage = 0;
+    
+    const cropEndY = cropY.value + cropHeight.value;
+    
+    // Find start page
+    for (let i = 0; i < imageDimensions.length; i++) {
+      const dim = imageDimensions[i];
+      if (!dim) continue;
+      
+      const imageHeight = (SCREEN_WIDTH / dim.width) * dim.height;
+      const pageStartY = accumulatedHeight;
+      const pageEndY = accumulatedHeight + imageHeight;
+      
+      // Check if crop starts in this page
+      if (startPage === -1 && cropY.value >= pageStartY && cropY.value < pageEndY) {
+        startPage = i + 1;
+        startYInPage = cropY.value - pageStartY;
+      }
+      
+      // Check if crop ends in this page
+      if (cropEndY > pageStartY && cropEndY <= pageEndY) {
+        endPage = i + 1;
+        endYInPage = cropEndY - pageStartY;
+        break;
+      }
+      
+      accumulatedHeight += imageHeight;
+    }
+    
+    // If crop extends beyond last page
+    if (endPage === -1) {
+      endPage = imageDimensions.length;
+      const lastDim = imageDimensions[endPage - 1];
+      endYInPage = (SCREEN_WIDTH / lastDim.width) * lastDim.height;
+    }
+    
+    console.log('🎯 Crop spans pages:', startPage, 'to', endPage);
     
     // Validate crop
-    if (crop.width < 5 || crop.height < 5) {
+    if (cropWidth.value < 50 || cropHeight.value < 50) {
       Alert.alert('Invalid Crop', 'Crop area is too small. Please select a larger area.');
       return;
     }
+    
+    if (startPage === endPage) {
+      // Single page crop - use existing logic
+      await handleSinglePageCrop(startPage, startYInPage, endYInPage);
+    } else {
+      // Multi-page crop - need to crop multiple pages and stitch
+      await handleMultiPageCrop(startPage, endPage, startYInPage, endYInPage);
+    }
+  };
+  
+  const handleSinglePageCrop = async (pageNum: number, startY: number, endY: number) => {
+    const pageDim = imageDimensions[pageNum - 1];
+    const displayedImageHeight = (SCREEN_WIDTH / pageDim.width) * pageDim.height;
+    
+    const xPercent = (cropX.value / SCREEN_WIDTH) * 100;
+    const yPercent = (startY / displayedImageHeight) * 100;
+    const widthPercent = (cropWidth.value / SCREEN_WIDTH) * 100;
+    const heightPercent = ((endY - startY) / displayedImageHeight) * 100;
+    
+    console.log('📄 Single page crop:', pageNum);
+    console.log('📏 Percentages:', { x: xPercent.toFixed(1), y: yPercent.toFixed(1), w: widthPercent.toFixed(1), h: heightPercent.toFixed(1) });
 
-    // Generate cropped preview by directly cropping the current page image
     try {
-      console.log('🎯 Starting crop process...');
-      console.log('📄 Current page:', currentPage);
-      console.log('📏 Crop rectangle (pixels):', {
-        x: cropX.value,
-        y: cropY.value,
-        width: cropWidth.value,
-        height: cropHeight.value,
+      const response = await fetch(`${BASE_URL}/api/evaluation/crop-pdf-section`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pdf_uri: pdfUri,
+          page_number: pageNum,
+          x: xPercent,
+          y: yPercent,
+          width: widthPercent,
+          height: heightPercent,
+        }),
       });
 
-      // Get the current page image URL directly
-      const currentPageImageUri = pageImages[currentPage - 1];
-      console.log('📸 Current page image URI:', currentPageImageUri);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to crop PDF');
+      }
 
-      // Download the image to local cache first (required for physical devices)
-      console.log('📥 Downloading image to local cache...');
-      const localImagePath = `${cacheDirectory}page_${currentPage}.png`;
-      const downloadResult = await downloadAsync(currentPageImageUri, localImagePath);
-      console.log('✅ Image downloaded to:', downloadResult.uri);
+      const result = await response.json();
+      console.log('✅ Backend crop successful:', result);
 
-      // Get the actual dimensions of the page image
-      Image.getSize(downloadResult.uri, async (imageWidth, imageHeight) => {
-        console.log('📐 Page image size:', imageWidth, 'x', imageHeight);
-        console.log('📐 Screen dimensions:', SCREEN_WIDTH, 'x', PDF_CONTAINER_HEIGHT);
+      const croppedImageUri = `${BASE_URL}${result.crop_uri}`;
+      setPreviewUri(croppedImageUri);
+      setShowPreview(true);
+    } catch (error) {
+      console.error('❌ Failed to crop:', error);
+      Alert.alert('Error', `Failed to crop: ${error}`);
+    }
+  };
+  
+  const handleMultiPageCrop = async (startPage: number, endPage: number, startY: number, endY: number) => {
+    console.log('📄 Multi-page crop from page', startPage, 'to', endPage);
+    
+    try {
+      const crops = [];
+      let accumulatedHeight = 0;
+      
+      // Calculate crop for each page
+      for (let i = 0; i < imageDimensions.length; i++) {
+        const pageNum = i + 1;
+        if (pageNum < startPage || pageNum > endPage) {
+          const dim = imageDimensions[i];
+          accumulatedHeight += (SCREEN_WIDTH / dim.width) * dim.height;
+          continue;
+        }
         
-        // Calculate scale factors for resizeMode="cover"
-        const imageAspect = imageWidth / imageHeight;
-        const containerAspect = SCREEN_WIDTH / PDF_CONTAINER_HEIGHT;
+        const pageDim = imageDimensions[i];
+        const displayedImageHeight = (SCREEN_WIDTH / pageDim.width) * pageDim.height;
+        const pageStartY = accumulatedHeight;
+        const pageEndY = accumulatedHeight + displayedImageHeight;
         
-        let displayWidth, displayHeight, offsetX, offsetY;
+        // Calculate crop bounds for this page
+        let cropStartY, cropEndY;
         
-        if (imageAspect > containerAspect) {
-          // Image is wider - height fills container, width is cropped
-          displayHeight = PDF_CONTAINER_HEIGHT;
-          displayWidth = displayHeight * imageAspect;
-          offsetX = (displayWidth - SCREEN_WIDTH) / 2;
-          offsetY = 0;
+        if (pageNum === startPage) {
+          cropStartY = startY;
+          cropEndY = pageNum === endPage ? endY : displayedImageHeight;
+        } else if (pageNum === endPage) {
+          cropStartY = 0;
+          cropEndY = endY;
         } else {
-          // Image is taller - width fills container, height is cropped
-          displayWidth = SCREEN_WIDTH;
-          displayHeight = displayWidth / imageAspect;
-          offsetX = 0;
-          offsetY = (displayHeight - PDF_CONTAINER_HEIGHT) / 2;
+          // Middle page - crop entire height
+          cropStartY = 0;
+          cropEndY = displayedImageHeight;
         }
         
-        const scaleX = imageWidth / displayWidth;
-        const scaleY = imageHeight / displayHeight;
+        const xPercent = (cropX.value / SCREEN_WIDTH) * 100;
+        const yPercent = (cropStartY / displayedImageHeight) * 100;
+        const widthPercent = (cropWidth.value / SCREEN_WIDTH) * 100;
+        const heightPercent = ((cropEndY - cropStartY) / displayedImageHeight) * 100;
         
-        console.log('📊 Display dimensions:', displayWidth, 'x', displayHeight);
-        console.log('📊 Offset:', offsetX, 'x', offsetY);
-        console.log('📊 Scale factors:', scaleX, 'x', scaleY);
-        
-        // Calculate crop coordinates on the actual image
-        const cropXPixels = Math.round((cropX.value + offsetX) * scaleX);
-        const cropYPixels = Math.round((cropY.value + offsetY) * scaleY);
-        const cropWidthPixels = Math.round(cropWidth.value * scaleX);
-        const cropHeightPixels = Math.round(cropHeight.value * scaleY);
-
-        console.log('✂️ Crop coordinates on image:', {
-          originX: cropXPixels,
-          originY: cropYPixels,
-          width: cropWidthPixels,
-          height: cropHeightPixels,
+        crops.push({
+          page_number: pageNum,
+          x: xPercent,
+          y: yPercent,
+          width: widthPercent,
+          height: heightPercent,
         });
-
-        try {
-          // Crop the image directly from the downloaded local file
-          const croppedImage = await manipulateAsync(
-            downloadResult.uri,
-            [
-              {
-                crop: {
-                  originX: Math.max(0, cropXPixels),
-                  originY: Math.max(0, cropYPixels),
-                  width: Math.min(cropWidthPixels, imageWidth - Math.max(0, cropXPixels)),
-                  height: Math.min(cropHeightPixels, imageHeight - Math.max(0, cropYPixels)),
-                },
-              },
-            ],
-            { compress: 0.9, format: SaveFormat.PNG }
-          );
-
-          console.log('✅ Cropped image created:', croppedImage.uri);
-          console.log('✅ Cropped dimensions:', croppedImage.width, 'x', croppedImage.height);
-          
-          setPreviewUri(croppedImage.uri);
-          setShowPreview(true);
-        } catch (cropError) {
-          console.error('❌ Crop error:', cropError);
-          Alert.alert('Error', `Failed to crop image: ${cropError}`);
-        }
-      }, (error) => {
-        console.error('❌ Failed to get image size:', error);
-        Alert.alert('Error', 'Failed to get image dimensions');
+        
+        accumulatedHeight += displayedImageHeight;
+      }
+      
+      console.log('📏 Multi-page crops:', crops);
+      
+      // Send multi-page crop request to backend
+      const response = await fetch(`${BASE_URL}/api/evaluation/crop-pdf-multi-page`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pdf_uri: pdfUri,
+          crops: crops,
+        }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to crop PDF');
+      }
+
+      const result = await response.json();
+      console.log('✅ Multi-page crop successful:', result);
+
+      const croppedImageUri = `${BASE_URL}${result.crop_uri}`;
+      setPreviewUri(croppedImageUri);
+      setShowPreview(true);
     } catch (error) {
       console.error('❌ Failed to crop:', error);
       Alert.alert('Error', `Failed to crop: ${error}`);
@@ -251,15 +302,43 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
   };
 
   const confirmCrop = () => {
-    const crop = getPercentageCrop();
+    // Calculate page and percentages again for the final crop data
+    let accumulatedHeight = 0;
+    let targetPage = 1;
+    let yOffsetInPage = cropY.value;
+    
+    for (let i = 0; i < imageDimensions.length; i++) {
+      const dim = imageDimensions[i];
+      if (!dim) continue;
+      
+      const imageHeight = (SCREEN_WIDTH / dim.width) * dim.height;
+      
+      if (cropY.value < accumulatedHeight + imageHeight) {
+        targetPage = i + 1;
+        yOffsetInPage = cropY.value - accumulatedHeight;
+        break;
+      }
+      
+      accumulatedHeight += imageHeight;
+    }
+    
+    const pageDim = imageDimensions[targetPage - 1];
+    const displayedImageHeight = (SCREEN_WIDTH / pageDim.width) * pageDim.height;
+    
+    const crop: CropRect = {
+      x: (cropX.value / SCREEN_WIDTH) * 100,
+      y: (yOffsetInPage / displayedImageHeight) * 100,
+      width: (cropWidth.value / SCREEN_WIDTH) * 100,
+      height: (cropHeight.value / displayedImageHeight) * 100,
+    };
     
     const croppedSection: CroppedSection = {
       questionId,
       pdfUri,
-      pageNumber: currentPage,
+      pageNumber: targetPage,
       crop,
       timestamp: Date.now(),
-      previewUri: previewUri, // Include the preview
+      previewUri: previewUri,
     };
 
     onConfirm(croppedSection);
@@ -268,14 +347,6 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
   const cancelPreview = () => {
     setShowPreview(false);
     setPreviewUri('');
-  };
-
-  const handleStartCropping = () => {
-    setIsCropping(true);
-  };
-
-  const handleCancelCropping = () => {
-    setIsCropping(false);
   };
 
   // Shared values for tracking gesture start positions
@@ -294,9 +365,12 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
       const newX = startX.value + event.translationX;
       const newY = startY.value + event.translationY;
 
-      // Constrain within PDF bounds
-      cropX.value = Math.max(0, Math.min(newX, pdfDimensions.width - cropWidth.value));
-      cropY.value = Math.max(0, Math.min(newY, pdfDimensions.height - cropHeight.value));
+      // Constrain within screen width
+      cropX.value = Math.max(0, Math.min(newX, SCREEN_WIDTH - cropWidth.value));
+      
+      // Constrain within total content height, but also check page boundaries
+      const constrainedY = Math.max(0, Math.min(newY, totalContentHeight - cropHeight.value));
+      cropY.value = constrainedY;
     });
 
   // Gesture handlers for resizing corners
@@ -335,7 +409,7 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
           const newWidth = startWidth.value + event.translationX;
           const newHeight = startHeight.value - event.translationY;
 
-          if (newWidth >= MIN_CROP_SIZE && startX.value + newWidth <= pdfDimensions.width) {
+          if (newWidth >= MIN_CROP_SIZE && startX.value + newWidth <= SCREEN_WIDTH) {
             cropWidth.value = newWidth;
           }
           if (newHeight >= MIN_CROP_SIZE && newY >= 0) {
@@ -351,17 +425,17 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
             cropX.value = newX;
             cropWidth.value = newWidth;
           }
-          if (newHeight >= MIN_CROP_SIZE && startY.value + newHeight <= pdfDimensions.height) {
+          if (newHeight >= MIN_CROP_SIZE && startY.value + newHeight <= totalContentHeight) {
             cropHeight.value = newHeight;
           }
         } else if (corner === 'bottomRight') {
           const newWidth = startWidth.value + event.translationX;
           const newHeight = startHeight.value + event.translationY;
 
-          if (newWidth >= MIN_CROP_SIZE && startX.value + newWidth <= pdfDimensions.width) {
+          if (newWidth >= MIN_CROP_SIZE && startX.value + newWidth <= SCREEN_WIDTH) {
             cropWidth.value = newWidth;
           }
-          if (newHeight >= MIN_CROP_SIZE && startY.value + newHeight <= pdfDimensions.height) {
+          if (newHeight >= MIN_CROP_SIZE && startY.value + newHeight <= totalContentHeight) {
             cropHeight.value = newHeight;
           }
         }
@@ -373,11 +447,11 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
   const bottomLeftGesture = createCornerGesture('bottomLeft');
   const bottomRightGesture = createCornerGesture('bottomRight');
 
-  // Animated styles
+  // Animated styles - crop markers positioned absolutely in content coordinates
   const cropRectStyle = useAnimatedStyle(() => ({
     position: 'absolute',
     left: cropX.value,
-    top: cropY.value,
+    top: cropY.value - scrollY.value, // Adjust for scroll position
     width: cropWidth.value,
     height: cropHeight.value,
     borderWidth: 3,
@@ -391,23 +465,23 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
     left: 0,
     top: 0,
     width: SCREEN_WIDTH,
-    height: cropY.value,
+    height: Math.max(0, cropY.value - scrollY.value),
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   }));
 
   const overlayBottomStyle = useAnimatedStyle(() => ({
     position: 'absolute',
     left: 0,
-    top: cropY.value + cropHeight.value,
+    top: cropY.value - scrollY.value + cropHeight.value,
     width: SCREEN_WIDTH,
-    height: PDF_CONTAINER_HEIGHT - (cropY.value + cropHeight.value),
+    height: PDF_CONTAINER_HEIGHT - (cropY.value - scrollY.value + cropHeight.value),
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   }));
 
   const overlayLeftStyle = useAnimatedStyle(() => ({
     position: 'absolute',
     left: 0,
-    top: cropY.value,
+    top: cropY.value - scrollY.value,
     width: cropX.value,
     height: cropHeight.value,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -416,7 +490,7 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
   const overlayRightStyle = useAnimatedStyle(() => ({
     position: 'absolute',
     left: cropX.value + cropWidth.value,
-    top: cropY.value,
+    top: cropY.value - scrollY.value,
     width: SCREEN_WIDTH - (cropX.value + cropWidth.value),
     height: cropHeight.value,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -434,8 +508,8 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
           <View style={styles.headerButton} />
         </View>
 
-        {/* PDF Viewer - Now using Images */}
-        <View style={styles.pdfContainer} ref={pdfContainerRef} collapsable={false}>
+        {/* PDF Viewer - All pages in one scrollable view */}
+        <View style={styles.pdfContainer}>
           {loading ? (
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
               <ActivityIndicator size="large" color="#14B8A6" />
@@ -444,31 +518,27 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
           ) : pageImages.length > 0 ? (
             <ScrollView
               ref={scrollViewRef}
-              pagingEnabled={false}
-              horizontal={false}
               showsVerticalScrollIndicator={true}
               scrollEnabled={true}
-              onMomentumScrollEnd={(event) => {
-                const offsetY = event.nativeEvent.contentOffset.y;
-                const page = Math.floor(offsetY / PDF_CONTAINER_HEIGHT) + 1;
-                setCurrentPage(Math.min(Math.max(1, page), totalPages));
+              onScroll={(event) => {
+                scrollY.value = event.nativeEvent.contentOffset.y;
               }}
+              scrollEventThrottle={16}
             >
               {pageImages.map((imageUri, index) => (
                 <Image
                   key={index}
                   source={{ uri: imageUri }}
                   style={{ 
-                    width: SCREEN_WIDTH, 
-                    height: PDF_CONTAINER_HEIGHT,
+                    width: SCREEN_WIDTH,
+                    height: undefined,
+                    aspectRatio: imageDimensions[index] ? imageDimensions[index].width / imageDimensions[index].height : 1,
                     backgroundColor: '#E5E7EB'
                   }}
-                  resizeMode="cover"
+                  resizeMode="contain"
                   onLoad={(e) => {
-                    if (index === 0) {
-                      const { width, height } = e.nativeEvent.source;
-                      handleImageLoad(width, height);
-                    }
+                    const { width, height } = e.nativeEvent.source;
+                    handleImageLoad(index, width, height);
                   }}
                 />
               ))}
@@ -480,8 +550,8 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
           )}
         </View>
 
-        {/* Crop Overlay - positioned absolutely, doesn't block scrolling */}
-        {isCropping && totalPages > 0 && (
+        {/* Crop Overlay - positioned absolutely, moves with scroll */}
+        {pageImages.length > 0 && (
           <View 
             style={[
               StyleSheet.absoluteFill, 
@@ -498,7 +568,7 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
             <Animated.View style={overlayLeftStyle} pointerEvents="none" />
             <Animated.View style={overlayRightStyle} pointerEvents="none" />
 
-            {/* Crop rectangle with handles - only handles are touchable */}
+            {/* Crop rectangle with handles */}
             <Animated.View style={cropRectStyle} pointerEvents="box-none">
               <GestureDetector gesture={panGesture}>
                 <Animated.View style={StyleSheet.absoluteFill} />
@@ -521,8 +591,8 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
           </View>
         )}
 
-        {/* Floating crop button - OUTSIDE overlay, always visible when cropping */}
-        {isCropping && totalPages > 0 && (
+        {/* Floating crop button */}
+        {pageImages.length > 0 && (
           <View style={styles.fixedCropButtonContainer}>
             <TouchableOpacity 
               style={styles.floatingCropButton} 
@@ -540,7 +610,7 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
           <View style={styles.footerContent}>
             <View style={styles.pageInfo}>
               <Text style={styles.pageText}>
-                {totalPages > 0 ? `Page ${currentPage} of ${totalPages}` : 'Loading PDF...'}
+                {pageImages.length > 0 ? `${pageImages.length} pages loaded` : 'Loading PDF...'}
               </Text>
             </View>
           </View>
