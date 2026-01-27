@@ -4,7 +4,7 @@ import { Feather } from '@expo/vector-icons';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { captureRef } from 'react-native-view-shot';
-import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+import { manipulateAsync, SaveFormat, FlipType } from 'expo-image-manipulator';
 import { downloadAsync, cacheDirectory } from 'expo-file-system/legacy';
 import { BASE_URL } from '../../constants/api';
 
@@ -74,6 +74,7 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
   const [isCropping, setIsCropping] = useState(true);
   const [showPreview, setShowPreview] = useState(false);
   const [previewUri, setPreviewUri] = useState<string>('');
+  const [scrollOffset, setScrollOffset] = useState(0);
 
   const pdfContainerRef = useRef<View>(null);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -148,102 +149,158 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
       return;
     }
 
-    // Generate cropped preview by directly cropping the current page image
     try {
       console.log('🎯 Starting crop process...');
-      console.log('📄 Current page:', currentPage);
-      console.log('📏 Crop rectangle (pixels):', {
+      console.log('📏 Crop rectangle (screen coordinates):', {
         x: cropX.value,
         y: cropY.value,
         width: cropWidth.value,
         height: cropHeight.value,
       });
+      console.log('📜 Scroll offset:', scrollOffset);
 
-      // Get the current page image URL directly
-      const currentPageImageUri = pageImages[currentPage - 1];
-      console.log('📸 Current page image URI:', currentPageImageUri);
+      // Calculate actual position in the full PDF content
+      const actualCropY = cropY.value + scrollOffset;
+      
+      console.log('✂️ Actual crop position in full content:', {
+        x: cropX.value,
+        y: actualCropY,
+        width: cropWidth.value,
+        height: cropHeight.value,
+      });
 
-      // Download the image to local cache first (required for physical devices)
-      console.log('📥 Downloading image to local cache...');
-      const localImagePath = `${cacheDirectory}page_${currentPage}.png`;
-      const downloadResult = await downloadAsync(currentPageImageUri, localImagePath);
-      console.log('✅ Image downloaded to:', downloadResult.uri);
+      // Step 1: Download all page images to local cache
+      console.log('📥 Downloading all page images...');
+      const localImagePaths: string[] = [];
+      
+      for (let i = 0; i < pageImages.length; i++) {
+        const localPath = `${cacheDirectory}pdf_page_${i + 1}.png`;
+        const result = await downloadAsync(pageImages[i], localPath);
+        localImagePaths.push(result.uri);
+        console.log(`✅ Downloaded page ${i + 1}`);
+      }
 
-      // Get the actual dimensions of the page image
-      Image.getSize(downloadResult.uri, async (imageWidth, imageHeight) => {
-        console.log('📐 Page image size:', imageWidth, 'x', imageHeight);
-        console.log('📐 Screen dimensions:', SCREEN_WIDTH, 'x', PDF_CONTAINER_HEIGHT);
+      // Step 2: Stitch all pages together vertically
+      console.log('🔗 Stitching pages together...');
+      let stitchedImage = localImagePaths[0];
+      
+      for (let i = 1; i < localImagePaths.length; i++) {
+        // Get dimensions of current stitched image
+        const stitchedInfo = await new Promise<{width: number, height: number}>((resolve, reject) => {
+          Image.getSize(stitchedImage, (width, height) => resolve({width, height}), reject);
+        });
         
-        // Calculate scale factors for resizeMode="cover"
-        const imageAspect = imageWidth / imageHeight;
-        const containerAspect = SCREEN_WIDTH / PDF_CONTAINER_HEIGHT;
+        // Resize the next page to match width and scale height proportionally
+        const nextPageInfo = await new Promise<{width: number, height: number}>((resolve, reject) => {
+          Image.getSize(localImagePaths[i], (width, height) => resolve({width, height}), reject);
+        });
         
-        let displayWidth, displayHeight, offsetX, offsetY;
+        const scaleFactor = SCREEN_WIDTH / nextPageInfo.width;
+        const scaledHeight = Math.round(nextPageInfo.height * scaleFactor);
+        
+        // Use manipulateAsync to append images (we'll do this by creating a composite)
+        // Since expo-image-manipulator doesn't support direct stitching, we'll crop from individual pages
+        console.log(`📄 Processing page ${i + 1}...`);
+      }
+
+      // Step 3: Determine which page(s) the crop spans
+      const pageHeight = PDF_CONTAINER_HEIGHT;
+      const startPage = Math.floor(actualCropY / pageHeight);
+      const endPage = Math.floor((actualCropY + cropHeight.value) / pageHeight);
+      
+      console.log(`📄 Crop spans from page ${startPage + 1} to page ${endPage + 1}`);
+
+      // Step 4: If crop is within a single page, crop directly from that page
+      if (startPage === endPage) {
+        const pageLocalY = actualCropY - (startPage * pageHeight);
+        
+        console.log(`✂️ Cropping from single page ${startPage + 1} at local Y: ${pageLocalY}`);
+        
+        // Get the page image dimensions
+        const pageInfo = await new Promise<{width: number, height: number}>((resolve, reject) => {
+          Image.getSize(localImagePaths[startPage], (width, height) => resolve({width, height}), reject);
+        });
+        
+        // Calculate scale factor (page images are scaled to fit screen width with cover mode)
+        const imageAspect = pageInfo.width / pageInfo.height;
+        const containerAspect = SCREEN_WIDTH / pageHeight;
+        
+        let scaleX, scaleY, offsetX, offsetY;
         
         if (imageAspect > containerAspect) {
-          // Image is wider - height fills container, width is cropped
-          displayHeight = PDF_CONTAINER_HEIGHT;
-          displayWidth = displayHeight * imageAspect;
-          offsetX = (displayWidth - SCREEN_WIDTH) / 2;
+          // Image is wider - height fills container
+          scaleY = pageInfo.height / pageHeight;
+          scaleX = scaleY;
+          offsetX = (pageInfo.width - (SCREEN_WIDTH * scaleX)) / 2;
           offsetY = 0;
         } else {
-          // Image is taller - width fills container, height is cropped
-          displayWidth = SCREEN_WIDTH;
-          displayHeight = displayWidth / imageAspect;
+          // Image is taller - width fills container
+          scaleX = pageInfo.width / SCREEN_WIDTH;
+          scaleY = scaleX;
           offsetX = 0;
-          offsetY = (displayHeight - PDF_CONTAINER_HEIGHT) / 2;
+          offsetY = (pageInfo.height - (pageHeight * scaleY)) / 2;
         }
         
-        const scaleX = imageWidth / displayWidth;
-        const scaleY = imageHeight / displayHeight;
+        const cropXOnImage = Math.round(cropX.value * scaleX + offsetX);
+        const cropYOnImage = Math.round(pageLocalY * scaleY + offsetY);
+        const cropWidthOnImage = Math.round(cropWidth.value * scaleX);
+        const cropHeightOnImage = Math.round(cropHeight.value * scaleY);
         
-        console.log('📊 Display dimensions:', displayWidth, 'x', displayHeight);
-        console.log('📊 Offset:', offsetX, 'x', offsetY);
-        console.log('📊 Scale factors:', scaleX, 'x', scaleY);
-        
-        // Calculate crop coordinates on the actual image
-        const cropXPixels = Math.round((cropX.value + offsetX) * scaleX);
-        const cropYPixels = Math.round((cropY.value + offsetY) * scaleY);
-        const cropWidthPixels = Math.round(cropWidth.value * scaleX);
-        const cropHeightPixels = Math.round(cropHeight.value * scaleY);
-
-        console.log('✂️ Crop coordinates on image:', {
-          originX: cropXPixels,
-          originY: cropYPixels,
-          width: cropWidthPixels,
-          height: cropHeightPixels,
+        console.log('✂️ Crop coordinates on source image:', {
+          originX: cropXOnImage,
+          originY: cropYOnImage,
+          width: cropWidthOnImage,
+          height: cropHeightOnImage,
         });
-
-        try {
-          // Crop the image directly from the downloaded local file
-          const croppedImage = await manipulateAsync(
-            downloadResult.uri,
-            [
-              {
-                crop: {
-                  originX: Math.max(0, cropXPixels),
-                  originY: Math.max(0, cropYPixels),
-                  width: Math.min(cropWidthPixels, imageWidth - Math.max(0, cropXPixels)),
-                  height: Math.min(cropHeightPixels, imageHeight - Math.max(0, cropYPixels)),
-                },
+        
+        const croppedImage = await manipulateAsync(
+          localImagePaths[startPage],
+          [
+            {
+              crop: {
+                originX: Math.max(0, cropXOnImage),
+                originY: Math.max(0, cropYOnImage),
+                width: Math.min(cropWidthOnImage, pageInfo.width - Math.max(0, cropXOnImage)),
+                height: Math.min(cropHeightOnImage, pageInfo.height - Math.max(0, cropYOnImage)),
               },
-            ],
-            { compress: 0.9, format: SaveFormat.PNG }
-          );
+            },
+          ],
+          { compress: 0.9, format: SaveFormat.PNG }
+        );
 
-          console.log('✅ Cropped image created:', croppedImage.uri);
-          console.log('✅ Cropped dimensions:', croppedImage.width, 'x', croppedImage.height);
-          
-          setPreviewUri(croppedImage.uri);
-          setShowPreview(true);
-        } catch (cropError) {
-          console.error('❌ Crop error:', cropError);
-          Alert.alert('Error', `Failed to crop image: ${cropError}`);
-        }
-      }, (error) => {
-        console.error('❌ Failed to get image size:', error);
-        Alert.alert('Error', 'Failed to get image dimensions');
-      });
+        console.log('✅ Cropped image created:', croppedImage.uri);
+        setPreviewUri(croppedImage.uri);
+        setShowPreview(true);
+      } else {
+        // Crop spans multiple pages - for now, just crop from the first page
+        Alert.alert('Multi-page Crop', 'Crop spans multiple pages. Cropping from first page only.');
+        const pageLocalY = actualCropY - (startPage * pageHeight);
+        
+        const pageInfo = await new Promise<{width: number, height: number}>((resolve, reject) => {
+          Image.getSize(localImagePaths[startPage], (width, height) => resolve({width, height}), reject);
+        });
+        
+        const scaleX = pageInfo.width / SCREEN_WIDTH;
+        const scaleY = pageInfo.height / pageHeight;
+        
+        const croppedImage = await manipulateAsync(
+          localImagePaths[startPage],
+          [
+            {
+              crop: {
+                originX: Math.round(cropX.value * scaleX),
+                originY: Math.round(pageLocalY * scaleY),
+                width: Math.round(cropWidth.value * scaleX),
+                height: Math.round(cropHeight.value * scaleY),
+              },
+            },
+          ],
+          { compress: 0.9, format: SaveFormat.PNG }
+        );
+
+        setPreviewUri(croppedImage.uri);
+        setShowPreview(true);
+      }
     } catch (error) {
       console.error('❌ Failed to crop:', error);
       Alert.alert('Error', `Failed to crop: ${error}`);
@@ -448,6 +505,11 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
               horizontal={false}
               showsVerticalScrollIndicator={true}
               scrollEnabled={true}
+              onScroll={(event) => {
+                const offsetY = event.nativeEvent.contentOffset.y;
+                setScrollOffset(offsetY);
+              }}
+              scrollEventThrottle={16}
               onMomentumScrollEnd={(event) => {
                 const offsetY = event.nativeEvent.contentOffset.y;
                 const page = Math.floor(offsetY / PDF_CONTAINER_HEIGHT) + 1;
