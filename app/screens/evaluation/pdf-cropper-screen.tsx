@@ -1,11 +1,12 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Alert, Modal, Image } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Alert, Modal, Image, ScrollView, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import Pdf from 'react-native-pdf';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { captureRef } from 'react-native-view-shot';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+import { downloadAsync, cacheDirectory } from 'expo-file-system/legacy';
+import { BASE_URL } from '../../constants/api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const HEADER_HEIGHT = 60;
@@ -32,11 +33,25 @@ export interface CroppedSection {
 }
 
 interface PDFCropperScreenProps {
-  pdfUri: string;
+  pdfUri: string; // This will be the PDF ID from backend
   questionId: string;
   onBack: () => void;
   onConfirm: (croppedSection: CroppedSection) => void;
 }
+
+// Helper to get page images from backend
+const getPageImages = async (pdfId: string): Promise<string[]> => {
+  try {
+    const response = await fetch(`${BASE_URL}/api/evaluation/pdf-images/${pdfId}`);
+    if (!response.ok) throw new Error('Failed to fetch PDF images');
+    const data = await response.json();
+    // Convert relative URLs to absolute
+    return data.images.map((img: string) => `${BASE_URL}${img}`);
+  } catch (error) {
+    console.error('Error fetching PDF images:', error);
+    throw error;
+  }
+};
 
 export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
   pdfUri,
@@ -48,19 +63,47 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
   console.log('PDFCropperScreen mounted');
   console.log('PDF URI:', pdfUri);
   console.log('Question ID:', questionId);
-  console.log('URI type:', typeof pdfUri);
-  console.log('URI length:', pdfUri?.length);
   console.log('='.repeat(50));
   
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
+  const [pageImages, setPageImages] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [currentImageDimensions, setCurrentImageDimensions] = useState({ width: SCREEN_WIDTH, height: PDF_CONTAINER_HEIGHT });
   const [pdfDimensions, setPdfDimensions] = useState({ width: SCREEN_WIDTH, height: PDF_CONTAINER_HEIGHT });
-  const [isCropping, setIsCropping] = useState(true); // Start in cropping mode by default
+  const [isCropping, setIsCropping] = useState(true);
   const [showPreview, setShowPreview] = useState(false);
   const [previewUri, setPreviewUri] = useState<string>('');
-  const [isLocked, setIsLocked] = useState(false); // Lock crop to allow scrolling
 
   const pdfContainerRef = useRef<View>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  // Load PDF images from backend
+  useEffect(() => {
+    const loadImages = async () => {
+      try {
+        setLoading(true);
+        const images = await getPageImages(pdfUri);
+        setPageImages(images);
+        setTotalPages(images.length);
+        
+        // Initialize crop position after images are loaded
+        // Set initial crop to center of screen
+        cropX.value = SCREEN_WIDTH * 0.1;
+        cropY.value = PDF_CONTAINER_HEIGHT * 0.2;
+        cropWidth.value = SCREEN_WIDTH * 0.8;
+        cropHeight.value = PDF_CONTAINER_HEIGHT * 0.4;
+        
+        setLoading(false);
+      } catch (error) {
+        Alert.alert('Error', 'Failed to load PDF images', [
+          { text: 'Go Back', onPress: onBack }
+        ]);
+        setLoading(false);
+      }
+    };
+    loadImages();
+  }, [pdfUri]);
 
   // Crop rectangle position and size (in pixels)
   const cropX = useSharedValue(SCREEN_WIDTH * 0.1);
@@ -68,7 +111,23 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
   const cropWidth = useSharedValue(SCREEN_WIDTH * 0.8);
   const cropHeight = useSharedValue(PDF_CONTAINER_HEIGHT * 0.3);
 
-  const pdfRef = useRef<any>(null);
+  // Update dimensions when image loads
+  const handleImageLoad = (width: number, height: number) => {
+    const aspectRatio = width / height;
+    const containerWidth = SCREEN_WIDTH;
+    const containerHeight = PDF_CONTAINER_HEIGHT;
+    
+    let displayWidth = containerWidth;
+    let displayHeight = containerWidth / aspectRatio;
+    
+    if (displayHeight > containerHeight) {
+      displayHeight = containerHeight;
+      displayWidth = containerHeight * aspectRatio;
+    }
+    
+    setCurrentImageDimensions({ width: displayWidth, height: displayHeight });
+    setPdfDimensions({ width: displayWidth, height: displayHeight });
+  };
 
   // Convert pixel coordinates to percentage
   const getPercentageCrop = (): CropRect => {
@@ -89,90 +148,105 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
       return;
     }
 
-    // Generate cropped preview
+    // Generate cropped preview by directly cropping the current page image
     try {
-      if (pdfContainerRef.current) {
-        console.log('🎯 Starting crop process...');
-        console.log('📏 PDF Dimensions (state):', pdfDimensions);
-        console.log('📏 Crop rectangle (pixels):', {
-          x: cropX.value,
-          y: cropY.value,
-          width: cropWidth.value,
-          height: cropHeight.value,
+      console.log('🎯 Starting crop process...');
+      console.log('📄 Current page:', currentPage);
+      console.log('📏 Crop rectangle (pixels):', {
+        x: cropX.value,
+        y: cropY.value,
+        width: cropWidth.value,
+        height: cropHeight.value,
+      });
+
+      // Get the current page image URL directly
+      const currentPageImageUri = pageImages[currentPage - 1];
+      console.log('📸 Current page image URI:', currentPageImageUri);
+
+      // Download the image to local cache first (required for physical devices)
+      console.log('📥 Downloading image to local cache...');
+      const localImagePath = `${cacheDirectory}page_${currentPage}.png`;
+      const downloadResult = await downloadAsync(currentPageImageUri, localImagePath);
+      console.log('✅ Image downloaded to:', downloadResult.uri);
+
+      // Get the actual dimensions of the page image
+      Image.getSize(downloadResult.uri, async (imageWidth, imageHeight) => {
+        console.log('📐 Page image size:', imageWidth, 'x', imageHeight);
+        console.log('📐 Screen dimensions:', SCREEN_WIDTH, 'x', PDF_CONTAINER_HEIGHT);
+        
+        // Calculate scale factors for resizeMode="cover"
+        const imageAspect = imageWidth / imageHeight;
+        const containerAspect = SCREEN_WIDTH / PDF_CONTAINER_HEIGHT;
+        
+        let displayWidth, displayHeight, offsetX, offsetY;
+        
+        if (imageAspect > containerAspect) {
+          // Image is wider - height fills container, width is cropped
+          displayHeight = PDF_CONTAINER_HEIGHT;
+          displayWidth = displayHeight * imageAspect;
+          offsetX = (displayWidth - SCREEN_WIDTH) / 2;
+          offsetY = 0;
+        } else {
+          // Image is taller - width fills container, height is cropped
+          displayWidth = SCREEN_WIDTH;
+          displayHeight = displayWidth / imageAspect;
+          offsetX = 0;
+          offsetY = (displayHeight - PDF_CONTAINER_HEIGHT) / 2;
+        }
+        
+        const scaleX = imageWidth / displayWidth;
+        const scaleY = imageHeight / displayHeight;
+        
+        console.log('📊 Display dimensions:', displayWidth, 'x', displayHeight);
+        console.log('📊 Offset:', offsetX, 'x', offsetY);
+        console.log('📊 Scale factors:', scaleX, 'x', scaleY);
+        
+        // Calculate crop coordinates on the actual image
+        const cropXPixels = Math.round((cropX.value + offsetX) * scaleX);
+        const cropYPixels = Math.round((cropY.value + offsetY) * scaleY);
+        const cropWidthPixels = Math.round(cropWidth.value * scaleX);
+        const cropHeightPixels = Math.round(cropHeight.value * scaleY);
+
+        console.log('✂️ Crop coordinates on image:', {
+          originX: cropXPixels,
+          originY: cropYPixels,
+          width: cropWidthPixels,
+          height: cropHeightPixels,
         });
 
-        // Capture the entire PDF view at native resolution
-        const fullImageUri = await captureRef(pdfContainerRef, {
-          format: 'png',
-          quality: 1,
-        });
-
-        console.log('� Full image captured:', fullImageUri);
-
-        // Get the actual dimensions of the captured image
-        Image.getSize(fullImageUri, async (capturedWidth, capturedHeight) => {
-          console.log('📐 Captured image actual size:', capturedWidth, 'x', capturedHeight);
-          console.log('📐 Expected container size:', pdfDimensions.width, 'x', pdfDimensions.height);
-          console.log('📐 PDF_CONTAINER_HEIGHT constant:', PDF_CONTAINER_HEIGHT);
-          
-          // Calculate the scale factor between captured image and screen
-          const scaleX = capturedWidth / pdfDimensions.width;
-          const scaleY = capturedHeight / pdfDimensions.height;
-          
-          console.log('📊 Scale factors:', { scaleX, scaleY });
-          
-          // CROP ADJUSTMENT FIX: Reduce top (start lower) and extend bottom
-          const topReductionPixels = 15 * scaleY; // Start 30 pixels LOWER (crop less at top)
-          const bottomExtensionPixels = 40 * scaleY; // Extend downward by 30 pixels (crop more at bottom)
-          
-          // The crop coordinates are relative to the PDF container
-          // Scale them to match the captured image resolution
-          const cropXPixels = Math.round(cropX.value * scaleX);
-          const cropYPixels = Math.round((cropY.value * scaleY) + topReductionPixels); // Shift Y DOWN to start lower
-          const cropWidthPixels = Math.round(cropWidth.value * scaleX);
-          const cropHeightPixels = Math.round((cropHeight.value * scaleY) - topReductionPixels + bottomExtensionPixels); // Reduce for top shift, extend for bottom
-
-          console.log('✂️ Crop coordinates (scaled to image):', {
-            originX: cropXPixels,
-            originY: cropYPixels,
-            width: cropWidthPixels,
-            height: cropHeightPixels,
-          });
-
-          try {
-            // Crop the image using the scaled coordinates
-            const croppedImage = await manipulateAsync(
-              fullImageUri,
-              [
-                {
-                  crop: {
-                    originX: cropXPixels,
-                    originY: cropYPixels,
-                    width: cropWidthPixels,
-                    height: cropHeightPixels,
-                  },
+        try {
+          // Crop the image directly from the downloaded local file
+          const croppedImage = await manipulateAsync(
+            downloadResult.uri,
+            [
+              {
+                crop: {
+                  originX: Math.max(0, cropXPixels),
+                  originY: Math.max(0, cropYPixels),
+                  width: Math.min(cropWidthPixels, imageWidth - Math.max(0, cropXPixels)),
+                  height: Math.min(cropHeightPixels, imageHeight - Math.max(0, cropYPixels)),
                 },
-              ],
-              { compress: 0.8, format: SaveFormat.PNG }
-            );
+              },
+            ],
+            { compress: 0.9, format: SaveFormat.PNG }
+          );
 
-            console.log('✅ Cropped image created:', croppedImage.uri);
-            console.log('✅ Cropped dimensions:', croppedImage.width, 'x', croppedImage.height);
-            
-            setPreviewUri(croppedImage.uri);
-            setShowPreview(true);
-          } catch (cropError) {
-            console.error('❌ Crop error:', cropError);
-            Alert.alert('Error', `Failed to crop image: ${cropError}`);
-          }
-        }, (error) => {
-          console.error('❌ Failed to get image size:', error);
-          Alert.alert('Error', 'Failed to get image dimensions');
-        });
-      }
+          console.log('✅ Cropped image created:', croppedImage.uri);
+          console.log('✅ Cropped dimensions:', croppedImage.width, 'x', croppedImage.height);
+          
+          setPreviewUri(croppedImage.uri);
+          setShowPreview(true);
+        } catch (cropError) {
+          console.error('❌ Crop error:', cropError);
+          Alert.alert('Error', `Failed to crop image: ${cropError}`);
+        }
+      }, (error) => {
+        console.error('❌ Failed to get image size:', error);
+        Alert.alert('Error', 'Failed to get image dimensions');
+      });
     } catch (error) {
-      console.error('❌ Failed to capture image:', error);
-      Alert.alert('Error', `Failed to capture image: ${error}`);
+      console.error('❌ Failed to crop:', error);
+      Alert.alert('Error', `Failed to crop: ${error}`);
     }
   };
 
@@ -316,7 +390,7 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
     position: 'absolute',
     left: 0,
     top: 0,
-    width: pdfDimensions.width,
+    width: SCREEN_WIDTH,
     height: cropY.value,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   }));
@@ -325,8 +399,8 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
     position: 'absolute',
     left: 0,
     top: cropY.value + cropHeight.value,
-    width: pdfDimensions.width,
-    height: pdfDimensions.height - (cropY.value + cropHeight.value),
+    width: SCREEN_WIDTH,
+    height: PDF_CONTAINER_HEIGHT - (cropY.value + cropHeight.value),
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   }));
 
@@ -343,7 +417,7 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
     position: 'absolute',
     left: cropX.value + cropWidth.value,
     top: cropY.value,
-    width: pdfDimensions.width - (cropX.value + cropWidth.value),
+    width: SCREEN_WIDTH - (cropX.value + cropWidth.value),
     height: cropHeight.value,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   }));
@@ -360,46 +434,45 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
           <View style={styles.headerButton} />
         </View>
 
-        {/* PDF Viewer */}
+        {/* PDF Viewer - Now using Images */}
         <View style={styles.pdfContainer} ref={pdfContainerRef} collapsable={false}>
-          {pdfUri ? (
-            <Pdf
-              trustAllCerts={false}
-              source={{ uri: pdfUri }}
-              style={{
-                flex: 1,
-                width: Dimensions.get('window').width,
-                height: Dimensions.get('window').height - HEADER_HEIGHT - FOOTER_HEIGHT,
-              }}
-              onLoadComplete={(numberOfPages, filePath) => {
-                console.log('✅ PDF loaded successfully');
-                console.log('  - Pages:', numberOfPages);
-                console.log('  - Path:', filePath);
-                setTotalPages(numberOfPages);
-                setPdfDimensions({ 
-                  width: Dimensions.get('window').width, 
-                  height: Dimensions.get('window').height - HEADER_HEIGHT - FOOTER_HEIGHT 
-                });
-              }}
-              onPageChanged={(page, numberOfPages) => {
-                console.log('📄 Page changed:', page, '/', numberOfPages);
-                setCurrentPage(page);
-              }}
-              onError={(error) => {
-                console.error('❌ PDF Error:', error);
-                Alert.alert(
-                  'PDF Error', 
-                  `Failed to load PDF: ${error}`,
-                  [{ text: 'Go Back', onPress: onBack }]
-                );
-              }}
-              onPressLink={(uri) => {
-                console.log('Link pressed:', uri);
-              }}
-              enablePaging={false}
+          {loading ? (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+              <ActivityIndicator size="large" color="#14B8A6" />
+              <Text style={{ color: '#666', fontSize: 16, marginTop: 12 }}>Loading PDF...</Text>
+            </View>
+          ) : pageImages.length > 0 ? (
+            <ScrollView
+              ref={scrollViewRef}
+              pagingEnabled={false}
               horizontal={false}
-              spacing={0}
-            />
+              showsVerticalScrollIndicator={true}
+              scrollEnabled={true}
+              onMomentumScrollEnd={(event) => {
+                const offsetY = event.nativeEvent.contentOffset.y;
+                const page = Math.floor(offsetY / PDF_CONTAINER_HEIGHT) + 1;
+                setCurrentPage(Math.min(Math.max(1, page), totalPages));
+              }}
+            >
+              {pageImages.map((imageUri, index) => (
+                <Image
+                  key={index}
+                  source={{ uri: imageUri }}
+                  style={{ 
+                    width: SCREEN_WIDTH, 
+                    height: PDF_CONTAINER_HEIGHT,
+                    backgroundColor: '#E5E7EB'
+                  }}
+                  resizeMode="cover"
+                  onLoad={(e) => {
+                    if (index === 0) {
+                      const { width, height } = e.nativeEvent.source;
+                      handleImageLoad(width, height);
+                    }
+                  }}
+                />
+              ))}
+            </ScrollView>
           ) : (
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
               <Text style={{ color: '#666', fontSize: 16 }}>No PDF loaded</Text>
@@ -407,8 +480,8 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
           )}
         </View>
 
-        {/* Crop Overlay - OUTSIDE PDF container so it doesn't scroll */}
-        {isCropping && totalPages > 0 && !isLocked && (
+        {/* Crop Overlay - positioned absolutely, doesn't block scrolling */}
+        {isCropping && totalPages > 0 && (
           <View 
             style={[
               StyleSheet.absoluteFill, 
@@ -419,35 +492,37 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
             ]} 
             pointerEvents="box-none"
           >
-            {/* Dimmed overlays - these don't intercept touches */}
+            {/* Dimmed overlays */}
             <Animated.View style={overlayTopStyle} pointerEvents="none" />
             <Animated.View style={overlayBottomStyle} pointerEvents="none" />
             <Animated.View style={overlayLeftStyle} pointerEvents="none" />
             <Animated.View style={overlayRightStyle} pointerEvents="none" />
 
-            {/* Crop rectangle - only border and handles intercept touches */}
-            <GestureDetector gesture={panGesture}>
-              <Animated.View style={[cropRectStyle, { pointerEvents: 'box-none' }]}>
-                {/* Corner handles - these are the only touchable parts */}
-                <GestureDetector gesture={topLeftGesture}>
-                  <Animated.View style={[styles.handle, styles.handleTopLeft]} />
-                </GestureDetector>
-                <GestureDetector gesture={topRightGesture}>
-                  <Animated.View style={[styles.handle, styles.handleTopRight]} />
-                </GestureDetector>
-                <GestureDetector gesture={bottomLeftGesture}>
-                  <Animated.View style={[styles.handle, styles.handleBottomLeft]} />
-                </GestureDetector>
-                <GestureDetector gesture={bottomRightGesture}>
-                  <Animated.View style={[styles.handle, styles.handleBottomRight]} />
-                </GestureDetector>
-              </Animated.View>
-            </GestureDetector>
+            {/* Crop rectangle with handles - only handles are touchable */}
+            <Animated.View style={cropRectStyle} pointerEvents="box-none">
+              <GestureDetector gesture={panGesture}>
+                <Animated.View style={StyleSheet.absoluteFill} />
+              </GestureDetector>
+              
+              {/* Corner handles */}
+              <GestureDetector gesture={topLeftGesture}>
+                <Animated.View style={[styles.handle, styles.handleTopLeft]} />
+              </GestureDetector>
+              <GestureDetector gesture={topRightGesture}>
+                <Animated.View style={[styles.handle, styles.handleTopRight]} />
+              </GestureDetector>
+              <GestureDetector gesture={bottomLeftGesture}>
+                <Animated.View style={[styles.handle, styles.handleBottomLeft]} />
+              </GestureDetector>
+              <GestureDetector gesture={bottomRightGesture}>
+                <Animated.View style={[styles.handle, styles.handleBottomRight]} />
+              </GestureDetector>
+            </Animated.View>
           </View>
         )}
 
         {/* Floating crop button - OUTSIDE overlay, always visible when cropping */}
-        {isCropping && totalPages > 0 && !isLocked && (
+        {isCropping && totalPages > 0 && (
           <View style={styles.fixedCropButtonContainer}>
             <TouchableOpacity 
               style={styles.floatingCropButton} 
@@ -468,20 +543,6 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
                 {totalPages > 0 ? `Page ${currentPage} of ${totalPages}` : 'Loading PDF...'}
               </Text>
             </View>
-
-            {totalPages > 0 && isCropping && (
-              <View style={styles.actionButtons}>
-                <TouchableOpacity 
-                  style={[styles.lockButton, isLocked && styles.lockButtonActive]} 
-                  onPress={() => setIsLocked(!isLocked)}
-                >
-                  <Feather name={isLocked ? "lock" : "unlock"} size={18} color={isLocked ? "#14B8A6" : "#666"} />
-                  <Text style={[styles.lockButtonText, isLocked && styles.lockButtonTextActive]}>
-                    {isLocked ? 'Locked' : 'Unlock'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
           </View>
         </View>
       </View>

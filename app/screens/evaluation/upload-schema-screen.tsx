@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
+import { BASE_URL } from '../../constants/api';
 
 interface UploadSchemaScreenProps {
   onBack: () => void;
-  onSuccess: (pdfUri: string, subject: string) => void;
+  onSuccess: (pdfId: string, subject: string) => void;
 }
 
 export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, onSuccess }) => {
@@ -13,6 +14,7 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
   const [showDropdown, setShowDropdown] = useState(false);
   const [pdfUri, setPdfUri] = useState<string>('');
   const [pdfName, setPdfName] = useState<string>('');
+  const [uploading, setUploading] = useState(false);
 
   // Dummy subjects - will be fetched from database later
   const subjects = [
@@ -52,9 +54,55 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
         setPdfUri(file.uri);
         setPdfName(file.name);
         
-        // Automatically proceed after successful upload
-        console.log('✅ Calling onSuccess with:', file.uri, selectedSubject);
-        onSuccess(file.uri, selectedSubject);
+        // Upload PDF to backend
+        setUploading(true);
+        try {
+          console.log('📤 Uploading PDF to backend...');
+          
+          // Create FormData
+          const formData = new FormData();
+          formData.append('subject', selectedSubject);
+          
+          // For React Native, FormData can handle the file object directly
+          const fileBlob = {
+            uri: file.uri,
+            type: file.mimeType || 'application/pdf',
+            name: file.name,
+          } as any;
+          
+          formData.append('pdf_file', fileBlob);
+          
+          console.log('📤 Sending request to:', `${BASE_URL}/api/evaluation/upload-schema-pdf`);
+          console.log('📤 File details:', { name: file.name, size: file.size, type: file.mimeType });
+          
+          const response = await fetch(`${BASE_URL}/api/evaluation/upload-schema-pdf`, {
+            method: 'POST',
+            body: formData,
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+          });
+          
+          const responseData = await response.json();
+          console.log('📥 Upload response:', responseData);
+          
+          if (!response.ok) {
+            throw new Error(responseData.detail || 'Failed to upload PDF');
+          }
+          
+          if (responseData.success) {
+            console.log('✅ PDF uploaded successfully, ID:', responseData.pdf_id);
+            // Pass the PDF ID to the next screen
+            onSuccess(responseData.pdf_id, selectedSubject);
+          } else {
+            throw new Error('Upload failed');
+          }
+        } catch (uploadError) {
+          console.error('❌ Upload error:', uploadError);
+          Alert.alert('Upload Failed', `Failed to upload PDF: ${uploadError}`);
+        } finally {
+          setUploading(false);
+        }
       } else {
         console.log('❌ PDF selection canceled or no file selected');
       }
@@ -127,36 +175,46 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
             onPress={handleUploadSchema}
             style={[
               styles.uploadButton,
-              !selectedSubject && styles.uploadButtonDisabled
+              (!selectedSubject || uploading) && styles.uploadButtonDisabled
             ]}
             activeOpacity={0.8}
-            disabled={!selectedSubject}
+            disabled={!selectedSubject || uploading}
           >
             <View style={styles.uploadButtonContent}>
-              <View style={[
-                styles.uploadIconContainer,
-                !selectedSubject && styles.uploadIconContainerDisabled
-              ]}>
-                <Feather 
-                  name="upload-cloud" 
-                  size={48} 
-                  color={selectedSubject ? "#14B8A6" : "#9CA3AF"} 
-                />
-              </View>
-              <Text style={[
-                styles.uploadButtonText,
-                !selectedSubject && styles.uploadButtonTextDisabled
-              ]}>
-                Upload Answer Schema
-              </Text>
-              <Text style={[
-                styles.uploadButtonSubtext,
-                !selectedSubject && styles.uploadButtonSubtextDisabled
-              ]}>
-                {selectedSubject 
-                  ? 'Tap to select PDF file' 
-                  : 'Select a subject first'}
-              </Text>
+              {uploading ? (
+                <>
+                  <ActivityIndicator size="large" color="#14B8A6" style={{ marginBottom: 20 }} />
+                  <Text style={styles.uploadButtonText}>Uploading...</Text>
+                  <Text style={styles.uploadButtonSubtext}>Please wait</Text>
+                </>
+              ) : (
+                <>
+                  <View style={[
+                    styles.uploadIconContainer,
+                    !selectedSubject && styles.uploadIconContainerDisabled
+                  ]}>
+                    <Feather 
+                      name="upload-cloud" 
+                      size={48} 
+                      color={selectedSubject ? "#14B8A6" : "#9CA3AF"} 
+                    />
+                  </View>
+                  <Text style={[
+                    styles.uploadButtonText,
+                    !selectedSubject && styles.uploadButtonTextDisabled
+                  ]}>
+                    Upload Answer Schema
+                  </Text>
+                  <Text style={[
+                    styles.uploadButtonSubtext,
+                    !selectedSubject && styles.uploadButtonSubtextDisabled
+                  ]}>
+                    {selectedSubject 
+                      ? 'Tap to select PDF file' 
+                      : 'Select a subject first'}
+                  </Text>
+                </>
+              )}
             </View>
           </TouchableOpacity>
         </View>

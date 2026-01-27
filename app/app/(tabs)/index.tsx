@@ -73,8 +73,8 @@ export default function HomeScreenRefactored() {
     }
   };
 
-  const handleUploadSchemaSuccess = (uri: string, subject: string) => {
-    setPdfUri(uri);
+  const handleUploadSchemaSuccess = (pdfId: string, subject: string) => {
+    setPdfUri(pdfId); // Now this is a PDF ID, not a file URI
     setSelectedSubject(subject);
     setEvaluationSubScreen('attachImages');
   };
