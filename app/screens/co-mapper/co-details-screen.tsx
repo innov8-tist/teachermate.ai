@@ -1,20 +1,32 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Pressable } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert, Platform } from 'react-native';
 import { coService, CODetail } from '@/services/api/co-service';
 import { Feather } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 
 interface CODetailsScreenProps {
   coId: number;
   onBack: () => void;
 }
 
+interface SubjectInfo {
+  name: string;
+  ia: string;
+  branch: string;
+  sem: number;
+}
+
 export const CODetailsScreen: React.FC<CODetailsScreenProps> = ({ coId, onBack }) => {
   const [coDetails, setCoDetails] = useState<CODetail[]>([]);
+  const [subjectInfo, setSubjectInfo] = useState<SubjectInfo | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
     fetchDetails();
+    fetchSubjectInfo();
   }, [coId]);
 
   const fetchDetails = async () => {
@@ -22,16 +34,85 @@ export const CODetailsScreen: React.FC<CODetailsScreenProps> = ({ coId, onBack }
     setCoDetails(data);
   };
 
+  const fetchSubjectInfo = async () => {
+    try {
+      console.log('Fetching subject info for coId:', coId);
+      const info = await coService.fetchSubjectInfo(coId);
+      console.log('Subject info received:', info);
+      setSubjectInfo(info);
+    } catch (error) {
+      console.error('Error fetching subject info:', error);
+      Alert.alert('Error', 'Failed to fetch subject information');
+    }
+  };
+
+  const handleDownloadExcel = async () => {
+    if (coDetails.length === 0) {
+      Alert.alert('No Data', 'There are no mappings to download');
+      return;
+    }
+
+    setIsDownloading(true);
+    try {
+      console.log('Starting Excel download for subject:', coId);
+
+      // Call API to generate Excel file
+      const base64Data = await coService.downloadCOExcel(coId);
+      console.log('Received base64 data, length:', base64Data.length);
+
+      // Create file name and path
+      const fileName = `CO_Mapping_${subjectInfo?.name || coId}_${subjectInfo?.ia || ''}.xlsx`;
+      const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+
+      console.log('Writing file to:', fileUri);
+
+      // Write base64 data to file
+      await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      console.log('File saved successfully');
+
+      // Use share dialog - works reliably on all devices
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          dialogTitle: 'Save Excel File',
+        });
+        console.log('Share dialog opened');
+      } else {
+        Alert.alert('File Ready', `File saved to: ${fileUri}`);
+      }
+    } catch (error: any) {
+      console.error('Download error:', error);
+      const errorMessage = error.message || 'Failed to download Excel file';
+      Alert.alert('Download Error', errorMessage);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-          {/* Header */}
+          {/* Header with IA Badge */}
           <View style={styles.header}>
             <Text style={styles.title}>Question-to-CO Mapping</Text>
-            <Text style={styles.subtitle}>
-              {coDetails.length} mapping{coDetails.length !== 1 ? 's' : ''}
-            </Text>
+            {subjectInfo && (
+              <>
+                <View style={styles.subjectInfoRow}>
+                  <Text style={styles.subjectName}>{subjectInfo.name}</Text>
+                  <View style={styles.iaBadge}>
+                    <Text style={styles.iaBadgeText}>{subjectInfo.ia}</Text>
+                  </View>
+                </View>
+              </>
+            )}
+            {!subjectInfo && (
+              <Text style={styles.subtitle}>Loading subject info...</Text>
+            )}
           </View>
 
           {coDetails.length === 0 ? (
@@ -43,31 +124,59 @@ export const CODetailsScreen: React.FC<CODetailsScreenProps> = ({ coId, onBack }
               <Text style={styles.emptyText}>Create your first CO mapping to get started</Text>
             </View>
           ) : (
-            <View style={styles.mappingsList}>
-              {coDetails.map((detail, index) => (
-                <View key={index} style={styles.mappingCard}>
-                  <View style={styles.questionSection}>
-                    <Text style={styles.labelSmall}>Question</Text>
-                    <View style={styles.questionBox}>
-                      <Text style={styles.questionNumber}>{detail.q_no}</Text>
-                    </View>
-                  </View>
-                  
-                  <View style={styles.arrowSection}>
-                    <View style={styles.divider} />
-                    <Feather name="arrow-right" size={20} color="#d0d0d0" />
-                    <View style={styles.divider} />
-                  </View>
-
-                  <View style={styles.coSection}>
-                    <Text style={styles.labelSmall}>CO</Text>
-                    <View style={styles.coBox}>
-                      <Text style={styles.coValue}>{detail.co_no}</Text>
-                    </View>
-                  </View>
+            <>
+              {/* Mappings Container */}
+              <View style={styles.mappingsContainer}>
+                <View style={styles.containerHeader}>
+                  <Text style={styles.containerLabel}>Mapped Questions</Text>
+                  <Text style={styles.containerCount}>
+                    {coDetails.length} {coDetails.length === 1 ? 'mapping' : 'mappings'}
+                  </Text>
                 </View>
-              ))}
-            </View>
+
+                <View style={styles.mappingsList}>
+                  {coDetails.map((detail, index) => (
+                    <View key={index} style={styles.mappingCard}>
+                      <View style={styles.questionSection}>
+                        <Text style={styles.labelSmall}>Question</Text>
+                        <View style={styles.questionBox}>
+                          <Text style={styles.questionNumber}>{detail.q_no}</Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.arrowSection}>
+                        <View style={styles.divider} />
+                        <Feather name="arrow-right" size={20} color="#d0d0d0" />
+                        <View style={styles.divider} />
+                      </View>
+
+                      <View style={styles.coSection}>
+                        <Text style={styles.labelSmall}>CO</Text>
+                        <View style={styles.coBox}>
+                          <Text style={styles.coValue}>{detail.co_no}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </View>
+
+              {/* Download Excel Button - Outside Container */}
+              <TouchableOpacity
+                style={[styles.downloadButton, isDownloading && styles.downloadButtonDisabled]}
+                onPress={handleDownloadExcel}
+                disabled={isDownloading}
+              >
+                <Feather
+                  name={isDownloading ? "loader" : "download"}
+                  size={20}
+                  color="#fff"
+                />
+                <Text style={styles.downloadButtonText}>
+                  {isDownloading ? 'Downloading...' : 'Download Excel'}
+                </Text>
+              </TouchableOpacity>
+            </>
           )}
         </View>
       </ScrollView>
@@ -101,17 +210,70 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   header: {
-    marginBottom: 28,
+    marginBottom: 24,
   },
   title: {
     fontSize: 32,
     fontWeight: '700',
     color: '#000',
-    marginBottom: 6,
+    marginBottom: 12,
     letterSpacing: -0.5,
+  },
+  subjectInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  subjectName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+  },
+  iaBadge: {
+    backgroundColor: '#000',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    marginLeft: 12,
+  },
+  iaBadgeText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: 0.5,
   },
   subtitle: {
     fontSize: 14,
+    color: '#666',
+    marginTop: 4,
+  },
+  mappingsContainer: {
+    backgroundColor: '#f9f9f9',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e5e5e5',
+    marginBottom: 20,
+  },
+  containerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  containerLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#000',
+  },
+  containerCount: {
+    fontSize: 13,
+    fontWeight: '600',
     color: '#666',
   },
   mappingsList: {
@@ -120,12 +282,13 @@ const styles = StyleSheet.create({
   mappingCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f9f9f9',
+    backgroundColor: '#ffffff',
     borderRadius: 12,
     paddingVertical: 16,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: '#f0f0f0',
+    borderColor: '#e5e5e5',
+    marginBottom: 10,
   },
   questionSection: {
     flex: 1,
@@ -140,7 +303,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   questionBox: {
-    backgroundColor: '#fff',
+    backgroundColor: '#f5f5f5',
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 8,
@@ -202,5 +365,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 280,
     lineHeight: 20,
+  },
+  downloadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#000',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginTop: 24,
+    gap: 10,
+  },
+  downloadButtonDisabled: {
+    backgroundColor: '#999',
+  },
+  downloadButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
   },
 });

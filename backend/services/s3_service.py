@@ -100,6 +100,65 @@ class S3Service:
             print(f"Error uploading CO image to S3: {e}")
             return None
     
+    def upload_student_sheet(self, file_content: bytes, file_extension: str, subject_id: int, unique_id: str) -> Optional[str]:
+        """
+        Upload a student answer sheet to S3 and return the URL
+        """
+        if not self.is_available:
+            print("S3 service not available, skipping student sheet upload")
+            return None
+            
+        try:
+            file_key = f"co-student-images/{subject_id}_{unique_id}{file_extension}"
+            
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=file_key,
+                Body=file_content,
+                ContentType=self._get_content_type(file_extension)
+            )
+            
+            # Generate URL using PUBLIC_ENDPOINT_URL for mobile app access
+            url = f"{PUBLIC_ENDPOINT_URL}/{self.bucket_name}/{file_key}"
+            print(f"✓ Uploaded student sheet to S3: {file_key}")
+            return url
+        except ClientError as e:
+            print(f"Error uploading student sheet to S3: {e}")
+            return None
+    
+    def upload_processed_image(self, file_content: bytes, file_extension: str, subject_id: int, unique_id: str, image_type: str) -> Optional[str]:
+        """
+        Upload a processed image (top/bottom) to S3 and return the URL
+        
+        Args:
+            file_content: Image file content as bytes
+            file_extension: File extension (e.g., '.png')
+            subject_id: Subject ID
+            unique_id: Unique identifier
+            image_type: Either 'top' or 'bot'
+        """
+        if not self.is_available:
+            print("S3 service not available, skipping processed image upload")
+            return None
+            
+        try:
+            file_key = f"co-processed-images/{subject_id}_{unique_id}_{image_type}{file_extension}"
+            
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=file_key,
+                Body=file_content,
+                ContentType=self._get_content_type(file_extension)
+            )
+            
+            # Generate URL using PUBLIC_ENDPOINT_URL for mobile app access
+            url = f"{PUBLIC_ENDPOINT_URL}/{self.bucket_name}/{file_key}"
+            print(f"✓ Uploaded {image_type} image to S3: {file_key}")
+            return url
+        except ClientError as e:
+            print(f"Error uploading {image_type} image to S3: {e}")
+            return None
+    
     def delete_file(self, file_url: str) -> bool:
         """
         Delete a file from S3 given its URL

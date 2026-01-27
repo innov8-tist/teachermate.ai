@@ -114,6 +114,17 @@ export const coService = {
     }
   },
 
+  async fetchSubjectInfo(subjectId: number): Promise<{ name: string; ia: string; branch: string; sem: number }> {
+    try {
+      const response = await fetch(API_ENDPOINTS.CO_SUBJECT_INFO(subjectId));
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Failed to fetch subject info:', error);
+      throw error;
+    }
+  },
+
   async deleteCO(coId: number): Promise<{ status: string; message?: string }> {
     try {
       const response = await fetch(API_ENDPOINTS.CO_DELETE(coId), {
@@ -123,6 +134,45 @@ export const coService = {
     } catch (error) {
       Alert.alert('Error', 'Failed to delete CO');
       console.error(error);
+      throw error;
+    }
+  },
+
+  async downloadCOExcel(subjectId: number): Promise<string> {
+    try {
+      console.log('Downloading Excel for subject:', subjectId);
+      
+      const response = await axios.get(API_ENDPOINTS.CO_DOWNLOAD_EXCEL(subjectId), {
+        responseType: 'blob',
+        timeout: 30000,
+      });
+      
+      console.log('Excel download response received');
+      
+      // Convert blob to base64
+      const blob = response.data;
+      const reader = new FileReader();
+      
+      return new Promise((resolve, reject) => {
+        reader.onloadend = () => {
+          const base64data = reader.result as string;
+          // Remove the data URL prefix to get just the base64 string
+          const base64 = base64data.split(',')[1];
+          console.log('Excel converted to base64');
+          resolve(base64);
+        };
+        reader.onerror = (error) => {
+          console.error('FileReader error:', error);
+          reject(error);
+        };
+        reader.readAsDataURL(blob);
+      });
+    } catch (error: any) {
+      console.error('Download Excel error:', error);
+      if (error.response) {
+        console.error('Error response:', error.response.data);
+        console.error('Error status:', error.response.status);
+      }
       throw error;
     }
   },

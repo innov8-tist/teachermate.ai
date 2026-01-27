@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
+import { Home, CheckSquare, Map, User } from 'lucide-react-native';
 
 export type TabType = 'home' | 'evaluation' | 'co' | 'profile';
 
@@ -10,28 +11,38 @@ interface BottomNavigationProps {
 
 export const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTab, onTabChange }) => {
   const tabs = [
-    { id: 'home' as TabType, icon: '🏠', label: 'Home' },
-    { id: 'evaluation' as TabType, icon: '✓', label: 'Evaluation' },
-    { id: 'co' as TabType, icon: '🗺️', label: 'CO Mapper' },
-    { id: 'profile' as TabType, icon: '👤', label: 'Profile' },
+    { id: 'home' as TabType, icon: Home, label: 'Home' },
+    { id: 'evaluation' as TabType, icon: CheckSquare, label: 'Evaluation' },
+    { id: 'co' as TabType, icon: Map, label: 'CO Mapper' },
+    { id: 'profile' as TabType, icon: User, label: 'Profile' },
   ];
 
   return (
-    <View className="absolute bottom-0 left-0 right-0 bg-white flex-row py-3 px-2 border-t border-gray-100">
-      {tabs.map((tab) => (
-        <TouchableOpacity
-          key={tab.id}
-          className="flex-1 items-center py-2"
-          onPress={() => onTabChange(tab.id)}
-        >
-          <Text className={`text-2xl mb-1 ${activeTab === tab.id ? 'opacity-100' : 'opacity-50'}`}>
-            {tab.icon}
-          </Text>
-          <Text className={`text-xs font-medium ${activeTab === tab.id ? 'text-[#4FD1C5]' : 'text-gray-500'}`}>
-            {tab.label}
-          </Text>
-        </TouchableOpacity>
-      ))}
+    <View className="absolute bottom-0 left-0 right-0 bg-white flex-row py-4 px-4 border-t border-gray-200">
+      {tabs.map((tab) => {
+        const Icon = tab.icon;
+        const isActive = activeTab === tab.id;
+        
+        return (
+          <TouchableOpacity
+            key={tab.id}
+            className="flex-1 items-center"
+            onPress={() => onTabChange(tab.id)}
+            activeOpacity={0.7}
+          >
+            <View className="items-center">
+              <Icon 
+                size={24} 
+                color={isActive ? '#000000' : '#9CA3AF'} 
+                strokeWidth={isActive ? 2.5 : 2}
+              />
+              <Text className={`text-xs font-semibold mt-1 ${isActive ? 'text-black' : 'text-gray-400'}`}>
+                {tab.label}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 };
