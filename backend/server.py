@@ -149,6 +149,10 @@ async def co_creation(
 def all_co_of_teacher(teacher_id: int, db_service: DBServiceForServer = Depends(get_db_service)):
     all_co = db_service.get_all_co_by_teacher(teacher_id)
     return all_co
+@app.get('/co_questions/{subject_id}')
+def co_questions(subject_id:int,db_service:DBServiceForServer=Depends(get_db_service)):
+    details=db_service.get_co_question(subject_id)
+    return details
 
 @app.get("/co_fetch_details/{subject_id}")
 def co_details(subject_id: int, db_service: DBServiceForServer = Depends(get_db_service)):

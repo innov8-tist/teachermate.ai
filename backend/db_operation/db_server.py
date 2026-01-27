@@ -72,7 +72,13 @@ class DBServiceForServer:
             "branch": template.branch,
             "sem": template.sem
         }
-
+    def get_co_question(self,subject_id:int):
+        questions=self.db.query(COMAPPEDQUESTION).filter(COMAPPEDQUESTION.template_id==subject_id)
+        all_questions=[]
+        for question in questions:
+            all_questions.append(question.q_no)
+        return {"all_questions":all_questions}
+        
     def get_co_mapped_data_for_excel(self, subject_id: int):
         """Get student marks mapped to COs for Excel export with detailed question breakdown"""
         co_mappings = self.db.query(COMAPPEDQUESTION).filter(
