@@ -34,17 +34,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadStoredAuth = async () => {
     try {
+      console.log('🔄 Loading stored auth data...');
       const [storedToken, storedTeacher] = await Promise.all([
         AsyncStorage.getItem(TOKEN_KEY),
         AsyncStorage.getItem(TEACHER_KEY),
       ]);
 
+      console.log('📦 Stored data retrieved:', {
+        hasToken: !!storedToken,
+        tokenLength: storedToken?.length || 0,
+        hasTeacher: !!storedTeacher
+      });
+
       if (storedToken && storedTeacher) {
         setToken(storedToken);
         setTeacher(JSON.parse(storedTeacher));
+        console.log('✅ Auth data loaded successfully');
+      } else {
+        console.log('⚠️ No stored auth data found');
       }
     } catch (error) {
-      console.error('Failed to load auth data:', error);
+      console.error('❌ Failed to load auth data:', error);
     } finally {
       setIsLoading(false);
     }
