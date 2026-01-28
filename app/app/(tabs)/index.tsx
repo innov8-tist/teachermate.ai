@@ -11,10 +11,13 @@ import { PDFCropperScreen, CroppedSection } from '@/screens/evaluation/pdf-cropp
 import { ProfileScreen } from '@/screens/profile/profile-screen';
 import { COMapperContainer, COSubScreen } from '@/screens/co-mapper/co-mapper-container';
 import { Feather } from '@expo/vector-icons';
+import { API_BASE_URL } from '@/constants/api';
+import { useAuth } from '@/contexts/auth-context';
 
-type EvaluationSubScreen = 'list' | 'upload' | 'attachImages' | 'pdfCropper';
+type EvaluationSubScreen = 'list' | 'upload' | 'attachImages' | 'pdfCropper' | 'details';
 
 export default function HomeScreenRefactored() {
+  const { token } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('home');
   const [coSubScreen, setCoSubScreen] = useState<COSubScreen>('myCOs');
@@ -23,6 +26,8 @@ export default function HomeScreenRefactored() {
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [selectedSubjectId, setSelectedSubjectId] = useState<number | null>(null);
   const [currentQuestionId, setCurrentQuestionId] = useState<string>('');
+  const [selectedEvaluationId, setSelectedEvaluationId] = useState<number | null>(null);
+  const [viewingEvaluationId, setViewingEvaluationId] = useState<number | null>(null);
 
   // Questions will be fetched from the API based on selected subject
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -47,6 +52,10 @@ export default function HomeScreenRefactored() {
           setEvaluationSubScreen('list');
           return true;
         }
+        if (evaluationSubScreen === 'details') {
+          setEvaluationSubScreen('list');
+          return true;
+        }
       }
       return false;
     };
@@ -62,6 +71,38 @@ export default function HomeScreenRefactored() {
     }
     if (tab === 'evaluation') {
       setEvaluationSubScreen('list');
+      // Reset evaluation state when switching tabs
+      setSelectedEvaluationId(null);
+      setPdfUri('');
+      setQuestions([]);
+    }
+  };
+
+  const handleViewEvaluationDetails = async (evaluationId: number) => {
+    try {
+      // Fetch evaluation details
+      const response = await fetch(`${API_BASE_URL}/evaluation/${evaluationId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch evaluation details');
+      }
+
+      const data = await response.json();
+      const evaluation = data.evaluation;
+
+      // Set the state
+      setSelectedEvaluationId(evaluation.template_id);
+      setViewingEvaluationId(evaluationId); // Store the evaluation ID
+      // Use pdf_id instead of full pdf_uri
+      setPdfUri(evaluation.pdf_id); // Just the PDF ID, not the full URL
+      setEvaluationSubScreen('details');
+    } catch (error) {
+      console.error('Error loading evaluation:', error);
+      Alert.alert('Error', 'Failed to load evaluation details');
     }
   };
 
@@ -81,16 +122,16 @@ export default function HomeScreenRefactored() {
     console.log('🎯 handleCropConfirm called');
     console.log('📦 Cropped section:', croppedSection);
     console.log('📋 Current questions:', questions);
-    
+
     const updatedQuestions = questions.map(q =>
       q.id === croppedSection.questionId
-        ? { 
-            ...q, 
-            croppedSections: [...(q.croppedSections || []), croppedSection] 
-          }
+        ? {
+          ...q,
+          croppedSections: [...(q.croppedSections || []), croppedSection]
+        }
         : q
     );
-    
+
     console.log('✅ Updated questions:', updatedQuestions);
     setQuestions(updatedQuestions);
     setEvaluationSubScreen('attachImages');
@@ -103,13 +144,15 @@ export default function HomeScreenRefactored() {
       return;
     }
     Alert.alert('Success', 'Answer schema submitted successfully!', [
-      { text: 'OK', onPress: () => {
-        setEvaluationSubScreen('list');
-        setPdfUri('');
-        setSelectedSubject('');
-        setSelectedSubjectId(null);
-        setQuestions([]);
-      }}
+      {
+        text: 'OK', onPress: () => {
+          setEvaluationSubScreen('list');
+          setPdfUri('');
+          setSelectedSubject('');
+          setSelectedSubjectId(null);
+          setQuestions([]);
+        }
+      }
     ]);
   };
 
@@ -145,7 +188,11 @@ export default function HomeScreenRefactored() {
 
             {activeTab === 'evaluation' && (
               <>
-                {evaluationSubScreen === 'list' && <EvaluationScreen />}
+                {evaluationSubScreen === 'list' && (
+                  <EvaluationScreen
+                    onViewDetails={handleViewEvaluationDetails}
+                  />
+                )}
                 {evaluationSubScreen === 'upload' && (
                   <UploadSchemaScreen
                     onBack={() => setEvaluationSubScreen('list')}
@@ -163,12 +210,24 @@ export default function HomeScreenRefactored() {
                     subjectId={selectedSubjectId}
                   />
                 )}
+                {evaluationSubScreen === 'details' && selectedEvaluationId && (
+                  <AttachImagesScreen
+                    onBack={() => setEvaluationSubScreen('list')}
+                    onSubmit={handleSubmitImages}
+                    questions={questions}
+                    onQuestionsChange={setQuestions}
+                    onOpenCropper={handleOpenCropper}
+                    pdfUri={pdfUri}
+                    subjectId={selectedEvaluationId}
+                    evaluationId={viewingEvaluationId}
+                  />
+                )}
               </>
             )}
 
             {activeTab === 'co' && (
               <COMapperContainer
-                onMenuPress={() => {}}
+                onMenuPress={() => { }}
                 initialSubScreen={coSubScreen}
                 onSubScreenChange={setCoSubScreen}
               />
@@ -178,44 +237,44 @@ export default function HomeScreenRefactored() {
           </ScrollView>
         )}
 
-      {/* FABs for CO Mapper - positioned at app level */}
-      {activeTab === 'co' && coSubScreen === 'myCOs' && (
-        <View style={fabStyles.fabContainer}>
-          <TouchableOpacity 
-            style={fabStyles.fabPrimary} 
-            onPress={() => setCoSubScreen('creation')}
-            activeOpacity={0.8}
-          >
-            <Feather name="plus" size={28} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-      )}
+        {/* FABs for CO Mapper - positioned at app level */}
+        {activeTab === 'co' && coSubScreen === 'myCOs' && (
+          <View style={fabStyles.fabContainer}>
+            <TouchableOpacity
+              style={fabStyles.fabPrimary}
+              onPress={() => setCoSubScreen('creation')}
+              activeOpacity={0.8}
+            >
+              <Feather name="plus" size={28} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        )}
 
-      {/* FAB for Evaluation - positioned at app level */}
-      {activeTab === 'evaluation' && evaluationSubScreen === 'list' && (
-        <View style={fabStyles.fabContainer}>
-          <TouchableOpacity 
-            style={[fabStyles.fabPrimary, { backgroundColor: '#000000' }]} 
-            onPress={() => setEvaluationSubScreen('upload')}
-            activeOpacity={0.8}
-          >
-            <Feather name="plus" size={28} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-      )}
+        {/* FAB for Evaluation - positioned at app level */}
+        {activeTab === 'evaluation' && evaluationSubScreen === 'list' && (
+          <View style={fabStyles.fabContainer}>
+            <TouchableOpacity
+              style={[fabStyles.fabPrimary, { backgroundColor: '#000000' }]}
+              onPress={() => setEvaluationSubScreen('upload')}
+              activeOpacity={0.8}
+            >
+              <Feather name="plus" size={28} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        )}
 
-      {/* Completed Button for Attach Images Screen */}
-      {activeTab === 'evaluation' && evaluationSubScreen === 'attachImages' && (
-        <View style={fabStyles.submitButtonContainer}>
-          <TouchableOpacity
-            onPress={() => setEvaluationSubScreen('list')}
-            style={fabStyles.submitButton}
-            activeOpacity={0.8}
-          >
-            <Text style={fabStyles.submitButtonText}>Completed</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+        {/* Completed Button for Attach Images Screen */}
+        {activeTab === 'evaluation' && evaluationSubScreen === 'attachImages' && (
+          <View style={fabStyles.submitButtonContainer}>
+            <TouchableOpacity
+              onPress={() => setEvaluationSubScreen('list')}
+              style={fabStyles.submitButton}
+              activeOpacity={0.8}
+            >
+              <Text style={fabStyles.submitButtonText}>Completed</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <BottomNavigation activeTab={activeTab} onTabChange={handleTabChange} />
       </View>

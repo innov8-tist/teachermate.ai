@@ -12,6 +12,7 @@ export interface Question {
   croppedSections?: CroppedSection[];
   processingState?: 'idle' | 'processing' | 'success' | 'error';
   isSubmitted?: boolean; // Track if question has been submitted
+  is_completed?: boolean; // Track if question is already completed in DB
 }
 
 interface AttachImagesScreenProps {
@@ -22,6 +23,7 @@ interface AttachImagesScreenProps {
   onOpenCropper: (questionId: string) => void;
   pdfUri?: string;
   subjectId: number | null;
+  evaluationId?: number | null; // Optional: if viewing existing evaluation
 }
 
 export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({ 
@@ -31,7 +33,8 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
   onQuestionsChange,
   onOpenCropper,
   pdfUri,
-  subjectId
+  subjectId,
+  evaluationId
 }) => {
   const { token } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -58,7 +61,17 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
     setLoading(true);
     try {
       console.log('📥 Fetching questions for subject:', subjectId);
-      const response = await fetch(`${BASE_URL}/co_questions/${subjectId}`);
+      
+      // If evaluationId is provided, fetch with completion status
+      const endpoint = evaluationId 
+        ? `${BASE_URL}/evaluation/${evaluationId}/questions`
+        : `${BASE_URL}/co_questions/${subjectId}`;
+      
+      const headers = evaluationId && token
+        ? { 'Authorization': `Bearer ${token}` }
+        : {};
+      
+      const response = await fetch(endpoint, { headers });
       
       if (!response.ok) {
         throw new Error('Failed to fetch questions');
@@ -67,15 +80,38 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
       const data = await response.json();
       console.log('✅ Questions fetched:', data);
 
-      // Transform the API response into Question objects
-      if (data.all_questions && Array.isArray(data.all_questions)) {
+      // If from evaluation endpoint, questions already have completion status
+      if (evaluationId && data.questions) {
+        const fetchedQuestions: Question[] = data.questions.map((q: any) => ({
+          id: q.id,
+          label: q.label,
+          images: q.images || [],
+          croppedSections: (q.croppedSections || []).map((section: any) => ({
+            ...section,
+            // Prepend BASE_URL if path is relative
+            previewUri: section.previewUri?.startsWith('/') 
+              ? `${BASE_URL}${section.previewUri}` 
+              : section.previewUri
+          })),
+          processingState: q.is_completed ? 'success' : 'idle',
+          isSubmitted: q.is_completed,
+          is_completed: q.is_completed
+        }));
+        
+        console.log('✅ Loaded questions with completion status:', fetchedQuestions);
+        onQuestionsChange(fetchedQuestions);
+        setQuestionsFetched(true);
+      }
+      // Otherwise, transform the API response into Question objects
+      else if (data.all_questions && Array.isArray(data.all_questions)) {
         const fetchedQuestions: Question[] = data.all_questions.map((qNo: string) => ({
           id: qNo,
           label: `Question ${qNo}`,
           images: [],
           croppedSections: [],
           processingState: 'idle',
-          isSubmitted: false
+          isSubmitted: false,
+          is_completed: false
         }));
         
         console.log('✅ Transformed questions:', fetchedQuestions);
@@ -243,6 +279,7 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
             )}
             <TouchableOpacity
               onPress={() => handleRemoveImage(question.id, index)}
+              disabled={question.is_completed || question.isSubmitted}
               className="absolute -top-2 -right-2 bg-red-500 rounded-full w-7 h-7 items-center justify-center"
               style={{
                 shadowColor: '#000',
@@ -250,6 +287,7 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
                 shadowOpacity: 0.25,
                 shadowRadius: 3,
                 elevation: 4,
+                opacity: question.is_completed || question.isSubmitted ? 0.5 : 1,
               }}
             >
               <Feather name="x" size={16} color="#fff" />
@@ -261,13 +299,16 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
         {croppedSections.length < 2 ? (
           <TouchableOpacity
             onPress={() => handleAddImage(question.id)}
+            disabled={question.is_completed || question.isSubmitted}
             style={{
               width: 90,
               height: 90,
               borderRadius: 12,
               borderWidth: 2,
               borderStyle: 'dashed',
-              borderColor: '#D1D5DB',
+              borderColor: question.is_completed || question.isSubmitted ? '#E5E7EB' : '#D1D5DB',
+              backgroundColor: question.is_completed || question.isSubmitted ? '#F9FAFB' : '#F9FAFB',
+              opacity: question.is_completed || question.isSubmitted ? 0.5 : 1,
               backgroundColor: '#F9FAFB',
               alignItems: 'center',
               justifyContent: 'center',

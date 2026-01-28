@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, File, UploadFile, Form
+from fastapi import FastAPI, Depends, File, UploadFile, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -480,29 +480,51 @@ async def extract_answer_schema(
 ):
     try:
         temp_image_paths = []
+        saved_image_paths = []  # Paths to save in DB
         temp_dir = Path(tempfile.gettempdir()) / "answer_extraction"
         temp_dir.mkdir(parents=True, exist_ok=True)
         
+        # Create permanent storage directory
+        permanent_dir = Path("public/answer_images") / str(subject_id)
+        permanent_dir.mkdir(parents=True, exist_ok=True)
+        
         for idx, image in enumerate(answer_images):
             file_extension = os.path.splitext(image.filename)[1]
+            
+            # Save to temp for processing
             temp_filename = f"{subject_id}_{question_no}_{idx}_{uuid.uuid4()}{file_extension}"
             temp_path = temp_dir / temp_filename
             
+            # Save to permanent storage
+            permanent_filename = f"q{question_no}_{idx}_{uuid.uuid4()}{file_extension}"
+            permanent_path = permanent_dir / permanent_filename
+            
             content = await image.read()
+            
+            # Write to temp
             with open(temp_path, "wb") as f:
                 f.write(content)
             
+            # Write to permanent
+            with open(permanent_path, "wb") as f:
+                f.write(content)
+            
             temp_image_paths.append(str(temp_path))
+            # Store relative path for DB
+            saved_image_paths.append(f"/public/answer_images/{subject_id}/{permanent_filename}")
         
         print(f"Saved {len(temp_image_paths)} images for extraction")
+        print(f"Permanent paths: {saved_image_paths}")
         
-        
+        # Pass image_paths to extract_main
         result = extract_main(
             image_path=temp_image_paths,
             QUESTION_NO=question_no,
-            SUBJECT_ID=subject_id
+            SUBJECT_ID=subject_id,
+            image_paths=saved_image_paths  # Pass the permanent paths
         )
         
+        # Clean up temp files
         for temp_path in temp_image_paths:
             try:
                 os.remove(temp_path)
@@ -516,6 +538,7 @@ async def extract_answer_schema(
         }
         
     except Exception as e:
+        # Clean up temp files on error
         for temp_path in temp_image_paths:
             try:
                 if os.path.exists(temp_path):
@@ -531,6 +554,199 @@ async def extract_answer_schema(
             "status": "error",
             "message": f"Failed to extract answer schema: {str(e)}"
         }
+
+
+@app.get("/evaluations/{teacher_id}")
+async def get_evaluations(
+    teacher_id: int,
+    current_teacher: Teacher = Depends(get_current_teacher),
+    db_service: DBServiceForServer = Depends(get_db_service)
+):
+    """
+    Get all evaluations for a teacher with their completion status
+    """
+    try:
+        # Verify teacher is accessing their own data
+        if current_teacher.id != teacher_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Get all evaluations for this teacher
+        evaluations_data = db_service.get_evaluations_by_teacher(teacher_id)
+        
+        evaluations = []
+        for eval_record in evaluations_data:
+            # Get template info
+            template = db_service.get_subject_info(eval_record.template_id)
+            if not template:
+                continue
+            
+            # Get all questions for this template
+            questions = db_service.get_co_questions_by_template(eval_record.template_id)
+            
+            # Get evaluation schemas (completed questions)
+            completed_schemas = db_service.get_evaluation_schemas_by_template(eval_record.template_id)
+            completed_question_nos = set(schema.question_no for schema in completed_schemas)
+            
+            evaluation = {
+                "evaluation_id": eval_record.id,
+                "subject_id": eval_record.template_id,
+                "subject_name": template['name'],
+                "subject_code": f"{template['branch']}-{template['sem']}",
+                "semester": str(template['sem']),
+                "total_questions": len(set(q.q_no for q in questions)),
+                "completed_questions": len(completed_question_nos),
+                "status": eval_record.status,
+                "created_at": eval_record.created_at,
+                "updated_at": eval_record.updated_at
+            }
+            evaluations.append(evaluation)
+        
+        return {
+            "success": True,
+            "evaluations": evaluations
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error fetching evaluations: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/evaluation/{evaluation_id}")
+async def get_evaluation_details(
+    evaluation_id: int,
+    current_teacher: Teacher = Depends(get_current_teacher),
+    db_service: DBServiceForServer = Depends(get_db_service)
+):
+    """
+    Get details of a specific evaluation
+    """
+    try:
+        evaluation = db_service.get_evaluation_by_id(evaluation_id)
+        
+        if not evaluation:
+            raise HTTPException(status_code=404, detail="Evaluation not found")
+        
+        # Verify teacher owns this evaluation
+        if evaluation.teacher_id != current_teacher.id:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Get template info
+        template = db_service.get_subject_info(evaluation.template_id)
+        
+        # Extract PDF ID from path
+        import os
+        pdf_filename = os.path.basename(evaluation.pdf_path)
+        pdf_id = os.path.splitext(pdf_filename)[0]
+        
+        return {
+            "success": True,
+            "evaluation": {
+                "id": evaluation.id,
+                "template_id": evaluation.template_id,
+                "subject_name": template['name'] if template else "Unknown",
+                "pdf_id": pdf_id,
+                "pdf_uri": f"/public/evaluation_pdfs/{pdf_filename}",
+                "status": evaluation.status,
+                "created_at": evaluation.created_at,
+                "updated_at": evaluation.updated_at
+            }
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error fetching evaluation details: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/evaluation/{evaluation_id}/questions")
+async def get_evaluation_questions(
+    evaluation_id: int,
+    current_teacher: Teacher = Depends(get_current_teacher),
+    db_service: DBServiceForServer = Depends(get_db_service)
+):
+    """
+    Get all questions for an evaluation with their completion status
+    """
+    try:
+        evaluation = db_service.get_evaluation_by_id(evaluation_id)
+        
+        if not evaluation:
+            raise HTTPException(status_code=404, detail="Evaluation not found")
+        
+        if evaluation.teacher_id != current_teacher.id:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Get all questions for this template
+        questions = db_service.get_co_questions_by_template(evaluation.template_id)
+        all_question_nos = sorted(set(q.q_no for q in questions))
+        
+        # Get completed questions (those with evaluation schemas)
+        completed_schemas = db_service.get_evaluation_schemas_by_template(evaluation.template_id)
+        
+        # Build response with question status
+        questions_data = []
+        for q_no in all_question_nos:
+            # Find schema for this question
+            schema = next((s for s in completed_schemas if s.question_no == q_no), None)
+            
+            question_data = {
+                "id": q_no,
+                "label": f"Question {q_no}",
+                "is_completed": schema is not None,
+                "images": [],
+                "croppedSections": []
+            }
+            
+            # If completed, add the image URLs (stored in image_paths field as JSON)
+            if schema and schema.image_paths:
+                try:
+                    # image_paths is a JSON array of image paths
+                    image_paths = schema.image_paths if isinstance(schema.image_paths, list) else []
+                    
+                    # Prepend BASE_URL if paths are relative
+                    full_image_paths = []
+                    for img_path in image_paths:
+                        if img_path.startswith('/'):
+                            # Relative path, keep as is (will be prepended by frontend)
+                            full_image_paths.append(img_path)
+                        else:
+                            full_image_paths.append(img_path)
+                    
+                    question_data["images"] = full_image_paths
+                    question_data["croppedSections"] = [{
+                        "questionId": q_no,
+                        "previewUri": img_path,
+                        "pageNumber": idx + 1
+                    } for idx, img_path in enumerate(full_image_paths)]
+                    
+                    print(f"Question {q_no} has {len(full_image_paths)} images: {full_image_paths}")
+                except (TypeError, AttributeError) as e:
+                    # Fallback: empty images
+                    print(f"Error processing images for question {q_no}: {e}")
+                    question_data["images"] = []
+                    question_data["croppedSections"] = []
+            
+            questions_data.append(question_data)
+        
+        return {
+            "success": True,
+            "questions": questions_data
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error fetching evaluation questions: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@ interface UploadSchemaScreenProps {
 }
 
 export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, onSuccess }) => {
-  const { teacher } = useAuth();
+  const { teacher, token } = useAuth();
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [selectedSubjectId, setSelectedSubjectId] = useState<number | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -42,7 +42,7 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
     try {
       console.log('📥 Fetching CO templates for teacher:', teacher.id);
       const response = await fetch(`${BASE_URL}/co_fetch/${teacher.id}`);
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch CO templates');
       }
@@ -87,43 +87,45 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
         console.log('  - URI:', file.uri);
         console.log('  - Size:', file.size);
         console.log('  - Type:', file.mimeType);
-        
+
         // Upload PDF to backend
         setUploading(true);
         try {
           console.log('📤 Uploading PDF to backend...');
-          
+
           // Create FormData
           const formData = new FormData();
           formData.append('subject', selectedSubject);
-          
+          formData.append('subject_id', selectedSubjectId!.toString());
+
           // For React Native, FormData can handle the file object directly
           const fileBlob = {
             uri: file.uri,
             type: file.mimeType || 'application/pdf',
             name: file.name,
           } as any;
-          
+
           formData.append('pdf_file', fileBlob);
-          
+
           console.log('📤 Sending request to:', `${BASE_URL}/api/evaluation/upload-schema-pdf`);
           console.log('📤 File details:', { name: file.name, size: file.size, type: file.mimeType });
-          
+
           const response = await fetch(`${BASE_URL}/api/evaluation/upload-schema-pdf`, {
             method: 'POST',
             body: formData,
             headers: {
               'Content-Type': 'multipart/form-data',
+              'Authorization': `Bearer ${token}`,
             },
           });
-          
+
           const responseData = await response.json();
           console.log('📥 Upload response:', responseData);
-          
+
           if (!response.ok) {
             throw new Error(responseData.detail || 'Failed to upload PDF');
           }
-          
+
           if (responseData.success) {
             console.log('✅ PDF uploaded successfully, ID:', responseData.pdf_id);
             // Pass the PDF ID, subject name, and subject ID to the next screen
@@ -161,8 +163,8 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView 
-        style={styles.content} 
+      <ScrollView
+        style={styles.content}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
@@ -177,10 +179,10 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
             <Text style={selectedSubject ? styles.dropdownTextSelected : styles.dropdownTextPlaceholder}>
               {selectedSubject || 'Select Subject'}
             </Text>
-            <Feather 
-              name={showDropdown ? 'chevron-up' : 'chevron-down'} 
-              size={24} 
-              color="#6B7280" 
+            <Feather
+              name={showDropdown ? 'chevron-up' : 'chevron-down'}
+              size={24}
+              color="#6B7280"
             />
           </TouchableOpacity>
 
@@ -249,10 +251,10 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
                     styles.uploadIconContainer,
                     !selectedSubject && styles.uploadIconContainerDisabled
                   ]}>
-                    <Feather 
-                      name="upload-cloud" 
-                      size={48} 
-                      color={selectedSubject ? "#14B8A6" : "#9CA3AF"} 
+                    <Feather
+                      name="upload-cloud"
+                      size={48}
+                      color={selectedSubject ? "#14B8A6" : "#9CA3AF"}
                     />
                   </View>
                   <Text style={[
@@ -265,8 +267,8 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
                     styles.uploadButtonSubtext,
                     !selectedSubject && styles.uploadButtonSubtextDisabled
                   ]}>
-                    {selectedSubject 
-                      ? 'Tap to select PDF file' 
+                    {selectedSubject
+                      ? 'Tap to select PDF file'
                       : 'Select a subject first'}
                   </Text>
                 </>

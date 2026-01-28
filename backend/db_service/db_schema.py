@@ -65,7 +65,8 @@ class EvaluationSchema(Base):
     total_mark = Column(Integer, nullable=False)
     mark_criteria = Column(JSON, nullable=False)  # Marking scheme
     answer = Column(Text, nullable=False)  # Expected answer
-    image_explanation = Column(Text, nullable=True)
+    image_explanation = Column(Text, nullable=True)  # AI-extracted explanation from image
+    image_paths = Column(JSON, nullable=True)  # List of cropped image paths
 
 class STUDENTINFO(Base):
     __tablename__="student_info"
@@ -74,4 +75,17 @@ class STUDENTINFO(Base):
     name=Column(String,nullable=False)
     branch=Column(String,nullable=False)
     division=Column(String,nullable=False)
+
+
+class Evaluation(Base):
+    """Evaluation sessions for answer schema processing"""
+    __tablename__ = "evaluations"
+    id = Column(Integer, primary_key=True, index=True)
+    template_id = Column(Integer, ForeignKey("co_templates.id"), nullable=False)
+    teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=False)
+    pdf_path = Column(String, nullable=False)  # Path to uploaded PDF
+    status = Column(String, default="in_progress")  # in_progress, completed
+    created_at = Column(String, nullable=False)  # ISO timestamp
+    updated_at = Column(String, nullable=False)  # ISO timestamp
+
     

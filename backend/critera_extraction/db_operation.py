@@ -26,7 +26,8 @@ class AnswerSchemaService:
         total_mark: int,
         mark_criteria: list,
         answer: str,
-        image_explanation: str = ""
+        image_explanation: str = "",
+        image_paths: list = None
     ) -> EvaluationSchema:
         try:
             answer_schema = EvaluationSchema(
@@ -36,7 +37,8 @@ class AnswerSchemaService:
                 total_mark=total_mark,
                 mark_criteria=mark_criteria,
                 answer=answer,
-                image_explanation=image_explanation if image_explanation else None
+                image_explanation=image_explanation if image_explanation else None,
+                image_paths=image_paths if image_paths else None
             )
             
             self.db.add(answer_schema)

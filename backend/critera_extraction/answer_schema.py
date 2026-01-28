@@ -82,7 +82,7 @@ def extract_from_images(image_paths: List[str]) -> QuestionAnswerExtraction:
     result = llm_structured.invoke(formatted_prompt)
     return result
 
-def main(image_path: list, QUESTION_NO: str, SUBJECT_ID: int):
+def main(image_path: list, QUESTION_NO: str, SUBJECT_ID: int, image_paths: list = None):
     result = extract_from_images(image_path)
     
     print("=" * 50)
@@ -107,9 +107,11 @@ def main(image_path: list, QUESTION_NO: str, SUBJECT_ID: int):
                 total_mark=result.total_mark,
                 mark_criteria=result.mark_criteria,
                 answer=result.answer,
-                image_explanation=result.image_explanation
+                image_explanation=result.image_explanation,
+                image_paths=image_paths  # Pass the saved image paths
             )
             print(f"\nData saved to database with ID: {db_record.id}")
+            print(f"Image paths saved: {image_paths}")
             
             return {
                 "status": "success",

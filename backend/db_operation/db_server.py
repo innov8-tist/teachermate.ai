@@ -186,3 +186,47 @@ class DBServiceForServer:
         except Exception as e:
             self.db.rollback()
             raise e
+
+
+    def get_co_templates_by_teacher(self, teacher_id: int):
+        """Get all CO templates for a teacher"""
+        return self.db.query(COTemplate).filter(COTemplate.teacher_id == teacher_id).all()
+    
+    def get_co_questions_by_template(self, template_id: int):
+        """Get all CO question mappings for a template"""
+        from db_service.db_schema import COQuestionMapping
+        return self.db.query(COQuestionMapping).filter(COQuestionMapping.template_id == template_id).all()
+    
+    def get_evaluation_schemas_by_template(self, template_id: int):
+        """Get all evaluation schemas (completed questions) for a template"""
+        from db_service.db_schema import EvaluationSchema
+        return self.db.query(EvaluationSchema).filter(EvaluationSchema.template_id == template_id).all()
+
+
+    def create_evaluation(self, template_id: int, teacher_id: int, pdf_path: str, created_at: str, updated_at: str):
+        """Create a new evaluation record"""
+        from db_service.db_schema import Evaluation
+        evaluation = Evaluation(
+            template_id=template_id,
+            teacher_id=teacher_id,
+            pdf_path=pdf_path,
+            status="in_progress",
+            created_at=created_at,
+            updated_at=updated_at
+        )
+        self.db.add(evaluation)
+        self.db.commit()
+        self.db.refresh(evaluation)
+        return evaluation
+
+
+    def get_evaluations_by_teacher(self, teacher_id: int):
+        """Get all evaluations for a teacher"""
+        from db_service.db_schema import Evaluation
+        return self.db.query(Evaluation).filter(Evaluation.teacher_id == teacher_id).all()
+
+
+    def get_evaluation_by_id(self, evaluation_id: int):
+        """Get evaluation by ID"""
+        from db_service.db_schema import Evaluation
+        return self.db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()

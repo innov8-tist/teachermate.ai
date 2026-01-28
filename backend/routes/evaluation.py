@@ -104,13 +104,19 @@ async def get_pdf_images(pdf_id: str):
 @router.post("/upload-schema-pdf")
 async def upload_schema_pdf(
     subject: str = Form(...),
-    pdf_file: UploadFile = File(...)
+    subject_id: int = Form(...),
+    pdf_file: UploadFile = File(...),
+    current_teacher: Teacher = Depends(get_current_teacher)
 ):
     """
-    Upload answer schema PDF
+    Upload answer schema PDF and create Evaluation record
     """
+    from datetime import datetime
+    from db_operation.db_server import DBServiceForServer
+    
     try:
-        print(f"📤 Uploading PDF for subject: {subject}")
+        print(f"📤 Uploading PDF for subject: {subject} (ID: {subject_id})")
+        print(f"📤 Teacher ID: {current_teacher.id}")
         print(f"📤 Filename: {pdf_file.filename}")
         
         # Generate unique ID
@@ -137,15 +143,32 @@ async def upload_schema_pdf(
         page_count = len(doc)
         doc.close()
         
+        # Create Evaluation record in database
+        db_service = DBServiceForServer()
+        try:
+            timestamp = datetime.now().isoformat()
+            evaluation = db_service.create_evaluation(
+                template_id=subject_id,
+                teacher_id=current_teacher.id,
+                pdf_path=str(pdf_path),
+                created_at=timestamp,
+                updated_at=timestamp
+            )
+            print(f"✅ Evaluation record created with ID: {evaluation.id}")
+        finally:
+            db_service.close()
+        
         print(f"✅ PDF has {page_count} pages")
         print(f"✅ PDF ID: {unique_id}")
         
         return {
             "success": True,
             "pdf_id": unique_id,
+            "evaluation_id": evaluation.id,
             "pdf_uri": f"/public/evaluation_pdfs/{unique_id}.pdf",
             "page_count": page_count,
-            "subject": subject
+            "subject": subject,
+            "subject_id": subject_id
         }
     
     except Exception as e:
