@@ -1,28 +1,10 @@
 services:
-  api:
-    build: ./server
-    ports:
-      - "8000:8000"
-    env_file:
-      - ./server/.env
-    depends_on:
-      db:
-        condition: service_healthy
-      localstack:
-        condition: service_healthy
-    restart: unless-stopped
-    environment:
-      - AWS_ENDPOINT_URL=http://localstack:4566
-      - AWS_ACCESS_KEY_ID=test
-      - AWS_SECRET_ACCESS_KEY=test
-      - AWS_DEFAULT_REGION=us-east-1
-
   db:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: app
+      POSTGRES_DB: teacher_automation
     ports:
       - "5432:5432"
     volumes:

@@ -4,6 +4,11 @@
 // For physical device, replace with your computer's IP (e.g., 192.168.1.5)
 
 const BASE_URL = 'http://10.0.2.2:8000';
+
+//Server hosted 
+// const BASE_URL = 'http://20.40.47.177:8000';
+
+// For expo go 
 // const BASE_URL = 'http://192.168.0.109:8000';
 
 export const API_BASE_URL = BASE_URL;
