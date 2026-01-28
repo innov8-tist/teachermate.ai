@@ -1,4 +1,4 @@
-from sqlalchemy import Column,Integer,Boolean,String,ForeignKey,Text,JSON
+from sqlalchemy import Column,Integer,Boolean,String,ForeignKey,Text,JSON,Float
 from .db import Base
 
 
@@ -88,4 +88,16 @@ class Evaluation(Base):
     created_at = Column(String, nullable=False)  # ISO timestamp
     updated_at = Column(String, nullable=False)  # ISO timestamp
 
-    
+
+class StudentAnswerEvaluation(Base):
+    """Student answer evaluations with AI feedback"""
+    __tablename__ = "student_answer_evaluations"
+    id = Column(Integer, primary_key=True, index=True)
+    question_no = Column(String, nullable=False)
+    template_id = Column(Integer, ForeignKey("co_templates.id"), nullable=False)
+    student_reg_no = Column(String, nullable=True)  # Student registration number
+    mark_score = Column(Float, nullable=False)  # Marks awarded
+    total_mark = Column(Integer, nullable=False)  # Total marks for question
+    feedback = Column(JSON, nullable=False)  # List of feedback points
+    student_image_paths = Column(JSON, nullable=False)  # Paths to student answer images
+    evaluated_at = Column(String, nullable=False)  # ISO timestamp

@@ -21,6 +21,7 @@ from services.s3_service import s3_service
 from comapping.answer_sheet_processing.cutting import ImageProcess
 from comapping.answer_sheet_processing.extraction_pipeline import ExtractionPipeline
 from critera_extraction.answer_schema import main as extract_main
+from student_answer_sheet.answer_sheet import evaluate_student_answer
 
 app = FastAPI()
 
@@ -556,6 +557,103 @@ async def extract_answer_schema(
         return {
             "status": "error",
             "message": f"Failed to extract answer schema: {str(e)}"
+        }
+
+
+@app.post("/evaluate-student-answer")
+async def evaluate_student_answer_endpoint(
+    question_no: str = Form(...),
+    subject_id: int = Form(...),
+    reg_no: str = Form(...),
+    answer_images: list[UploadFile] = File(...),
+    current_teacher: Teacher = Depends(get_current_teacher)
+):
+    """
+    Evaluate a student's answer against the answer schema
+    
+    Args:
+        question_no: Question number (e.g., "1", "2.a")
+        subject_id: Subject/Template ID
+        reg_no: Student registration number
+        answer_images: List of student answer images
+        
+    Returns:
+        Evaluation result with marks and feedback
+    """
+    temp_image_paths = []
+    s3_image_urls = []
+    
+    try:
+        print(f"📝 Evaluating student answer:")
+        print(f"  Question: {question_no}")
+        print(f"  Subject ID: {subject_id}")
+        print(f"  Student Reg No: {reg_no}")
+        print(f"  Number of images: {len(answer_images)}")
+        
+        temp_dir = Path(tempfile.gettempdir()) / "student_answers"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        
+        for idx, image in enumerate(answer_images):
+            file_extension = os.path.splitext(image.filename)[1]
+            
+            temp_filename = f"{reg_no}_{subject_id}_{question_no}_{idx}_{uuid.uuid4()}{file_extension}"
+            temp_path = temp_dir / temp_filename
+            
+            content = await image.read()
+            
+            with open(temp_path, "wb") as f:
+                f.write(content)
+            
+            temp_image_paths.append(str(temp_path))
+            
+            if s3_service.is_available:
+                s3_key = f"student-answers/{subject_id}/{reg_no}/q{question_no}_{idx}_{uuid.uuid4()}{file_extension}"
+                s3_url = s3_service.upload_file(content, file_extension)
+                
+                if s3_url:
+                    s3_image_urls.append(s3_url)
+                    print(f"  ✓ Uploaded image {idx} to S3")
+                else:
+                    print(f"  ⚠ Failed to upload image {idx} to S3")
+        
+        print(f"✓ Saved {len(temp_image_paths)} images for evaluation")
+        
+        result = evaluate_student_answer(
+            question_no=question_no,
+            subject_id=subject_id,
+            student_image_paths=temp_image_paths,
+            student_reg_no=reg_no,
+            s3_image_urls=s3_image_urls
+        )
+        
+        for temp_path in temp_image_paths:
+            try:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+            except Exception as e:
+                print(f"Warning: Could not delete temp file {temp_path}: {e}")
+        
+        if result["status"] == "success":
+            result["data"]["s3_image_urls"] = s3_image_urls
+        
+        print(f"✓ Evaluation completed successfully")
+        return result
+        
+    except Exception as e:
+        for temp_path in temp_image_paths:
+            try:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+            except:
+                pass
+        
+        print(f"❌ Error evaluating student answer: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        return {
+            "status": "error",
+            "message": f"Failed to evaluate student answer: {str(e)}"
         }
 
 
