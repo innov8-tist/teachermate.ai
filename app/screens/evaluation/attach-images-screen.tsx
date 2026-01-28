@@ -26,8 +26,8 @@ interface AttachImagesScreenProps {
   evaluationId?: number | null; // Optional: if viewing existing evaluation
 }
 
-export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({ 
-  onBack, 
+export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
+  onBack,
   onSubmit,
   questions,
   onQuestionsChange,
@@ -36,9 +36,31 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
   subjectId,
   evaluationId
 }) => {
-  const { token } = useAuth();
+  const { token, teacher, isLoading: authLoading } = useAuth();
   const [loading, setLoading] = useState(false);
   const [questionsFetched, setQuestionsFetched] = useState(false);
+
+  // Debug: Log props on mount
+  useEffect(() => {
+    console.log('� AuttachImagesScreen mounted with props:', {
+      subjectId,
+      evaluationId,
+      pdfUri,
+      questionCount: questions.length
+    });
+  }, []);
+
+  // Debug: Log auth state
+  useEffect(() => {
+    console.log('🔐 Auth State:', {
+      authLoading,
+      hasToken: !!token,
+      tokenLength: token?.length || 0,
+      tokenPreview: token ? `${token.substring(0, 20)}...` : 'null',
+      hasTeacher: !!teacher,
+      teacherId: teacher?.id
+    });
+  }, [token, teacher, authLoading]);
 
   // Debug: Log when questions prop changes
   useEffect(() => {
@@ -61,18 +83,19 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
     setLoading(true);
     try {
       console.log('📥 Fetching questions for subject:', subjectId);
-      
+
       // If evaluationId is provided, fetch with completion status
-      const endpoint = evaluationId 
+      const endpoint = evaluationId
         ? `${BASE_URL}/evaluation/${evaluationId}/questions`
         : `${BASE_URL}/co_questions/${subjectId}`;
-      
-      const headers = evaluationId && token
-        ? { 'Authorization': `Bearer ${token}` }
-        : {};
-      
+
+      const headers: Record<string, string> = {};
+      if (evaluationId && token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch(endpoint, { headers });
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch questions');
       }
@@ -89,9 +112,9 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
           croppedSections: (q.croppedSections || []).map((section: any) => ({
             ...section,
             // S3 URLs are complete, only prepend BASE_URL if it's a relative path
-            previewUri: section.previewUri?.startsWith('http') 
+            previewUri: section.previewUri?.startsWith('http')
               ? section.previewUri  // Already a complete URL (S3)
-              : section.previewUri?.startsWith('/') 
+              : section.previewUri?.startsWith('/')
                 ? `${BASE_URL}${section.previewUri}`  // Relative path
                 : section.previewUri
           })),
@@ -99,7 +122,7 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
           isSubmitted: q.is_completed,
           is_completed: q.is_completed
         }));
-        
+
         console.log('✅ Loaded questions with completion status:', fetchedQuestions);
         onQuestionsChange(fetchedQuestions);
         setQuestionsFetched(true);
@@ -115,7 +138,7 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
           isSubmitted: false,
           is_completed: false
         }));
-        
+
         console.log('✅ Transformed questions:', fetchedQuestions);
         onQuestionsChange(fetchedQuestions);
         setQuestionsFetched(true);
@@ -131,8 +154,14 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
   };
 
   const handleSubmitQuestion = async (question: Question) => {
+    if (authLoading) {
+      Alert.alert('Please Wait', 'Authentication is loading...');
+      return;
+    }
+
     if (!token || !subjectId) {
-      Alert.alert('Error', 'Authentication required');
+      console.error('❌ Missing auth or subject:', { hasToken: !!token, subjectId });
+      Alert.alert('Authentication Required', 'Please log in again to submit questions.');
       return;
     }
 
@@ -157,12 +186,21 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
 
   const submitQuestion = async (question: Question) => {
     if (!subjectId || !question.croppedSections || question.croppedSections.length === 0 || !token) {
+      console.error('❌ Missing required data:', {
+        hasSubjectId: !!subjectId,
+        hasCroppedSections: !!question.croppedSections,
+        sectionCount: question.croppedSections?.length || 0,
+        hasToken: !!token,
+        tokenLength: token?.length || 0
+      });
+      Alert.alert('Error', 'Missing authentication or data. Please log in again.');
       return;
     }
 
     try {
       console.log(`📤 Submitting question ${question.id} to backend...`);
-      
+      console.log(`🔑 Token present: ${token ? 'Yes' : 'No'}, Length: ${token?.length || 0}`);
+
       const formData = new FormData();
       formData.append('question_no', question.id);
       formData.append('subject_id', subjectId.toString());
@@ -183,7 +221,7 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
         method: 'POST',
         body: formData,
         headers: {
-          'Content-Type': 'multipart/form-data',
+          // Don't set Content-Type for multipart/form-data - let the browser/RN set it with boundary
           'Authorization': `Bearer ${token}`,
         },
       });
@@ -198,21 +236,30 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
 
       // Update state to success and mark as submitted
       const successQuestions = questions.map(q =>
-        q.id === question.id 
-          ? { ...q, processingState: 'success' as const, isSubmitted: true } 
+        q.id === question.id
+          ? { ...q, processingState: 'success' as const, isSubmitted: true }
           : q
       );
       onQuestionsChange(successQuestions);
 
+      // Check if all questions are now submitted
+      const allSubmitted = successQuestions.every(q => q.isSubmitted);
+      if (allSubmitted) {
+        console.log('✅ All questions submitted! Clearing upload progress...');
+        // Import and call the cleanup function
+        const { clearUploadProgress } = await import('./upload-schema-screen');
+        await clearUploadProgress();
+      }
+
     } catch (error) {
       console.error(`❌ Error submitting question ${question.id}:`, error);
-      
+
       // Update state to error
       const errorQuestions = questions.map(q =>
         q.id === question.id ? { ...q, processingState: 'error' as const } : q
       );
       onQuestionsChange(errorQuestions);
-      
+
       Alert.alert('Submission Error', `Failed to submit ${question.label}: ${error}`);
     }
   };
@@ -227,12 +274,12 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
   const handleRemoveImage = (questionId: string, sectionIndex: number) => {
     const updatedQuestions = questions.map(q =>
       q.id === questionId
-        ? { 
-            ...q, 
-            croppedSections: (q.croppedSections || []).filter((_, idx) => idx !== sectionIndex),
-            processingState: 'idle' as const, // Reset state when images change
-            isSubmitted: false // Allow resubmission
-          }
+        ? {
+          ...q,
+          croppedSections: (q.croppedSections || []).filter((_, idx) => idx !== sectionIndex),
+          processingState: 'idle' as const, // Reset state when images change
+          isSubmitted: false // Allow resubmission
+        }
         : q
     );
     onQuestionsChange(updatedQuestions);
@@ -256,9 +303,9 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
             {section.previewUri ? (
               <Image
                 source={{ uri: section.previewUri }}
-                style={{ 
-                  width: 120, 
-                  height: 120, 
+                style={{
+                  width: 120,
+                  height: 120,
                   borderRadius: 12,
                   backgroundColor: '#E5E7EB',
                 }}
@@ -266,9 +313,9 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
               />
             ) : (
               <View
-                style={{ 
-                  width: 120, 
-                  height: 120, 
+                style={{
+                  width: 120,
+                  height: 120,
                   borderRadius: 12,
                   backgroundColor: '#E5E7EB',
                   alignItems: 'center',
@@ -311,7 +358,6 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
               borderColor: question.is_completed || question.isSubmitted ? '#E5E7EB' : '#D1D5DB',
               backgroundColor: question.is_completed || question.isSubmitted ? '#F9FAFB' : '#F9FAFB',
               opacity: question.is_completed || question.isSubmitted ? 0.5 : 1,
-              backgroundColor: '#F9FAFB',
               alignItems: 'center',
               justifyContent: 'center',
             }}
@@ -397,7 +443,7 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
                   <Text className="text-lg font-semibold text-gray-900">
                     {question.label}
                   </Text>
-                  
+
                   {/* Much smaller checkbox submit button */}
                   <TouchableOpacity
                     onPress={() => handleSubmitQuestion(question)}

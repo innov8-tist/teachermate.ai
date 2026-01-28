@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_URL } from '../../constants/api';
 import { useAuth } from '../../contexts/auth-context';
 
@@ -18,6 +19,25 @@ interface UploadSchemaScreenProps {
   onSuccess: (pdfId: string, subject: string, subjectId: number) => void;
 }
 
+const UPLOAD_PROGRESS_KEY = '@evaluation_upload_progress';
+
+interface UploadProgress {
+  pdfId: string;
+  subject: string;
+  subjectId: number;
+  timestamp: number;
+}
+
+// Export function to clear upload progress when evaluation is completed
+export const clearUploadProgress = async () => {
+  try {
+    await AsyncStorage.removeItem(UPLOAD_PROGRESS_KEY);
+    console.log('✅ Upload progress cleared');
+  } catch (error) {
+    console.error('Error clearing upload progress:', error);
+  }
+};
+
 export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, onSuccess }) => {
   const { teacher, token } = useAuth();
   const [selectedSubject, setSelectedSubject] = useState<string>('');
@@ -26,6 +46,66 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
   const [uploading, setUploading] = useState(false);
   const [loadingCOs, setLoadingCOs] = useState(false);
   const [coTemplates, setCoTemplates] = useState<COTemplate[]>([]);
+  const [hasInProgressUpload, setHasInProgressUpload] = useState(false);
+
+  // Check for in-progress upload on mount
+  useEffect(() => {
+    checkInProgressUpload();
+  }, []);
+
+  const checkInProgressUpload = async () => {
+    try {
+      const progressData = await AsyncStorage.getItem(UPLOAD_PROGRESS_KEY);
+      if (progressData) {
+        const progress: UploadProgress = JSON.parse(progressData);
+        // Check if upload is less than 24 hours old
+        const hoursSinceUpload = (Date.now() - progress.timestamp) / (1000 * 60 * 60);
+        
+        if (hoursSinceUpload < 24) {
+          setHasInProgressUpload(true);
+          Alert.alert(
+            'Resume Upload',
+            `You have an incomplete upload for "${progress.subject}". Would you like to continue?`,
+            [
+              {
+                text: 'Start New',
+                style: 'destructive',
+                onPress: async () => {
+                  await AsyncStorage.removeItem(UPLOAD_PROGRESS_KEY);
+                  setHasInProgressUpload(false);
+                }
+              },
+              {
+                text: 'Resume',
+                onPress: () => {
+                  onSuccess(progress.pdfId, progress.subject, progress.subjectId);
+                }
+              }
+            ]
+          );
+        } else {
+          // Clear old upload data
+          await AsyncStorage.removeItem(UPLOAD_PROGRESS_KEY);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking in-progress upload:', error);
+    }
+  };
+
+  const saveUploadProgress = async (pdfId: string, subject: string, subjectId: number) => {
+    try {
+      const progress: UploadProgress = {
+        pdfId,
+        subject,
+        subjectId,
+        timestamp: Date.now()
+      };
+      await AsyncStorage.setItem(UPLOAD_PROGRESS_KEY, JSON.stringify(progress));
+    } catch (error) {
+      console.error('Error saving upload progress:', error);
+    }
+  };
 
   // Fetch CO templates when component mounts
   useEffect(() => {
@@ -114,7 +194,7 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
             method: 'POST',
             body: formData,
             headers: {
-              'Content-Type': 'multipart/form-data',
+              // Don't set Content-Type for multipart/form-data - let the browser/RN set it with boundary
               'Authorization': `Bearer ${token}`,
             },
           });
@@ -128,8 +208,10 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
 
           if (responseData.success) {
             console.log('✅ PDF uploaded successfully, ID:', responseData.pdf_id);
-            // Pass the PDF ID, subject name, and subject ID to the next screen
+            
+            // Save upload progress for resuming later
             if (selectedSubjectId) {
+              await saveUploadProgress(responseData.pdf_id, selectedSubject, selectedSubjectId);
               onSuccess(responseData.pdf_id, selectedSubject, selectedSubjectId);
             } else {
               throw new Error('Subject ID not found');

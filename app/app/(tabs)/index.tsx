@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ScrollView, View, TouchableOpacity, StyleSheet, Text, BackHandler, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SplashScreen } from '@/components/splash-screen';
 import { Header } from '@/components/shared/header';
 import { BottomNavigation, TabType } from '@/components/shared/bottom-navigation';
@@ -16,6 +17,8 @@ import { useAuth } from '@/contexts/auth-context';
 
 type EvaluationSubScreen = 'list' | 'upload' | 'attachImages' | 'pdfCropper' | 'details';
 
+const UPLOAD_PROGRESS_KEY = '@evaluation_upload_progress';
+
 export default function HomeScreenRefactored() {
   const { token } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
@@ -31,6 +34,54 @@ export default function HomeScreenRefactored() {
 
   // Questions will be fetched from the API based on selected subject
   const [questions, setQuestions] = useState<Question[]>([]);
+
+  // Check for in-progress upload on mount
+  useEffect(() => {
+    checkInProgressUpload();
+  }, []);
+
+  const checkInProgressUpload = async () => {
+    try {
+      const progressData = await AsyncStorage.getItem(UPLOAD_PROGRESS_KEY);
+      if (progressData) {
+        const progress = JSON.parse(progressData);
+        // Check if upload is less than 24 hours old
+        const hoursSinceUpload = (Date.now() - progress.timestamp) / (1000 * 60 * 60);
+
+        if (hoursSinceUpload < 24) {
+          Alert.alert(
+            'Resume Upload',
+            `You have an incomplete upload for "${progress.subject}". Would you like to continue?`,
+            [
+              {
+                text: 'Start New',
+                style: 'destructive',
+                onPress: async () => {
+                  await AsyncStorage.removeItem(UPLOAD_PROGRESS_KEY);
+                }
+              },
+              {
+                text: 'Resume',
+                onPress: () => {
+                  // Restore the state
+                  setPdfUri(progress.pdfId);
+                  setSelectedSubject(progress.subject);
+                  setSelectedSubjectId(progress.subjectId);
+                  setActiveTab('evaluation');
+                  setEvaluationSubScreen('attachImages');
+                }
+              }
+            ]
+          );
+        } else {
+          // Clear old upload data
+          await AsyncStorage.removeItem(UPLOAD_PROGRESS_KEY);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking in-progress upload:', error);
+    }
+  };
 
   // Handle Android back button
   useEffect(() => {
@@ -80,6 +131,8 @@ export default function HomeScreenRefactored() {
 
   const handleViewEvaluationDetails = async (evaluationId: number) => {
     try {
+      console.log('📥 Fetching evaluation details for ID:', evaluationId);
+
       // Fetch evaluation details
       const response = await fetch(`${API_BASE_URL}/evaluation/${evaluationId}`, {
         headers: {
@@ -94,14 +147,19 @@ export default function HomeScreenRefactored() {
       const data = await response.json();
       const evaluation = data.evaluation;
 
-      // Set the state
-      setSelectedEvaluationId(evaluation.template_id);
+      console.log('✅ Evaluation data:', evaluation);
+      console.log('  - template_id (subject ID):', evaluation.template_id);
+      console.log('  - pdf_id:', evaluation.pdf_id);
+
+      // Set the state - template_id is the subject ID
+      setSelectedSubjectId(evaluation.template_id); // This is the subject ID!
+      setSelectedEvaluationId(evaluation.template_id); // Keep for compatibility
       setViewingEvaluationId(evaluationId); // Store the evaluation ID
       // Use pdf_id instead of full pdf_uri
       setPdfUri(evaluation.pdf_id); // Just the PDF ID, not the full URL
       setEvaluationSubScreen('details');
     } catch (error) {
-      console.error('Error loading evaluation:', error);
+      console.error('❌ Error loading evaluation:', error);
       Alert.alert('Error', 'Failed to load evaluation details');
     }
   };
@@ -218,7 +276,7 @@ export default function HomeScreenRefactored() {
                     onQuestionsChange={setQuestions}
                     onOpenCropper={handleOpenCropper}
                     pdfUri={pdfUri}
-                    subjectId={selectedEvaluationId}
+                    subjectId={selectedSubjectId}
                     evaluationId={viewingEvaluationId}
                   />
                 )}
