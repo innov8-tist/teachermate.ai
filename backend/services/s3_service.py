@@ -159,6 +159,127 @@ class S3Service:
             print(f"Error uploading {image_type} image to S3: {e}")
             return None
     
+    def upload_answer_image(self, file_content: bytes, file_extension: str, subject_id: int, question_no: str, index: int) -> Optional[str]:
+        """
+        Upload an answer schema image to S3 and return the URL
+        
+        Args:
+            file_content: Image file content as bytes
+            file_extension: File extension (e.g., '.png')
+            subject_id: Subject ID
+            question_no: Question number
+            index: Image index for this question
+        """
+        if not self.is_available:
+            print("S3 service not available, skipping answer image upload")
+            return None
+            
+        try:
+            unique_id = uuid.uuid4()
+            file_key = f"answer-images/{subject_id}/q{question_no}_{index}_{unique_id}{file_extension}"
+            
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=file_key,
+                Body=file_content,
+                ContentType=self._get_content_type(file_extension)
+            )
+            
+            # Generate URL using PUBLIC_ENDPOINT_URL for mobile app access
+            url = f"{PUBLIC_ENDPOINT_URL}/{self.bucket_name}/{file_key}"
+            print(f"✓ Uploaded answer image to S3: {file_key}")
+            return url
+        except ClientError as e:
+            print(f"Error uploading answer image to S3: {e}")
+            return None
+    
+    def upload_evaluation_pdf(self, file_content: bytes, file_extension: str) -> Optional[tuple[str, str]]:
+        """
+        Upload an evaluation PDF to S3 and return the URL and unique ID
+        
+        Returns:
+            Tuple of (url, unique_id) or (None, None) if upload fails
+        """
+        if not self.is_available:
+            print("S3 service not available, skipping PDF upload")
+            return None, None
+            
+        try:
+            unique_id = str(uuid.uuid4())
+            file_key = f"evaluation-pdfs/{unique_id}{file_extension}"
+            
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=file_key,
+                Body=file_content,
+                ContentType='application/pdf'
+            )
+            
+            # Generate URL using PUBLIC_ENDPOINT_URL for mobile app access
+            url = f"{PUBLIC_ENDPOINT_URL}/{self.bucket_name}/{file_key}"
+            print(f"✓ Uploaded evaluation PDF to S3: {file_key}")
+            return url, unique_id
+        except ClientError as e:
+            print(f"Error uploading evaluation PDF to S3: {e}")
+            return None, None
+    
+    def upload_pdf_image(self, file_content: bytes, pdf_id: str, page_number: int) -> Optional[str]:
+        """
+        Upload a PDF page image to S3 and return the URL
+        
+        Args:
+            file_content: Image file content as bytes
+            pdf_id: PDF unique identifier
+            page_number: Page number
+        """
+        if not self.is_available:
+            print("S3 service not available, skipping PDF image upload")
+            return None
+            
+        try:
+            file_key = f"pdf-images/{pdf_id}/page_{page_number}.png"
+            
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=file_key,
+                Body=file_content,
+                ContentType='image/png'
+            )
+            
+            # Generate URL using PUBLIC_ENDPOINT_URL for mobile app access
+            url = f"{PUBLIC_ENDPOINT_URL}/{self.bucket_name}/{file_key}"
+            return url
+        except ClientError as e:
+            print(f"Error uploading PDF image to S3: {e}")
+            return None
+    
+    def upload_cropped_image(self, file_content: bytes) -> Optional[str]:
+        """
+        Upload a cropped image to S3 and return the URL
+        """
+        if not self.is_available:
+            print("S3 service not available, skipping cropped image upload")
+            return None
+            
+        try:
+            unique_id = uuid.uuid4()
+            file_key = f"cropped-images/{unique_id}.png"
+            
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=file_key,
+                Body=file_content,
+                ContentType='image/png'
+            )
+            
+            # Generate URL using PUBLIC_ENDPOINT_URL for mobile app access
+            url = f"{PUBLIC_ENDPOINT_URL}/{self.bucket_name}/{file_key}"
+            print(f"✓ Uploaded cropped image to S3: {file_key}")
+            return url
+        except ClientError as e:
+            print(f"Error uploading cropped image to S3: {e}")
+            return None
+    
     def delete_file(self, file_url: str) -> bool:
         """
         Delete a file from S3 given its URL

@@ -480,48 +480,51 @@ async def extract_answer_schema(
 ):
     try:
         temp_image_paths = []
-        saved_image_paths = []  # Paths to save in DB
+        saved_image_urls = []  # S3 URLs to save in DB
         temp_dir = Path(tempfile.gettempdir()) / "answer_extraction"
         temp_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Create permanent storage directory
-        permanent_dir = Path("public/answer_images") / str(subject_id)
-        permanent_dir.mkdir(parents=True, exist_ok=True)
         
         for idx, image in enumerate(answer_images):
             file_extension = os.path.splitext(image.filename)[1]
             
-            # Save to temp for processing
+            # Save to temp for AI processing
             temp_filename = f"{subject_id}_{question_no}_{idx}_{uuid.uuid4()}{file_extension}"
             temp_path = temp_dir / temp_filename
             
-            # Save to permanent storage
-            permanent_filename = f"q{question_no}_{idx}_{uuid.uuid4()}{file_extension}"
-            permanent_path = permanent_dir / permanent_filename
-            
             content = await image.read()
             
-            # Write to temp
+            # Write to temp for AI processing
             with open(temp_path, "wb") as f:
                 f.write(content)
             
-            # Write to permanent
-            with open(permanent_path, "wb") as f:
-                f.write(content)
-            
             temp_image_paths.append(str(temp_path))
-            # Store relative path for DB
-            saved_image_paths.append(f"/public/answer_images/{subject_id}/{permanent_filename}")
+            
+            # Upload to S3
+            s3_url = None
+            if s3_service.is_available:
+                s3_url = s3_service.upload_answer_image(
+                    file_content=content,
+                    file_extension=file_extension,
+                    subject_id=subject_id,
+                    question_no=question_no,
+                    index=idx
+                )
+            
+            if s3_url:
+                saved_image_urls.append(s3_url)
+                print(f"✓ Uploaded image {idx} to S3: {s3_url}")
+            else:
+                print(f"⚠ S3 not available, image not stored permanently")
         
         print(f"Saved {len(temp_image_paths)} images for extraction")
-        print(f"Permanent paths: {saved_image_paths}")
+        print(f"S3 URLs: {saved_image_urls}")
         
-        # Pass image_paths to extract_main
+        # Pass S3 URLs to extract_main
         result = extract_main(
             image_path=temp_image_paths,
             QUESTION_NO=question_no,
             SUBJECT_ID=subject_id,
-            image_paths=saved_image_paths  # Pass the permanent paths
+            image_paths=saved_image_urls if saved_image_urls else None
         )
         
         # Clean up temp files
@@ -637,10 +640,17 @@ async def get_evaluation_details(
         # Get template info
         template = db_service.get_subject_info(evaluation.template_id)
         
-        # Extract PDF ID from path
-        import os
-        pdf_filename = os.path.basename(evaluation.pdf_path)
-        pdf_id = os.path.splitext(pdf_filename)[0]
+        # Extract PDF ID from S3 URL or local path
+        pdf_path = evaluation.pdf_path
+        if pdf_path.startswith('http'):
+            # S3 URL - extract the unique ID from the path
+            # Format: http://10.0.2.2:4566/bucket/evaluation-pdfs/{uuid}.pdf
+            pdf_id = pdf_path.split('/')[-1].replace('.pdf', '')
+        else:
+            # Local path - extract filename
+            import os
+            pdf_filename = os.path.basename(pdf_path)
+            pdf_id = os.path.splitext(pdf_filename)[0]
         
         return {
             "success": True,
@@ -649,7 +659,7 @@ async def get_evaluation_details(
                 "template_id": evaluation.template_id,
                 "subject_name": template['name'] if template else "Unknown",
                 "pdf_id": pdf_id,
-                "pdf_uri": f"/public/evaluation_pdfs/{pdf_filename}",
+                "pdf_uri": evaluation.pdf_path,  # Return the actual S3 URL or local path
                 "status": evaluation.status,
                 "created_at": evaluation.created_at,
                 "updated_at": evaluation.updated_at

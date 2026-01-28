@@ -88,10 +88,12 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
           images: q.images || [],
           croppedSections: (q.croppedSections || []).map((section: any) => ({
             ...section,
-            // Prepend BASE_URL if path is relative
-            previewUri: section.previewUri?.startsWith('/') 
-              ? `${BASE_URL}${section.previewUri}` 
-              : section.previewUri
+            // S3 URLs are complete, only prepend BASE_URL if it's a relative path
+            previewUri: section.previewUri?.startsWith('http') 
+              ? section.previewUri  // Already a complete URL (S3)
+              : section.previewUri?.startsWith('/') 
+                ? `${BASE_URL}${section.previewUri}`  // Relative path
+                : section.previewUri
           })),
           processingState: q.is_completed ? 'success' : 'idle',
           isSubmitted: q.is_completed,

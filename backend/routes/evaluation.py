@@ -32,56 +32,64 @@ class CropRequest(BaseModel):
 @router.get("/pdf-images/{pdf_id}")
 async def get_pdf_images(pdf_id: str):
     """
-    Convert PDF pages to images and return URLs
+    Convert PDF pages to images (from S3) and return S3 URLs
     """
+    from services.s3_service import s3_service
+    import tempfile
+    from botocore.exceptions import ClientError
+    
     try:
-        pdf_path = PDF_STORAGE / f"{pdf_id}.pdf"
+        # Download PDF from S3 using boto3 client
+        file_key = f"evaluation-pdfs/{pdf_id}.pdf"
         
-        print(f"Looking for PDF at: {pdf_path}")
-        print(f"PDF exists: {pdf_path.exists()}")
+        print(f"Fetching PDF from S3: {file_key}")
         
-        if not pdf_path.exists():
-            # List files in directory for debugging
-            print(f"Files in {PDF_STORAGE}:")
-            if PDF_STORAGE.exists():
-                for f in PDF_STORAGE.iterdir():
-                    print(f"  - {f.name}")
-            raise HTTPException(status_code=404, detail=f"PDF not found at {pdf_path}")
+        try:
+            response = s3_service.s3_client.get_object(
+                Bucket=s3_service.bucket_name,
+                Key=file_key
+            )
+            pdf_content = response['Body'].read()
+            print(f"✅ Downloaded PDF from S3, size: {len(pdf_content)} bytes")
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'NoSuchKey':
+                raise HTTPException(status_code=404, detail=f"PDF not found in S3: {pdf_id}")
+            raise
         
-        # Check if images already exist
-        pdf_images_dir = PDF_IMAGES_STORAGE / pdf_id
+        # Save to temp file for processing
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+            tmp_file.write(pdf_content)
+            tmp_path = tmp_file.name
         
-        if not pdf_images_dir.exists():
-            # Convert PDF to images
-            print(f"Converting PDF to images, saving to: {pdf_images_dir}")
-            pdf_images_dir.mkdir(parents=True, exist_ok=True)
+        # Convert PDF to images and upload to S3
+        doc = fitz.open(tmp_path)
+        image_urls = []
+        
+        for page_num in range(len(doc)):
+            page = doc.load_page(page_num)
             
-            doc = fitz.open(pdf_path)
-            image_urls = []
+            # Render at 2x resolution for better quality
+            mat = fitz.Matrix(2, 2)
+            pix = page.get_pixmap(matrix=mat)
             
-            for page_num in range(len(doc)):
-                page = doc.load_page(page_num)
-                
-                # Render at 2x resolution for better quality
-                mat = fitz.Matrix(2, 2)
-                pix = page.get_pixmap(matrix=mat)
-                
-                # Save as PNG
-                image_filename = f"page_{page_num + 1}.png"
-                image_path = pdf_images_dir / image_filename
-                pix.save(str(image_path))
-                
-                image_urls.append(f"/public/pdf_images/{pdf_id}/{image_filename}")
-                print(f"  Saved page {page_num + 1} to {image_path}")
+            # Convert to bytes
+            img_bytes = pix.tobytes("png")
             
-            doc.close()
-            print(f"✅ Converted {len(image_urls)} pages")
-        else:
-            # Images already exist, just return URLs
-            print(f"Using cached images from: {pdf_images_dir}")
-            image_urls = []
-            for image_file in sorted(pdf_images_dir.glob("page_*.png")):
-                image_urls.append(f"/public/pdf_images/{pdf_id}/{image_file.name}")
+            # Upload to S3
+            s3_url = s3_service.upload_pdf_image(img_bytes, pdf_id, page_num + 1)
+            
+            if s3_url:
+                image_urls.append(s3_url)
+                print(f"  ✓ Uploaded page {page_num + 1} to S3: {s3_url}")
+            else:
+                print(f"  ⚠ Failed to upload page {page_num + 1}")
+        
+        doc.close()
+        
+        # Clean up temp file
+        os.remove(tmp_path)
+        
+        print(f"✅ Converted and uploaded {len(image_urls)} pages to S3")
         
         return {
             "success": True,
@@ -97,9 +105,6 @@ async def get_pdf_images(pdf_id: str):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to get PDF images: {str(e)}")
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get PDF images: {str(e)}")
-
 
 @router.post("/upload-schema-pdf")
 async def upload_schema_pdf(
@@ -109,39 +114,45 @@ async def upload_schema_pdf(
     current_teacher: Teacher = Depends(get_current_teacher)
 ):
     """
-    Upload answer schema PDF and create Evaluation record
+    Upload answer schema PDF to S3 and create Evaluation record
     """
     from datetime import datetime
     from db_operation.db_server import DBServiceForServer
+    from services.s3_service import s3_service
     
     try:
         print(f"📤 Uploading PDF for subject: {subject} (ID: {subject_id})")
         print(f"📤 Teacher ID: {current_teacher.id}")
         print(f"📤 Filename: {pdf_file.filename}")
         
-        # Generate unique ID
-        unique_id = str(uuid.uuid4())
         file_extension = os.path.splitext(pdf_file.filename)[1]
         
         if file_extension.lower() != '.pdf':
             raise HTTPException(status_code=400, detail="Only PDF files are allowed")
         
-        # Save PDF
-        pdf_path = PDF_STORAGE / f"{unique_id}.pdf"
         content = await pdf_file.read()
-        
-        print(f"📤 Saving PDF to: {pdf_path}")
         print(f"📤 PDF size: {len(content)} bytes")
         
-        with open(pdf_path, "wb") as f:
-            f.write(content)
+        # Upload to S3
+        s3_url, unique_id = s3_service.upload_evaluation_pdf(content, file_extension)
         
-        print(f"✅ PDF saved successfully")
+        if not s3_url or not unique_id:
+            raise HTTPException(status_code=500, detail="Failed to upload PDF to S3")
         
-        # Get page count
-        doc = fitz.open(pdf_path)
+        print(f"✅ PDF uploaded to S3: {s3_url}")
+        
+        # Get page count (need to save temporarily for PyMuPDF)
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+            tmp_file.write(content)
+            tmp_path = tmp_file.name
+        
+        doc = fitz.open(tmp_path)
         page_count = len(doc)
         doc.close()
+        
+        # Clean up temp file
+        os.remove(tmp_path)
         
         # Create Evaluation record in database
         db_service = DBServiceForServer()
@@ -150,7 +161,7 @@ async def upload_schema_pdf(
             evaluation = db_service.create_evaluation(
                 template_id=subject_id,
                 teacher_id=current_teacher.id,
-                pdf_path=str(pdf_path),
+                pdf_path=s3_url,  # Store S3 URL instead of local path
                 created_at=timestamp,
                 updated_at=timestamp
             )
@@ -165,7 +176,7 @@ async def upload_schema_pdf(
             "success": True,
             "pdf_id": unique_id,
             "evaluation_id": evaluation.id,
-            "pdf_uri": f"/public/evaluation_pdfs/{unique_id}.pdf",
+            "pdf_uri": s3_url,  # Return S3 URL
             "page_count": page_count,
             "subject": subject,
             "subject_id": subject_id
