@@ -21,19 +21,11 @@ export default function HomeScreenRefactored() {
   const [evaluationSubScreen, setEvaluationSubScreen] = useState<EvaluationSubScreen>('list');
   const [pdfUri, setPdfUri] = useState<string>('');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [selectedSubjectId, setSelectedSubjectId] = useState<number | null>(null);
   const [currentQuestionId, setCurrentQuestionId] = useState<string>('');
 
-  // Dummy questions - will be fetched from database later
-  const [questions, setQuestions] = useState<Question[]>([
-    { id: '1', label: 'Question 1', images: [], croppedSections: [] },
-    { id: '2a', label: 'Question 2(a)', images: [], croppedSections: [] },
-    { id: '2b', label: 'Question 2(b)', images: [], croppedSections: [] },
-    { id: '3', label: 'Question 3', images: [], croppedSections: [] },
-    { id: '4a', label: 'Question 4(a)', images: [], croppedSections: [] },
-    { id: '4b', label: 'Question 4(b)', images: [], croppedSections: [] },
-    { id: '5', label: 'Question 5', images: [], croppedSections: [] },
-    { id: '6', label: 'Question 6', images: [], croppedSections: [] },
-  ]);
+  // Questions will be fetched from the API based on selected subject
+  const [questions, setQuestions] = useState<Question[]>([]);
 
   // Handle Android back button
   useEffect(() => {
@@ -73,9 +65,10 @@ export default function HomeScreenRefactored() {
     }
   };
 
-  const handleUploadSchemaSuccess = (pdfId: string, subject: string) => {
+  const handleUploadSchemaSuccess = (pdfId: string, subject: string, subjectId: number) => {
     setPdfUri(pdfId); // Now this is a PDF ID, not a file URI
     setSelectedSubject(subject);
+    setSelectedSubjectId(subjectId);
     setEvaluationSubScreen('attachImages');
   };
 
@@ -85,6 +78,10 @@ export default function HomeScreenRefactored() {
   };
 
   const handleCropConfirm = (croppedSection: CroppedSection) => {
+    console.log('🎯 handleCropConfirm called');
+    console.log('📦 Cropped section:', croppedSection);
+    console.log('📋 Current questions:', questions);
+    
     const updatedQuestions = questions.map(q =>
       q.id === croppedSection.questionId
         ? { 
@@ -93,6 +90,8 @@ export default function HomeScreenRefactored() {
           }
         : q
     );
+    
+    console.log('✅ Updated questions:', updatedQuestions);
     setQuestions(updatedQuestions);
     setEvaluationSubScreen('attachImages');
   };
@@ -108,7 +107,8 @@ export default function HomeScreenRefactored() {
         setEvaluationSubScreen('list');
         setPdfUri('');
         setSelectedSubject('');
-        setQuestions(questions.map(q => ({ ...q, croppedSections: [] })));
+        setSelectedSubjectId(null);
+        setQuestions([]);
       }}
     ]);
   };
@@ -160,6 +160,7 @@ export default function HomeScreenRefactored() {
                     onQuestionsChange={setQuestions}
                     onOpenCropper={handleOpenCropper}
                     pdfUri={pdfUri}
+                    subjectId={selectedSubjectId}
                   />
                 )}
               </>
@@ -203,15 +204,15 @@ export default function HomeScreenRefactored() {
         </View>
       )}
 
-      {/* Submit Button for Attach Images Screen */}
+      {/* Completed Button for Attach Images Screen */}
       {activeTab === 'evaluation' && evaluationSubScreen === 'attachImages' && (
         <View style={fabStyles.submitButtonContainer}>
           <TouchableOpacity
-            onPress={handleSubmitImages}
+            onPress={() => setEvaluationSubScreen('list')}
             style={fabStyles.submitButton}
             activeOpacity={0.8}
           >
-            <Text style={fabStyles.submitButtonText}>Submit</Text>
+            <Text style={fabStyles.submitButtonText}>Completed</Text>
           </TouchableOpacity>
         </View>
       )}

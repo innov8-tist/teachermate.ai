@@ -1,8 +1,13 @@
 import React from 'react';
-import { View, type ViewProps, Text } from 'react-native';
+import { View, type ViewProps, Text, type TextProps } from 'react-native';
 import { cn } from '@/lib/utils';
 
 interface CardProps extends ViewProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+interface CardTextProps extends Omit<TextProps, 'style'> {
   children: React.ReactNode;
   className?: string;
 }
@@ -33,25 +38,25 @@ export function CardHeader({ children, className, ...props }: CardProps) {
   );
 }
 
-export function CardTitle({ children, className, ...props }: CardProps) {
+export function CardTitle({ children, className, ...props }: CardTextProps) {
   return typeof children === 'string' ? (
     <Text className={cn('text-xl font-semibold text-gray-900', className)} {...props}>
       {children}
     </Text>
   ) : (
-    <View className={cn('', className)} {...props}>
+    <View className={cn('', className)}>
       {children}
     </View>
   );
 }
 
-export function CardDescription({ children, className, ...props }: CardProps) {
+export function CardDescription({ children, className, ...props }: CardTextProps) {
   return typeof children === 'string' ? (
     <Text className={cn('text-sm text-gray-500 mt-1', className)} {...props}>
       {children}
     </Text>
   ) : (
-    <View className={cn('mt-1', className)} {...props}>
+    <View className={cn('mt-1', className)}>
       {children}
     </View>
   );
