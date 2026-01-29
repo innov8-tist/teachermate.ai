@@ -694,6 +694,8 @@ async def get_evaluations(
                 "subject_name": template['name'],
                 "subject_code": f"{template['branch']}-{template['sem']}",
                 "semester": str(template['sem']),
+                "branch": template['branch'],
+                "ia": template.get('ia', 'N/A'),
                 "total_questions": len(set(q.q_no for q in questions)),
                 "completed_questions": len(completed_question_nos),
                 "status": eval_record.status,

@@ -5,98 +5,70 @@ import { CroppedSection } from './pdf-cropper-screen';
 import { BASE_URL } from '../../constants/api';
 import { useAuth } from '../../contexts/auth-context';
 
-export interface Question {
+export interface StudentQuestion {
   id: string;
   label: string;
   images: string[];
   croppedSections?: CroppedSection[];
   processingState?: 'idle' | 'processing' | 'success' | 'error';
-  isSubmitted?: boolean; // Track if question has been submitted
-  is_completed?: boolean; // Track if question is already completed in DB
+  isSubmitted?: boolean;
 }
 
-interface AttachImagesScreenProps {
+interface StudentAnswerSheetScreenProps {
   onBack: () => void;
   onSubmit: () => void;
-  questions: Question[];
-  onQuestionsChange: (questions: Question[]) => void;
-  onOpenCropper: (questionId: string) => void;
-  onOpenCamera?: (questionId: string) => void; // Add camera support
+  evaluationId: number;
+  rollNumber: string;
+  uploadMethod: 'pdf' | 'camera';
+  onOpenCropper?: (questionId: string) => void;
+  onOpenCamera?: (questionId: string) => void;
   pdfUri?: string;
-  subjectId: number | null;
-  evaluationId?: number | null; // Optional: if viewing existing evaluation
+  questions: StudentQuestion[];
+  onQuestionsChange: (questions: StudentQuestion[]) => void;
+  pdfFileName?: string; // Add filename for display
+  subjectId?: number; // Add subject_id for evaluation
 }
 
-export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
+export const StudentAnswerSheetScreen: React.FC<StudentAnswerSheetScreenProps> = ({
   onBack,
   onSubmit,
+  evaluationId,
+  rollNumber,
+  uploadMethod,
+  onOpenCropper,
+  onOpenCamera,
+  pdfUri,
   questions,
   onQuestionsChange,
-  onOpenCropper,
-  onOpenCamera, // Add camera handler
-  pdfUri,
-  subjectId,
-  evaluationId
+  pdfFileName,
+  subjectId
 }) => {
-  const { token, teacher, isLoading: authLoading } = useAuth();
-  const [loading, setLoading] = useState(false);
-  const [questionsFetched, setQuestionsFetched] = useState(false);
+  const { token, teacher } = useAuth();
+  const [loading, setLoading] = useState(true);
 
-  // Debug: Log props on mount
   useEffect(() => {
-    console.log('� AuttachImagesScreen mounted with props:', {
-      subjectId,
-      evaluationId,
-      pdfUri,
-      questionCount: questions.length
-    });
-  }, []);
-
-  // Debug: Log auth state
-  useEffect(() => {
-    console.log('🔐 Auth State:', {
-      authLoading,
-      hasToken: !!token,
-      tokenLength: token?.length || 0,
-      tokenPreview: token ? `${token.substring(0, 20)}...` : 'null',
-      hasTeacher: !!teacher,
-      teacherId: teacher?.id
-    });
-  }, [token, teacher, authLoading]);
-
-  // Debug: Log when questions prop changes
-  useEffect(() => {
-    console.log('📋 AttachImagesScreen - questions updated:', questions);
-  }, [questions]);
-
-  // Fetch questions only once when component mounts with a valid subjectId
-  useEffect(() => {
-    if (subjectId && !questionsFetched && questions.length === 0) {
+    if (questions.length === 0) {
       fetchQuestions();
+    } else {
+      setLoading(false);
     }
-  }, [subjectId, questionsFetched, questions.length]);
+  }, [evaluationId, rollNumber, questions.length]); // Add rollNumber to dependencies
 
   const fetchQuestions = async () => {
-    if (!subjectId) {
-      Alert.alert('Error', 'Subject ID not found');
+    if (!evaluationId) {
+      Alert.alert('Error', 'Evaluation ID not found');
       return;
     }
 
     setLoading(true);
     try {
-      console.log('📥 Fetching questions for subject:', subjectId);
+      console.log('📥 Fetching questions for evaluation:', evaluationId);
 
-      // If evaluationId is provided, fetch with completion status
-      const endpoint = evaluationId
-        ? `${BASE_URL}/evaluation/${evaluationId}/questions`
-        : `${BASE_URL}/co_questions/${subjectId}`;
-
-      const headers: Record<string, string> = {};
-      if (evaluationId && token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const response = await fetch(endpoint, { headers });
+      const response = await fetch(`${BASE_URL}/evaluation/${evaluationId}/questions`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
 
       if (!response.ok) {
         throw new Error('Failed to fetch questions');
@@ -105,47 +77,18 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
       const data = await response.json();
       console.log('✅ Questions fetched:', data);
 
-      // If from evaluation endpoint, questions already have completion status
-      if (evaluationId && data.questions) {
-        const fetchedQuestions: Question[] = data.questions.map((q: any) => ({
+      if (data.questions) {
+        const fetchedQuestions: StudentQuestion[] = data.questions.map((q: any) => ({
           id: q.id,
-          label: q.label,
-          images: q.images || [],
-          croppedSections: (q.croppedSections || []).map((section: any) => ({
-            ...section,
-            // S3 URLs are complete, only prepend BASE_URL if it's a relative path
-            previewUri: section.previewUri?.startsWith('http')
-              ? section.previewUri  // Already a complete URL (S3)
-              : section.previewUri?.startsWith('/')
-                ? `${BASE_URL}${section.previewUri}`  // Relative path
-                : section.previewUri
-          })),
-          processingState: q.is_completed ? 'success' : 'idle',
-          isSubmitted: q.is_completed,
-          is_completed: q.is_completed
-        }));
-
-        console.log('✅ Loaded questions with completion status:', fetchedQuestions);
-        onQuestionsChange(fetchedQuestions);
-        setQuestionsFetched(true);
-      }
-      // Otherwise, transform the API response into Question objects
-      else if (data.all_questions && Array.isArray(data.all_questions)) {
-        const fetchedQuestions: Question[] = data.all_questions.map((qNo: string) => ({
-          id: qNo,
-          label: `Question ${qNo}`,
+          label: `Question ${q.id}`,
           images: [],
           croppedSections: [],
           processingState: 'idle',
           isSubmitted: false,
-          is_completed: false
         }));
 
-        console.log('✅ Transformed questions:', fetchedQuestions);
+        console.log('✅ Loaded questions for student:', fetchedQuestions);
         onQuestionsChange(fetchedQuestions);
-        setQuestionsFetched(true);
-      } else {
-        throw new Error('Invalid response format');
       }
     } catch (error) {
       console.error('❌ Error fetching questions:', error);
@@ -155,25 +98,19 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
     }
   };
 
-  const handleSubmitQuestion = async (question: Question) => {
-    if (authLoading) {
-      Alert.alert('Please Wait', 'Authentication is loading...');
-      return;
-    }
-
-    if (!token || !subjectId) {
-      console.error('❌ Missing auth or subject:', { hasToken: !!token, subjectId });
-      Alert.alert('Authentication Required', 'Please log in again to submit questions.');
+  const handleSubmitQuestion = async (question: StudentQuestion) => {
+    if (!token || !evaluationId) {
+      Alert.alert('Authentication Required', 'Please log in again to evaluate questions.');
       return;
     }
 
     if ((question.croppedSections?.length || 0) === 0) {
-      Alert.alert('No Images', 'Please add images to this question before submitting.');
+      Alert.alert('No Images', 'Please add images to this question before evaluation.');
       return;
     }
 
     if (question.isSubmitted) {
-      Alert.alert('Already Submitted', 'This question has already been submitted.');
+      Alert.alert('Already Evaluated', 'This question has already been evaluated.');
       return;
     }
 
@@ -186,26 +123,20 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
     await submitQuestion(question);
   };
 
-  const submitQuestion = async (question: Question) => {
-    if (!subjectId || !question.croppedSections || question.croppedSections.length === 0 || !token) {
-      console.error('❌ Missing required data:', {
-        hasSubjectId: !!subjectId,
-        hasCroppedSections: !!question.croppedSections,
-        sectionCount: question.croppedSections?.length || 0,
-        hasToken: !!token,
-        tokenLength: token?.length || 0
-      });
+  const submitQuestion = async (question: StudentQuestion) => {
+    if (!evaluationId || !question.croppedSections || question.croppedSections.length === 0 || !token) {
+      console.error('❌ Missing required data for submission');
       Alert.alert('Error', 'Missing authentication or data. Please log in again.');
       return;
     }
 
     try {
-      console.log(`📤 Submitting question ${question.id} to backend...`);
-      console.log(`🔑 Token present: ${token ? 'Yes' : 'No'}, Length: ${token?.length || 0}`);
+      console.log(`📤 Evaluating student answer for question ${question.id}...`);
 
       const formData = new FormData();
       formData.append('question_no', question.id);
-      formData.append('subject_id', subjectId.toString());
+      formData.append('subject_id', (subjectId || evaluationId).toString()); // Use subjectId if available, fallback to evaluationId
+      formData.append('reg_no', rollNumber);
 
       // Add all cropped images for this question
       for (let i = 0; i < question.croppedSections.length; i++) {
@@ -214,27 +145,26 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
           formData.append('answer_images', {
             uri: section.previewUri,
             type: 'image/png',
-            name: `question_${question.id}_${i}.png`,
+            name: `${rollNumber}_question_${question.id}_${i}.png`,
           } as any);
         }
       }
 
-      const response = await fetch(`${BASE_URL}/extract_answer_schema`, {
+      const response = await fetch(`${BASE_URL}/evaluate-student-answer`, {
         method: 'POST',
         body: formData,
         headers: {
-          // Don't set Content-Type for multipart/form-data - let the browser/RN set it with boundary
           'Authorization': `Bearer ${token}`,
         },
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to submit question');
+        throw new Error(errorData.detail || 'Failed to evaluate answer');
       }
 
       const result = await response.json();
-      console.log(`✅ Question ${question.id} submitted successfully:`, result);
+      console.log(`✅ Student answer ${question.id} evaluated successfully:`, result);
 
       // Update state to success and mark as submitted
       const successQuestions = questions.map(q =>
@@ -244,17 +174,51 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
       );
       onQuestionsChange(successQuestions);
 
+      // Update progress in backend
+      try {
+        // Get the progress ID from the evaluation and student
+        const progressResponse = await fetch(`${BASE_URL}/api/evaluation/student-progress/${evaluationId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (progressResponse.ok) {
+          const progressData = await progressResponse.json();
+          const studentProgress = progressData.recent_progress?.find(
+            (p: any) => p.student_reg_no === rollNumber
+          );
+
+          if (studentProgress) {
+            // Mark question as completed
+            const completeFormData = new FormData();
+            completeFormData.append('question_no', question.id);
+
+            await fetch(`${BASE_URL}/api/evaluation/student-progress/${studentProgress.id}/complete-question`, {
+              method: 'PUT',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+              },
+              body: completeFormData,
+            });
+
+            console.log(`✅ Question ${question.id} marked as completed in progress`);
+          }
+        }
+      } catch (progressError) {
+        console.warn('⚠️ Failed to update progress, but evaluation succeeded:', progressError);
+      }
+
       // Check if all questions are now submitted
       const allSubmitted = successQuestions.every(q => q.isSubmitted);
       if (allSubmitted) {
-        console.log('✅ All questions submitted! Clearing upload progress...');
-        // Import and call the cleanup function
-        const { clearUploadProgress } = await import('./upload-schema-screen');
-        await clearUploadProgress();
+        Alert.alert('Success', 'All answers evaluated successfully!', [
+          { text: 'OK', onPress: onSubmit }
+        ]);
       }
 
     } catch (error) {
-      console.error(`❌ Error submitting question ${question.id}:`, error);
+      console.error(`❌ Error evaluating student answer ${question.id}:`, error);
 
       // Update state to error
       const errorQuestions = questions.map(q =>
@@ -262,41 +226,20 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
       );
       onQuestionsChange(errorQuestions);
 
-      Alert.alert('Submission Error', `Failed to submit ${question.label}: ${error}`);
+      Alert.alert('Evaluation Error', `Failed to evaluate ${question.label}: ${error}`);
     }
   };
+
   const handleAddImage = (questionId: string) => {
-    // Show options for PDF cropper or camera
-    Alert.alert(
-      'Add Image',
-      'Choose how to add an image for this question',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'From PDF',
-          onPress: () => {
-            if (!pdfUri) {
-              Alert.alert('No PDF', 'Please upload a PDF first');
-              return;
-            }
-            onOpenCropper(questionId);
-          },
-        },
-        {
-          text: 'Take Photo',
-          onPress: () => {
-            if (onOpenCamera) {
-              onOpenCamera(questionId);
-            } else {
-              Alert.alert('Camera Not Available', 'Camera functionality is not available in this context');
-            }
-          },
-        },
-      ]
-    );
+    if (uploadMethod === 'pdf') {
+      if (!pdfUri) {
+        Alert.alert('No PDF', 'Please upload a PDF first');
+        return;
+      }
+      onOpenCropper?.(questionId);
+    } else if (uploadMethod === 'camera') {
+      onOpenCamera?.(questionId);
+    }
   };
 
   const handleRemoveImage = (questionId: string, sectionIndex: number) => {
@@ -305,21 +248,16 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
         ? {
           ...q,
           croppedSections: (q.croppedSections || []).filter((_, idx) => idx !== sectionIndex),
-          processingState: 'idle' as const, // Reset state when images change
-          isSubmitted: false // Allow resubmission
+          processingState: 'idle' as const,
+          isSubmitted: false
         }
         : q
     );
     onQuestionsChange(updatedQuestions);
   };
 
-  const hasImages = (question: Question) => {
-    return (question.croppedSections?.length || 0) > 0;
-  };
-
-  const renderImageBox = (question: Question) => {
+  const renderImageBox = (question: StudentQuestion) => {
     const croppedSections = question.croppedSections || [];
-    console.log(`🖼️ Rendering question ${question.id}, cropped sections:`, croppedSections);
     const visibleSections = croppedSections.slice(0, 2);
     const remainingCount = croppedSections.length - 2;
 
@@ -350,13 +288,15 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
                   justifyContent: 'center'
                 }}
               >
-                <Feather name="file-text" size={40} color="#9CA3AF" />
-                <Text className="text-xs text-gray-500 mt-2">Page {section.pageNumber}</Text>
+                <Feather name={uploadMethod === 'camera' ? 'camera' : 'file-text'} size={40} color="#9CA3AF" />
+                <Text className="text-xs text-gray-500 mt-2">
+                  {uploadMethod === 'camera' ? 'Photo' : `Page ${section.pageNumber}`}
+                </Text>
               </View>
             )}
             <TouchableOpacity
               onPress={() => handleRemoveImage(question.id, index)}
-              disabled={question.is_completed || question.isSubmitted}
+              disabled={question.isSubmitted}
               className="absolute -top-2 -right-2 bg-red-500 rounded-full w-7 h-7 items-center justify-center"
               style={{
                 shadowColor: '#000',
@@ -364,7 +304,7 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
                 shadowOpacity: 0.25,
                 shadowRadius: 3,
                 elevation: 4,
-                opacity: question.is_completed || question.isSubmitted ? 0.5 : 1,
+                opacity: question.isSubmitted ? 0.5 : 1,
               }}
             >
               <Feather name="x" size={16} color="#fff" />
@@ -376,22 +316,22 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
         {croppedSections.length < 2 ? (
           <TouchableOpacity
             onPress={() => handleAddImage(question.id)}
-            disabled={question.is_completed || question.isSubmitted}
+            disabled={question.isSubmitted}
             style={{
               width: 90,
               height: 90,
               borderRadius: 12,
               borderWidth: 2,
               borderStyle: 'dashed',
-              borderColor: question.is_completed || question.isSubmitted ? '#E5E7EB' : '#D1D5DB',
-              backgroundColor: question.is_completed || question.isSubmitted ? '#F9FAFB' : '#F9FAFB',
-              opacity: question.is_completed || question.isSubmitted ? 0.5 : 1,
+              borderColor: question.isSubmitted ? '#E5E7EB' : '#D1D5DB',
+              backgroundColor: question.isSubmitted ? '#F9FAFB' : '#F9FAFB',
+              opacity: question.isSubmitted ? 0.5 : 1,
               alignItems: 'center',
               justifyContent: 'center',
             }}
             activeOpacity={0.7}
           >
-            <Feather name="plus" size={32} color="#9CA3AF" />
+            <Feather name={uploadMethod === 'camera' ? 'camera' : 'plus'} size={32} color="#9CA3AF" />
           </TouchableOpacity>
         ) : remainingCount > 0 ? (
           <TouchableOpacity
@@ -427,7 +367,7 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
             }}
             activeOpacity={0.7}
           >
-            <Feather name="plus" size={32} color="#9CA3AF" />
+            <Feather name={uploadMethod === 'camera' ? 'camera' : 'plus'} size={32} color="#9CA3AF" />
           </TouchableOpacity>
         )}
       </View>
@@ -438,7 +378,29 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
     <View className="flex-1 bg-gray-50">
       {/* Header */}
       <View className="bg-white px-6 pt-4 pb-4 border-b border-gray-100">
-        <Text className="text-2xl font-bold text-gray-900">Attach Images</Text>
+        <View className="flex-row items-center mb-2">
+          <TouchableOpacity onPress={onBack} className="mr-4">
+            <Feather name="arrow-left" size={24} color="#000" />
+          </TouchableOpacity>
+          <Text className="text-2xl font-bold text-gray-900 flex-1">Student Answer Sheet</Text>
+        </View>
+        <View className="flex-row items-center">
+          <View className="bg-blue-100 px-3 py-1 rounded-full mr-3">
+            <Text className="text-blue-800 font-semibold text-sm">Roll: {rollNumber}</Text>
+          </View>
+          <View className="bg-green-100 px-3 py-1 rounded-full">
+            <Text className="text-green-800 font-semibold text-sm capitalize">
+              {uploadMethod === 'camera' ? 'Camera Mode' : 'PDF Mode'}
+            </Text>
+          </View>
+          {uploadMethod === 'pdf' && pdfFileName && (
+            <View className="bg-purple-100 px-3 py-1 rounded-full ml-2">
+              <Text className="text-purple-800 font-semibold text-xs">
+                📄 {pdfFileName.length > 15 ? `${pdfFileName.substring(0, 15)}...` : pdfFileName}
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
@@ -452,7 +414,7 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
             <View className="items-center justify-center py-20">
               <Feather name="inbox" size={64} color="#D1D5DB" />
               <Text className="text-gray-600 text-lg mt-4 font-semibold">No questions found</Text>
-              <Text className="text-gray-500 text-sm mt-2">Please check your CO template</Text>
+              <Text className="text-gray-500 text-sm mt-2">Please check the evaluation</Text>
             </View>
           ) : (
             questions.map((question) => (
@@ -472,14 +434,14 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
                     {question.label}
                   </Text>
 
-                  {/* Much smaller checkbox submit button */}
+                  {/* Evaluation button */}
                   <TouchableOpacity
                     onPress={() => handleSubmitQuestion(question)}
                     disabled={question.processingState === 'processing' || question.isSubmitted}
                     style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: 6,
+                      width: 32,
+                      height: 32,
+                      borderRadius: 8,
                       borderWidth: 2,
                       borderColor: question.isSubmitted ? '#10B981' : '#14B8A6',
                       backgroundColor: question.isSubmitted ? '#10B981' : '#fff',
@@ -492,9 +454,9 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
                     {question.processingState === 'processing' ? (
                       <ActivityIndicator size="small" color="#14B8A6" />
                     ) : question.isSubmitted ? (
-                      <Feather name="check" size={16} color="#fff" strokeWidth={2.5} />
+                      <Feather name="check-circle" size={18} color="#fff" strokeWidth={2.5} />
                     ) : (
-                      <Feather name="check" size={16} color="#14B8A6" strokeWidth={2.5} />
+                      <Feather name="zap" size={18} color="#14B8A6" strokeWidth={2.5} />
                     )}
                   </TouchableOpacity>
                 </View>

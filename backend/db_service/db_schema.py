@@ -89,6 +89,24 @@ class Evaluation(Base):
     updated_at = Column(String, nullable=False)  # ISO timestamp
 
 
+class StudentEvaluationProgress(Base):
+    """Track student evaluation progress for resuming evaluations"""
+    __tablename__ = "student_evaluation_progress"
+    id = Column(Integer, primary_key=True, index=True)
+    evaluation_id = Column(Integer, ForeignKey("evaluations.id"), nullable=False)
+    student_reg_no = Column(String, nullable=False)
+    teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=False)
+    total_questions = Column(Integer, nullable=False)  # Total questions in evaluation
+    completed_questions = Column(Integer, default=0)  # Questions completed so far
+    upload_method = Column(String, nullable=False)  # 'pdf' or 'camera'
+    pdf_id = Column(String, nullable=True)  # PDF ID if uploaded
+    pdf_filename = Column(String, nullable=True)  # Original PDF filename
+    status = Column(String, default="in_progress")  # in_progress, completed, abandoned
+    created_at = Column(String, nullable=False)  # ISO timestamp
+    updated_at = Column(String, nullable=False)  # ISO timestamp
+    last_question_completed = Column(String, nullable=True)  # Last completed question number
+
+
 class StudentAnswerEvaluation(Base):
     """Student answer evaluations with AI feedback"""
     __tablename__ = "student_answer_evaluations"
