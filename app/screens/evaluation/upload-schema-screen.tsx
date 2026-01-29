@@ -238,10 +238,7 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Feather name="arrow-left" size={24} color="#111827" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Upload Answer Schema</Text>
+        <Text style={styles.headerTitle}>Create Evaluvation Template</Text>
         <View style={{ width: 40 }} />
       </View>
 

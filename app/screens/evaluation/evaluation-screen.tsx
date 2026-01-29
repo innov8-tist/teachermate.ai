@@ -140,7 +140,7 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
         <View style={styles.content}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>Evaluation Schemas</Text>
+            <Text style={styles.title}>Evaluations </Text>
           </View>
 
           {evaluations.length === 0 ? (
