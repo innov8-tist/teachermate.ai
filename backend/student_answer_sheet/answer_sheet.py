@@ -330,6 +330,46 @@ def evaluate_student_answer(
             
             print(f"\n✓ Evaluation saved to database with ID: {db_record.id}")
             
+            # Update student progress after successful evaluation
+            try:
+                # Import here to avoid circular imports
+                from db_operation.db_server import DBServiceForServer
+                from datetime import datetime
+                
+                with DBServiceForServer() as db_service:
+                    # Find the student progress record by querying directly
+                    from db_service.db_schema import StudentEvaluationProgress
+                    
+                    # Get all progress records for this subject/evaluation and find the student
+                    progress_record = db_service.db.query(StudentEvaluationProgress).filter(
+                        StudentEvaluationProgress.student_reg_no == student_reg_no
+                    ).order_by(StudentEvaluationProgress.created_at.desc()).first()
+                    
+                    if progress_record:
+                        progress_id = progress_record.id
+                        timestamp = datetime.now().isoformat()
+                        
+                        # Mark question as completed
+                        updated_progress = db_service.complete_question_progress(
+                            progress_id=progress_id,
+                            question_no=question_no,
+                            updated_at=timestamp
+                        )
+                        
+                        print(f"✅ Progress updated: {updated_progress.completed_questions}/{updated_progress.total_questions} questions completed")
+                        
+                        # Check if all questions are completed
+                        if updated_progress.completed_questions >= updated_progress.total_questions:
+                            db_service.update_progress_status(progress_id, "completed", timestamp)
+                            print(f"🎉 All questions completed for student {student_reg_no}")
+                    else:
+                        print(f"⚠️ No progress record found for student {student_reg_no}")
+                        
+            except Exception as progress_error:
+                print(f"⚠️ Failed to update progress (evaluation still succeeded): {progress_error}")
+                import traceback
+                traceback.print_exc()
+            
             return {
                 "status": "success",
                 "message": "Successfully evaluated student answer",

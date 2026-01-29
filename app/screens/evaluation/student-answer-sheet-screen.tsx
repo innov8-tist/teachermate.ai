@@ -170,46 +170,17 @@ export const StudentAnswerSheetScreen: React.FC<StudentAnswerSheetScreenProps> =
       );
       onQuestionsChange(successQuestions);
 
-      // Update progress in backend
-      try {
-        // Get the progress ID from the evaluation and student
-        const progressData = await networkService.requestJson<any>(`${BASE_URL}/api/evaluation/student-progress/${evaluationId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-          timeout: 10000,
-          retries: 1,
-        });
-
-        if (progressData.recent_progress) {
-          const studentProgress = progressData.recent_progress?.find(
-            (p: any) => p.student_reg_no === rollNumber
-          );
-
-          if (studentProgress) {
-            // Mark question as completed
-            const completeFormData = new FormData();
-            completeFormData.append('question_no', question.id);
-
-            await networkService.submitForm(`${BASE_URL}/api/evaluation/student-progress/${studentProgress.id}/complete-question`, completeFormData, {
-              headers: {
-                'Authorization': `Bearer ${token}`,
-              },
-              timeout: 10000,
-              retries: 1,
-            });
-
-            console.log(`✅ Question ${question.id} marked as completed in progress`);
-          }
-        }
-      } catch (progressError) {
-        console.warn('⚠️ Failed to update progress, but evaluation succeeded:', progressError);
-      }
+      // Update progress in backend - but only after evaluation is complete
+      // Since evaluation is async, we should wait for it to complete first
+      // For now, let's just mark it as submitted in the frontend
+      // The backend should handle progress updates when evaluation completes
+      
+      console.log(`✅ Student answer ${question.id} submitted for evaluation`);
 
       // Check if all questions are now submitted
       const allSubmitted = successQuestions.every(q => q.isSubmitted);
       if (allSubmitted) {
-        Alert.alert('Success', 'All answers evaluated successfully!', [
+        Alert.alert('Success', 'All answers submitted for evaluation!', [
           { text: 'OK', onPress: onSubmit }
         ]);
       }
