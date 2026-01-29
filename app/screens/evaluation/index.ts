@@ -8,6 +8,7 @@ export { StudentAnswerSheetScreen } from './student-answer-sheet-screen';
 export { CameraScreen } from './camera-screen';
 export { EvaluationContainer } from './evaluation-container';
 export { EvaluationHome } from './evaluation-home';
+export { EvaluationResultsScreen } from './evaluation-results-screen';
 
 export type { CroppedSection, CropRect } from './pdf-cropper-screen';
 export type { Question } from './attach-images-screen';

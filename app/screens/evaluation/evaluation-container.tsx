@@ -3,6 +3,7 @@ import { EvaluationScreen } from './evaluation-screen';
 import { StudentAnswerSheetScreen, StudentQuestion } from './student-answer-sheet-screen';
 import { PDFCropperScreen, CroppedSection } from './pdf-cropper-screen';
 import { CameraScreen } from './camera-screen';
+import { EvaluationResultsScreen } from './evaluation-results-screen';
 import { StudentUploadData } from './student-upload-modal';
 import { Alert } from 'react-native';
 import { pickAndUploadPDF } from '../../utils/pdf-picker';
@@ -12,7 +13,8 @@ type Screen =
   | 'evaluation-list'
   | 'student-answer-sheet'
   | 'pdf-cropper'
-  | 'camera';
+  | 'camera'
+  | 'results';
 
 interface EvaluationContainerProps {
   onViewDetails: (evaluationId: number) => void;
@@ -23,6 +25,7 @@ export const EvaluationContainer: React.FC<EvaluationContainerProps> = ({ onView
   const [currentScreen, setCurrentScreen] = useState<Screen>('evaluation-list');
   const [studentData, setStudentData] = useState<StudentUploadData | null>(null);
   const [evaluationId, setEvaluationId] = useState<number | null>(null);
+  const [subjectName, setSubjectName] = useState<string>('');
   const [currentQuestionId, setCurrentQuestionId] = useState<string>('');
   const [pdfUri, setPdfUri] = useState<string>('');
   const [questions, setQuestions] = useState<StudentQuestion[]>([]);
@@ -53,11 +56,18 @@ export const EvaluationContainer: React.FC<EvaluationContainerProps> = ({ onView
     setCurrentScreen('student-answer-sheet');
   };
 
+  const handleViewResults = (evalId: number, evalSubjectName: string) => {
+    setEvaluationId(evalId);
+    setSubjectName(evalSubjectName);
+    setCurrentScreen('results');
+  };
+
   const handleBackToEvaluationList = () => {
     console.log('🔙 Going back to evaluation list, resetting state');
     setCurrentScreen('evaluation-list');
     setStudentData(null);
     setEvaluationId(null);
+    setSubjectName('');
     setPdfUri('');
     setQuestions([]);
   };
@@ -167,6 +177,7 @@ export const EvaluationContainer: React.FC<EvaluationContainerProps> = ({ onView
         <EvaluationScreen
           onViewDetails={onViewDetails}
           onStartStudentUpload={handleStartStudentUpload}
+          onViewResults={handleViewResults}
         />
       );
 
@@ -176,6 +187,7 @@ export const EvaluationContainer: React.FC<EvaluationContainerProps> = ({ onView
           <EvaluationScreen
             onViewDetails={onViewDetails}
             onStartStudentUpload={handleStartStudentUpload}
+            onViewResults={handleViewResults}
           />
         );
       }
@@ -214,11 +226,30 @@ export const EvaluationContainer: React.FC<EvaluationContainerProps> = ({ onView
         />
       );
 
+    case 'results':
+      if (!evaluationId) {
+        return (
+          <EvaluationScreen
+            onViewDetails={onViewDetails}
+            onStartStudentUpload={handleStartStudentUpload}
+            onViewResults={handleViewResults}
+          />
+        );
+      }
+      return (
+        <EvaluationResultsScreen
+          evaluationId={evaluationId}
+          subjectName={subjectName}
+          onBack={handleBackToEvaluationList}
+        />
+      );
+
     default:
       return (
         <EvaluationScreen
           onViewDetails={onViewDetails}
           onStartStudentUpload={handleStartStudentUpload}
+          onViewResults={handleViewResults}
         />
       );
   }

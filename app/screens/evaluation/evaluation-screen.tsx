@@ -15,15 +15,18 @@ interface EvaluationRecord {
   ia: string;
   total_questions: number;
   completed_questions: number;
+  total_students: number;
+  completed_students: number;
   created_at: string;
 }
 
 interface EvaluationScreenProps {
   onViewDetails: (evaluationId: number) => void;
   onStartStudentUpload: (evaluationId: number, studentData: StudentUploadData) => void;
+  onViewResults: (evaluationId: number, subjectName: string) => void;
 }
 
-export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetails, onStartStudentUpload }) => {
+export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetails, onStartStudentUpload, onViewResults }) => {
   const { token, teacher } = useAuth();
   const [evaluations, setEvaluations] = useState<EvaluationRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -154,7 +157,9 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
             <View style={styles.evaluationList}>
               {/* Show completed evaluations in card format */}
               {completedEvaluations.map((evaluation) => {
-                const progressPercentage = 100;
+                const studentProgressPercentage = evaluation.total_students > 0 
+                  ? Math.round((evaluation.completed_students / evaluation.total_students) * 100)
+                  : 0;
 
                 return (
                   <View key={evaluation.evaluation_id} style={styles.evaluationCard}>
@@ -196,14 +201,14 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
                       <Text style={styles.sectionTitle}>EVALUATION PROGRESS</Text>
                       <View style={styles.progressBar}>
                         <View
-                          style={[styles.progressFill, { width: `${progressPercentage}%` }]}
+                          style={[styles.progressFill, { width: `${studentProgressPercentage}%` }]}
                         />
                       </View>
                       <View style={styles.progressInfo}>
                         <Text style={styles.progressText}>
-                          {evaluation.completed_questions}/{evaluation.total_questions} students
+                          {evaluation.completed_students}/{evaluation.total_students} students
                         </Text>
-                        <Text style={styles.progressPercent}>{progressPercentage}% done</Text>
+                        <Text style={styles.progressPercent}>{studentProgressPercentage}% done</Text>
                       </View>
                     </View>
 
@@ -219,7 +224,7 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
 
                       <TouchableOpacity
                         style={styles.resultsButton}
-                        onPress={() => onViewDetails(evaluation.evaluation_id)}
+                        onPress={() => onViewResults(evaluation.evaluation_id, evaluation.subject_name)}
                       >
                         <Feather name="bar-chart-2" size={18} color="#FFF" />
                         <Text style={styles.resultsButtonText}>Results</Text>

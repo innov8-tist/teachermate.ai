@@ -6,6 +6,7 @@ import { Header } from '@/components/shared/header';
 import { BottomNavigation, TabType } from '@/components/shared/bottom-navigation';
 import { HomeScreen } from '@/screens/home/home-screen';
 import { EvaluationScreen } from '@/screens/evaluation/evaluation-screen';
+import { EvaluationResultsScreen } from '@/screens/evaluation/evaluation-results-screen';
 import { UploadSchemaScreen } from '@/screens/evaluation/upload-schema-screen';
 import { AttachImagesScreen, Question } from '@/screens/evaluation/attach-images-screen';
 import { PDFCropperScreen, CroppedSection } from '@/screens/evaluation/pdf-cropper-screen';
@@ -131,6 +132,10 @@ export default function HomeScreenRefactored() {
           setEvaluationSubScreen('list');
           setStudentUploadData(null);
           setSelectedEvaluationId(null);
+          return true;
+        }
+        if (evaluationSubScreen === 'results') {
+          setEvaluationSubScreen('list');
           return true;
         }
       }
@@ -377,6 +382,14 @@ export default function HomeScreenRefactored() {
     }
   };
 
+  const handleViewEvaluationResults = (evaluationId: number, subjectName: string) => {
+    console.log('📊 Viewing results for evaluation:', evaluationId, 'Subject:', subjectName);
+    // Set the evaluation data and switch to results screen
+    setSelectedEvaluationId(evaluationId);
+    setSelectedSubject(subjectName);
+    setEvaluationSubScreen('results');
+  };
+
   const handleUploadSchemaSuccess = (pdfId: string, subject: string, subjectId: number) => {
     setPdfUri(pdfId); // Now this is a PDF ID, not a file URI
     setSelectedSubject(subject);
@@ -515,6 +528,7 @@ export default function HomeScreenRefactored() {
                   <EvaluationScreen
                     onViewDetails={handleViewEvaluationDetails}
                     onStartStudentUpload={handleStartStudentUpload}
+                    onViewResults={handleViewEvaluationResults}
                   />
                 )}
                 {evaluationSubScreen === 'upload' && (
@@ -583,6 +597,13 @@ export default function HomeScreenRefactored() {
                     pdfUri={pdfUri}
                     pdfFileName={studentUploadData.pdfFileName}
                     subjectId={selectedSubjectId}
+                  />
+                )}
+                {evaluationSubScreen === 'results' && selectedEvaluationId && selectedSubject && (
+                  <EvaluationResultsScreen
+                    evaluationId={selectedEvaluationId}
+                    subjectName={selectedSubject}
+                    onBack={() => setEvaluationSubScreen('list')}
                   />
                 )}
               </>

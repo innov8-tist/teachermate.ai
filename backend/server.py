@@ -688,6 +688,32 @@ async def get_evaluations(
             completed_schemas = db_service.get_evaluation_schemas_by_template(eval_record.template_id)
             completed_question_nos = set(schema.question_no for schema in completed_schemas)
             
+            # Get student completion data
+            from student_answer_sheet.db_operation import StudentAnswerService
+            service = StudentAnswerService()
+            
+            # Get all student evaluations for this template
+            all_student_evaluations = service.get_student_evaluations(eval_record.template_id)
+            
+            # Group by student to count completed students
+            student_completion = {}
+            for student_eval in all_student_evaluations:
+                reg_no = student_eval.student_reg_no
+                if reg_no not in student_completion:
+                    student_completion[reg_no] = set()
+                student_completion[reg_no].add(student_eval.question_no)
+            
+            # Count students who completed all available questions
+            total_available_questions = len(completed_question_nos)
+            completed_students = 0
+            
+            for reg_no, completed_questions_set in student_completion.items():
+                if len(completed_questions_set) >= total_available_questions and total_available_questions > 0:
+                    completed_students += 1
+            
+            # Get total student count from template
+            total_students_in_class = template.get('student_count', 0)
+            
             evaluation = {
                 "evaluation_id": eval_record.id,
                 "subject_id": eval_record.template_id,
@@ -698,6 +724,8 @@ async def get_evaluations(
                 "ia": template.get('ia', 'N/A'),
                 "total_questions": len(set(q.q_no for q in questions)),
                 "completed_questions": len(completed_question_nos),
+                "total_students": total_students_in_class,
+                "completed_students": completed_students,
                 "status": eval_record.status,
                 "created_at": eval_record.created_at,
                 "updated_at": eval_record.updated_at
@@ -854,6 +882,183 @@ async def get_evaluation_questions(
         raise
     except Exception as e:
         print(f"Error fetching evaluation questions: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/evaluation/{evaluation_id}/results")
+async def get_evaluation_results(
+    evaluation_id: int,
+    current_teacher: Teacher = Depends(get_current_teacher),
+    db_service: DBServiceForServer = Depends(get_db_service)
+):
+    """
+    Get evaluation results summary for all students
+    """
+    try:
+        evaluation = db_service.get_evaluation_by_id(evaluation_id)
+        
+        if not evaluation:
+            raise HTTPException(status_code=404, detail="Evaluation not found")
+        
+        if evaluation.teacher_id != current_teacher.id:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Get all student evaluations for this template
+        from student_answer_sheet.db_operation import StudentAnswerService
+        service = StudentAnswerService()
+        
+        all_evaluations = service.get_student_evaluations(evaluation.template_id)
+        
+        # Group by student
+        student_results = {}
+        for eval_record in all_evaluations:
+            reg_no = eval_record.student_reg_no
+            if reg_no not in student_results:
+                student_results[reg_no] = {
+                    'student_reg_no': reg_no,
+                    'completed_questions': 0,
+                    'total_marks': 0.0,
+                    'questions': {}
+                }
+            
+            student_results[reg_no]['questions'][eval_record.question_no] = {
+                'mark_score': eval_record.mark_score,
+                'total_mark': eval_record.total_mark
+            }
+            student_results[reg_no]['total_marks'] += eval_record.mark_score
+            student_results[reg_no]['completed_questions'] = len(student_results[reg_no]['questions'])
+        
+        # Get total questions and max possible marks
+        evaluation_schemas = db_service.get_evaluation_schemas_by_template(evaluation.template_id)
+        total_questions = len(evaluation_schemas)
+        max_possible_marks = sum(schema.total_mark for schema in evaluation_schemas)
+        
+        # Format results
+        students = []
+        for student_data in student_results.values():
+            students.append({
+                'student_reg_no': student_data['student_reg_no'],
+                'completed_questions': student_data['completed_questions'],
+                'total_questions': total_questions,
+                'total_marks': student_data['total_marks'],
+                'max_possible_marks': max_possible_marks
+            })
+        
+        return {
+            "students": students
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error fetching evaluation results: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/evaluation/{evaluation_id}/student/{student_reg_no}/details")
+async def get_student_evaluation_details(
+    evaluation_id: int,
+    student_reg_no: str,
+    current_teacher: Teacher = Depends(get_current_teacher),
+    db_service: DBServiceForServer = Depends(get_db_service)
+):
+    """
+    Get detailed evaluation results for a specific student
+    """
+    try:
+        evaluation = db_service.get_evaluation_by_id(evaluation_id)
+        
+        if not evaluation:
+            raise HTTPException(status_code=404, detail="Evaluation not found")
+        
+        if evaluation.teacher_id != current_teacher.id:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Get student evaluations
+        from student_answer_sheet.db_operation import StudentAnswerService
+        service = StudentAnswerService()
+        
+        student_evaluations = service.get_student_evaluations(
+            evaluation.template_id, 
+            student_reg_no
+        )
+        
+        # Format detailed results
+        results = []
+        for eval_record in student_evaluations:
+            results.append({
+                'question_no': eval_record.question_no,
+                'mark_score': eval_record.mark_score,
+                'total_mark': eval_record.total_mark,
+                'feedback': eval_record.feedback if eval_record.feedback else []
+            })
+        
+        # Sort by question number
+        results.sort(key=lambda x: int(x['question_no']) if x['question_no'].isdigit() else float('inf'))
+        
+        return {
+            "results": results
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error fetching student evaluation details: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/evaluation/{evaluation_id}/student/{student_reg_no}")
+async def delete_student_evaluation_results(
+    evaluation_id: int,
+    student_reg_no: str,
+    current_teacher: Teacher = Depends(get_current_teacher),
+    db_service: DBServiceForServer = Depends(get_db_service)
+):
+    """
+    Delete all evaluation results for a specific student
+    """
+    try:
+        evaluation = db_service.get_evaluation_by_id(evaluation_id)
+        
+        if not evaluation:
+            raise HTTPException(status_code=404, detail="Evaluation not found")
+        
+        if evaluation.teacher_id != current_teacher.id:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Delete student evaluations
+        from student_answer_sheet.db_operation import StudentAnswerService
+        service = StudentAnswerService()
+        
+        # Get all evaluations for this student and template
+        student_evaluations = service.get_student_evaluations(
+            evaluation.template_id, 
+            student_reg_no
+        )
+        
+        # Delete each evaluation record
+        deleted_count = 0
+        for eval_record in student_evaluations:
+            service.db.delete(eval_record)
+            deleted_count += 1
+        
+        service.db.commit()
+        
+        return {
+            "message": f"Deleted {deleted_count} evaluation records for student {student_reg_no}",
+            "deleted_count": deleted_count
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error deleting student evaluation results: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
