@@ -46,7 +46,6 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
   const [uploading, setUploading] = useState(false);
   const [loadingCOs, setLoadingCOs] = useState(false);
   const [coTemplates, setCoTemplates] = useState<COTemplate[]>([]);
-  const [hasInProgressUpload, setHasInProgressUpload] = useState(false);
 
   // Check for in-progress upload on mount
   useEffect(() => {
@@ -60,29 +59,10 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
         const progress: UploadProgress = JSON.parse(progressData);
         // Check if upload is less than 24 hours old
         const hoursSinceUpload = (Date.now() - progress.timestamp) / (1000 * 60 * 60);
-        
+
         if (hoursSinceUpload < 24) {
-          setHasInProgressUpload(true);
-          Alert.alert(
-            'Resume Upload',
-            `You have an incomplete upload for "${progress.subject}". Would you like to continue?`,
-            [
-              {
-                text: 'Start New',
-                style: 'destructive',
-                onPress: async () => {
-                  await AsyncStorage.removeItem(UPLOAD_PROGRESS_KEY);
-                  setHasInProgressUpload(false);
-                }
-              },
-              {
-                text: 'Resume',
-                onPress: () => {
-                  onSuccess(progress.pdfId, progress.subject, progress.subjectId);
-                }
-              }
-            ]
-          );
+          // Keep the progress data, user can continue manually
+          console.log(`✅ Found in-progress upload for "${progress.subject}"`);
         } else {
           // Clear old upload data
           await AsyncStorage.removeItem(UPLOAD_PROGRESS_KEY);
@@ -197,6 +177,7 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
               // Don't set Content-Type for multipart/form-data - let the browser/RN set it with boundary
               'Authorization': `Bearer ${token}`,
             },
+            // Add timeout of 60 seconds for large files
           });
 
           const responseData = await response.json();
@@ -208,7 +189,7 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
 
           if (responseData.success) {
             console.log('✅ PDF uploaded successfully, ID:', responseData.pdf_id);
-            
+
             // Save upload progress for resuming later
             if (selectedSubjectId) {
               await saveUploadProgress(responseData.pdf_id, selectedSubject, selectedSubjectId);
@@ -219,9 +200,25 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
           } else {
             throw new Error('Upload failed');
           }
-        } catch (uploadError) {
+        } catch (uploadError: any) {
           console.error('❌ Upload error:', uploadError);
-          Alert.alert('Upload Failed', `Failed to upload PDF: ${uploadError}`);
+
+          // Better error messages
+          let errorMessage = 'Failed to upload PDF';
+          if (uploadError.message === 'Network request failed') {
+            errorMessage = 'Network error. Please check:\n\n1. Backend server is running\n2. Your internet connection\n3. Try again';
+          } else if (uploadError.message) {
+            errorMessage = uploadError.message;
+          }
+
+          Alert.alert(
+            'Upload Failed',
+            errorMessage,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Retry', onPress: () => handleUploadSchema() }
+            ]
+          );
         } finally {
           setUploading(false);
         }
@@ -239,7 +236,7 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Feather name="arrow-left" size={24} color="#111827" />
+          <Feather name="arrow-left" size={24} color="#000" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Upload Answer Schema</Text>
         <View style={{ width: 40 }} />
@@ -264,7 +261,7 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
             <Feather
               name={showDropdown ? 'chevron-up' : 'chevron-down'}
               size={24}
-              color="#6B7280"
+              color="#666"
             />
           </TouchableOpacity>
 
@@ -273,12 +270,12 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
             <View style={styles.dropdownList}>
               {loadingCOs ? (
                 <View style={styles.dropdownLoading}>
-                  <ActivityIndicator size="small" color="#14B8A6" />
+                  <ActivityIndicator size="small" color="#000" />
                   <Text style={styles.dropdownLoadingText}>Loading subjects...</Text>
                 </View>
               ) : coTemplates.length === 0 ? (
                 <View style={styles.dropdownEmpty}>
-                  <Feather name="inbox" size={32} color="#9CA3AF" />
+                  <Feather name="inbox" size={32} color="#999" />
                   <Text style={styles.dropdownEmptyText}>No subjects found</Text>
                   <Text style={styles.dropdownEmptySubtext}>Create a CO template first</Text>
                 </View>
@@ -300,7 +297,7 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
                       </Text>
                     </View>
                     {selectedSubjectId === template.id && (
-                      <Feather name="check" size={20} color="#14B8A6" />
+                      <Feather name="check" size={20} color="#000" />
                     )}
                   </TouchableOpacity>
                 ))
@@ -323,7 +320,7 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
             <View style={styles.uploadButtonContent}>
               {uploading ? (
                 <>
-                  <ActivityIndicator size="large" color="#14B8A6" style={{ marginBottom: 20 }} />
+                  <ActivityIndicator size="large" color="#000" style={{ marginBottom: 20 }} />
                   <Text style={styles.uploadButtonText}>Uploading...</Text>
                   <Text style={styles.uploadButtonSubtext}>Please wait</Text>
                 </>
@@ -336,7 +333,7 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
                     <Feather
                       name="upload-cloud"
                       size={48}
-                      color={selectedSubject ? "#14B8A6" : "#9CA3AF"}
+                      color={selectedSubject ? "#000" : "#999"}
                     />
                   </View>
                   <Text style={[
@@ -362,7 +359,7 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
         {/* Info Card */}
         <View style={styles.infoCard}>
           <View style={styles.infoIconContainer}>
-            <Feather name="info" size={20} color="#14B8A6" />
+            <Feather name="info" size={20} color="#000" />
           </View>
           <View style={styles.infoTextContainer}>
             <Text style={styles.infoTitle}>What is an Answer Schema?</Text>
@@ -379,15 +376,15 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#ffffff',
   },
   header: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#ffffff',
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#f0f0f0',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -401,7 +398,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#111827',
+    color: '#000',
   },
   content: {
     flex: 1,
@@ -416,13 +413,13 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#374151',
+    color: '#000',
     marginBottom: 12,
   },
   dropdown: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
+    backgroundColor: '#f9f9f9',
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
     borderRadius: 16,
     paddingHorizontal: 20,
     paddingVertical: 18,
@@ -438,17 +435,17 @@ const styles = StyleSheet.create({
   dropdownTextSelected: {
     fontSize: 17,
     fontWeight: '600',
-    color: '#111827',
+    color: '#000',
   },
   dropdownTextPlaceholder: {
     fontSize: 17,
     fontWeight: '500',
-    color: '#9CA3AF',
+    color: '#999',
   },
   dropdownList: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#f0f0f0',
     borderRadius: 16,
     marginTop: 12,
     overflow: 'hidden',
@@ -471,18 +468,18 @@ const styles = StyleSheet.create({
   },
   dropdownItemBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: '#f5f5f5',
   },
   dropdownItemText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#374151',
+    color: '#000',
     marginBottom: 4,
   },
   dropdownItemSubtext: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#9CA3AF',
+    color: '#666',
   },
   dropdownLoading: {
     paddingVertical: 32,
@@ -493,7 +490,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
     fontWeight: '500',
-    color: '#6B7280',
+    color: '#666',
   },
   dropdownEmpty: {
     paddingVertical: 40,
@@ -505,33 +502,33 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
     fontWeight: '600',
-    color: '#6B7280',
+    color: '#666',
   },
   dropdownEmptySubtext: {
     marginTop: 4,
     fontSize: 14,
     fontWeight: '500',
-    color: '#9CA3AF',
+    color: '#999',
   },
   uploadSection: {
     marginBottom: 24,
   },
   uploadButton: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#f9f9f9',
     borderWidth: 3,
-    borderColor: '#14B8A6',
+    borderColor: '#000',
     borderRadius: 20,
     padding: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#14B8A6',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 4,
   },
   uploadButtonDisabled: {
-    borderColor: '#E5E7EB',
+    borderColor: '#e0e0e0',
     shadowColor: '#000',
     shadowOpacity: 0.05,
   },
@@ -542,33 +539,33 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: '#E0F2F1',
+    backgroundColor: '#f0f0f0',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
   },
   uploadIconContainerDisabled: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#f5f5f5',
   },
   uploadButtonText: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#111827',
+    color: '#000',
     marginBottom: 8,
   },
   uploadButtonTextDisabled: {
-    color: '#9CA3AF',
+    color: '#999',
   },
   uploadButtonSubtext: {
     fontSize: 15,
     fontWeight: '500',
-    color: '#14B8A6',
+    color: '#666',
   },
   uploadButtonSubtextDisabled: {
-    color: '#9CA3AF',
+    color: '#999',
   },
   infoCard: {
-    backgroundColor: '#E0F2F1',
+    backgroundColor: '#f9f9f9',
     borderRadius: 16,
     padding: 16,
     flexDirection: 'row',
@@ -578,7 +575,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#f0f0f0',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -589,13 +586,13 @@ const styles = StyleSheet.create({
   infoTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#0F766E',
+    color: '#000',
     marginBottom: 4,
   },
   infoText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#14B8A6',
+    color: '#666',
     lineHeight: 20,
   },
 });

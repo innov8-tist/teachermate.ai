@@ -578,7 +578,7 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
     width: cropWidth.value,
     height: cropHeight.value,
     borderWidth: 3,
-    borderColor: '#14B8A6',
+    borderColor: '#000',
     borderStyle: 'dashed',
     backgroundColor: 'transparent',
   }));
@@ -635,7 +635,7 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
         <View style={styles.pdfContainer} ref={pdfContainerRef} collapsable={false}>
           {loading ? (
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-              <ActivityIndicator size="large" color="#14B8A6" />
+              <ActivityIndicator size="large" color="#000" />
               <Text style={{ color: '#666', fontSize: 16, marginTop: 12 }}>Loading PDF...</Text>
             </View>
           ) : pageImages.length > 0 ? (
@@ -896,7 +896,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#14B8A6',
+    backgroundColor: '#000',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
@@ -925,8 +925,8 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   lockButtonActive: {
-    backgroundColor: '#E0F2F1',
-    borderColor: '#14B8A6',
+    backgroundColor: '#f0f0f0',
+    borderColor: '#000',
   },
   lockButtonText: {
     fontSize: 14,
@@ -934,7 +934,7 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   lockButtonTextActive: {
-    color: '#14B8A6',
+    color: '#000',
   },
   cancelButton: {
     flex: 1,
@@ -954,7 +954,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#14B8A6',
+    backgroundColor: '#000',
     paddingVertical: 12,
     borderRadius: 8,
     gap: 8,
@@ -968,7 +968,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 24,
     height: 24,
-    backgroundColor: '#14B8A6',
+    backgroundColor: '#000',
     borderWidth: 2,
     borderColor: '#fff',
     borderRadius: 12,
@@ -1003,7 +1003,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#14B8A6',
+    backgroundColor: '#000',
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderRadius: 28,
@@ -1094,7 +1094,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: '#14B8A6',
+    backgroundColor: '#000',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

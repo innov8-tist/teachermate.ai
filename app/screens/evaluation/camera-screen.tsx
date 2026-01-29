@@ -61,7 +61,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
 
       <View style={styles.content}>
         <View style={styles.iconContainer}>
-          <Feather name="camera" size={64} color="#14B8A6" />
+          <Feather name="camera" size={64} color="#000" />
         </View>
         
         <Text style={styles.title}>Camera Opening...</Text>
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#F0FDFA',
+    backgroundColor: '#f0f0f0',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 32,
@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
   retryButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#14B8A6',
+    backgroundColor: '#000',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,

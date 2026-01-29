@@ -1,13 +1,22 @@
 from db_service.db import SessionLocal, engine, Base
 from db_service.db_schema import Subject, STUDENTINFO
 
-def seed_subjects():
+def seed_subjects(silent=False):
     db = SessionLocal()
     try:
-
-        existing = db.query(Subject).first()
-        if existing:
-            print("✓ Subjects already seeded, skipping...")
+        from sqlalchemy.exc import ProgrammingError
+        import psycopg2.errors
+        
+        try:
+            existing = db.query(Subject).first()
+            if existing:
+                if not silent:
+                    print("✓ Subjects already seeded, skipping...")
+                return
+        except (ProgrammingError, psycopg2.errors.UndefinedTable) as e:
+            # Table doesn't exist yet, skip silently
+            if not silent:
+                print(f"⚠️  Subjects table doesn't exist yet, skipping...")
             return
         
         subjects = [
@@ -19,22 +28,36 @@ def seed_subjects():
         
         db.add_all(subjects)
         db.commit()
-        print(f"✓ Seeded {len(subjects)} subjects")
+        if not silent:
+            print(f"✓ Seeded {len(subjects)} subjects")
         
     except Exception as e:
-        print(f"✗ Error seeding subjects: {e}")
+        if not silent:
+            print(f"✗ Error seeding subjects: {e}")
+            import traceback
+            traceback.print_exc()
         db.rollback()
     finally:
         db.close()
 
 
-def seed_students():
+def seed_students(silent=False):
     """Insert default student information"""
     db = SessionLocal()
     try:
-        existing = db.query(STUDENTINFO).first()
-        if existing:
-            print("✓ Students already seeded, skipping...")
+        from sqlalchemy.exc import ProgrammingError
+        import psycopg2.errors
+        
+        try:
+            existing = db.query(STUDENTINFO).first()
+            if existing:
+                if not silent:
+                    print("✓ Students already seeded, skipping...")
+                return
+        except (ProgrammingError, psycopg2.errors.UndefinedTable) as e:
+            # Table doesn't exist yet, skip silently
+            if not silent:
+                print(f"⚠️  Students table doesn't exist yet, skipping...")
             return
         
         students = [
@@ -171,10 +194,14 @@ def seed_students():
         
         db.add_all(student_objects)
         db.commit()
-        print(f"✓ Seeded {len(student_objects)} students")
+        if not silent:
+            print(f"✓ Seeded {len(student_objects)} students")
         
     except Exception as e:
-        print(f"✗ Error seeding students: {e}")
+        if not silent:
+            print(f"✗ Error seeding students: {e}")
+            import traceback
+            traceback.print_exc()
         db.rollback()
     finally:
         db.close()

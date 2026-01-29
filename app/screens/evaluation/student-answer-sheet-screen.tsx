@@ -385,8 +385,8 @@ export const StudentAnswerSheetScreen: React.FC<StudentAnswerSheetScreenProps> =
           <Text className="text-2xl font-bold text-gray-900 flex-1">Student Answer Sheet</Text>
         </View>
         <View className="flex-row items-center">
-          <View className="bg-blue-100 px-3 py-1 rounded-full mr-3">
-            <Text className="text-blue-800 font-semibold text-sm">Roll: {rollNumber}</Text>
+          <View className="bg-gray-100 px-3 py-1 rounded-full mr-3">
+            <Text className="text-black font-semibold text-sm">Roll: {rollNumber}</Text>
           </View>
           <View className="bg-green-100 px-3 py-1 rounded-full">
             <Text className="text-green-800 font-semibold text-sm capitalize">
@@ -407,7 +407,7 @@ export const StudentAnswerSheetScreen: React.FC<StudentAnswerSheetScreenProps> =
         <View className="p-6 pb-32">
           {loading ? (
             <View className="items-center justify-center py-20">
-              <ActivityIndicator size="large" color="#14B8A6" />
+              <ActivityIndicator size="large" color="#000" />
               <Text className="text-gray-600 text-base mt-4 font-medium">Loading questions...</Text>
             </View>
           ) : questions.length === 0 ? (
@@ -443,8 +443,8 @@ export const StudentAnswerSheetScreen: React.FC<StudentAnswerSheetScreenProps> =
                       height: 32,
                       borderRadius: 8,
                       borderWidth: 2,
-                      borderColor: question.isSubmitted ? '#10B981' : '#14B8A6',
-                      backgroundColor: question.isSubmitted ? '#10B981' : '#fff',
+                      borderColor: question.isSubmitted ? '#000' : '#000',
+                      backgroundColor: question.isSubmitted ? '#000' : '#fff',
                       alignItems: 'center',
                       justifyContent: 'center',
                       opacity: question.processingState === 'processing' ? 0.6 : 1,
@@ -452,11 +452,11 @@ export const StudentAnswerSheetScreen: React.FC<StudentAnswerSheetScreenProps> =
                     activeOpacity={0.7}
                   >
                     {question.processingState === 'processing' ? (
-                      <ActivityIndicator size="small" color="#14B8A6" />
+                      <ActivityIndicator size="small" color="#000" />
                     ) : question.isSubmitted ? (
                       <Feather name="check-circle" size={18} color="#fff" strokeWidth={2.5} />
                     ) : (
-                      <Feather name="zap" size={18} color="#14B8A6" strokeWidth={2.5} />
+                      <Feather name="zap" size={18} color="#000" strokeWidth={2.5} />
                     )}
                   </TouchableOpacity>
                 </View>

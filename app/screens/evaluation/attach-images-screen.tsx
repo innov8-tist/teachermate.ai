@@ -335,7 +335,7 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
                   width: 120,
                   height: 120,
                   borderRadius: 12,
-                  backgroundColor: '#E5E7EB',
+                  backgroundColor: '#f0f0f0',
                 }}
                 resizeMode="cover"
               />
@@ -345,12 +345,12 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
                   width: 120,
                   height: 120,
                   borderRadius: 12,
-                  backgroundColor: '#E5E7EB',
+                  backgroundColor: '#f0f0f0',
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}
               >
-                <Feather name="file-text" size={40} color="#9CA3AF" />
+                <Feather name="file-text" size={40} color="#999" />
                 <Text className="text-xs text-gray-500 mt-2">Page {section.pageNumber}</Text>
               </View>
             )}
@@ -383,15 +383,15 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
               borderRadius: 12,
               borderWidth: 2,
               borderStyle: 'dashed',
-              borderColor: question.is_completed || question.isSubmitted ? '#E5E7EB' : '#D1D5DB',
-              backgroundColor: question.is_completed || question.isSubmitted ? '#F9FAFB' : '#F9FAFB',
+              borderColor: question.is_completed || question.isSubmitted ? '#e0e0e0' : '#d0d0d0',
+              backgroundColor: question.is_completed || question.isSubmitted ? '#f9f9f9' : '#f9f9f9',
               opacity: question.is_completed || question.isSubmitted ? 0.5 : 1,
               alignItems: 'center',
               justifyContent: 'center',
             }}
             activeOpacity={0.7}
           >
-            <Feather name="plus" size={32} color="#9CA3AF" />
+            <Feather name="plus" size={32} color="#999" />
           </TouchableOpacity>
         ) : remainingCount > 0 ? (
           <TouchableOpacity
@@ -401,8 +401,8 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
               height: 90,
               borderRadius: 12,
               borderWidth: 2,
-              borderColor: '#E5E7EB',
-              backgroundColor: '#F3F4F6',
+              borderColor: '#e0e0e0',
+              backgroundColor: '#f5f5f5',
               alignItems: 'center',
               justifyContent: 'center',
             }}
@@ -420,14 +420,14 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
               borderRadius: 12,
               borderWidth: 2,
               borderStyle: 'dashed',
-              borderColor: '#D1D5DB',
-              backgroundColor: '#F9FAFB',
+              borderColor: '#d0d0d0',
+              backgroundColor: '#f9f9f9',
               alignItems: 'center',
               justifyContent: 'center',
             }}
             activeOpacity={0.7}
           >
-            <Feather name="plus" size={32} color="#9CA3AF" />
+            <Feather name="plus" size={32} color="#999" />
           </TouchableOpacity>
         )}
       </View>
@@ -435,22 +435,22 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
   };
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <View className="flex-1 bg-white">
       {/* Header */}
-      <View className="bg-white px-6 pt-4 pb-4 border-b border-gray-100">
-        <Text className="text-2xl font-bold text-gray-900">Attach Images</Text>
+      <View className="bg-white px-6 pt-4 pb-4 border-b border-gray-200">
+        <Text className="text-2xl font-bold text-black">Attach Images</Text>
       </View>
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         <View className="p-6 pb-32">
           {loading ? (
             <View className="items-center justify-center py-20">
-              <ActivityIndicator size="large" color="#14B8A6" />
+              <ActivityIndicator size="large" color="#000" />
               <Text className="text-gray-600 text-base mt-4 font-medium">Loading questions...</Text>
             </View>
           ) : questions.length === 0 ? (
             <View className="items-center justify-center py-20">
-              <Feather name="inbox" size={64} color="#D1D5DB" />
+              <Feather name="inbox" size={64} color="#999" />
               <Text className="text-gray-600 text-lg mt-4 font-semibold">No questions found</Text>
               <Text className="text-gray-500 text-sm mt-2">Please check your CO template</Text>
             </View>
@@ -465,10 +465,12 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
                   shadowOpacity: 0.06,
                   shadowRadius: 4,
                   elevation: 2,
+                  borderWidth: 1,
+                  borderColor: '#f0f0f0',
                 }}
               >
                 <View className="flex-row items-center justify-between mb-4">
-                  <Text className="text-lg font-semibold text-gray-900">
+                  <Text className="text-lg font-semibold text-black">
                     {question.label}
                   </Text>
 
@@ -481,8 +483,8 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
                       height: 28,
                       borderRadius: 6,
                       borderWidth: 2,
-                      borderColor: question.isSubmitted ? '#10B981' : '#14B8A6',
-                      backgroundColor: question.isSubmitted ? '#10B981' : '#fff',
+                      borderColor: question.isSubmitted ? '#000' : '#000',
+                      backgroundColor: question.isSubmitted ? '#000' : '#fff',
                       alignItems: 'center',
                       justifyContent: 'center',
                       opacity: question.processingState === 'processing' ? 0.6 : 1,
@@ -490,11 +492,11 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
                     activeOpacity={0.7}
                   >
                     {question.processingState === 'processing' ? (
-                      <ActivityIndicator size="small" color="#14B8A6" />
+                      <ActivityIndicator size="small" color="#000" />
                     ) : question.isSubmitted ? (
                       <Feather name="check" size={16} color="#fff" strokeWidth={2.5} />
                     ) : (
-                      <Feather name="check" size={16} color="#14B8A6" strokeWidth={2.5} />
+                      <Feather name="check" size={16} color="#000" strokeWidth={2.5} />
                     )}
                   </TouchableOpacity>
                 </View>

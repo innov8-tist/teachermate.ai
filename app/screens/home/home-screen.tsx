@@ -23,13 +23,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       <View className="flex-row gap-3 mb-5">
         <Card className="flex-1">
           <CardContent>
-            <Text className="text-2xl font-bold text-[#4FD1C5] mb-1">24</Text>
+            <Text className="text-2xl font-bold text-black mb-1">24</Text>
             <Text className="text-xs text-gray-500 font-medium">Pending</Text>
           </CardContent>
         </Card>
         <Card className="flex-1">
           <CardContent>
-            <Text className="text-2xl font-bold text-green-500 mb-1">156</Text>
+            <Text className="text-2xl font-bold text-black mb-1">156</Text>
             <Text className="text-xs text-gray-500 font-medium">Completed</Text>
           </CardContent>
         </Card>
@@ -39,7 +39,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       <TouchableOpacity onPress={onNavigateToCO} activeOpacity={0.7}>
         <Card className="mb-4">
           <CardContent className="flex-row items-center">
-            <View className="w-14 h-14 bg-[#B8E6E1] rounded-xl items-center justify-center mr-4">
+            <View className="w-14 h-14 bg-gray-100 rounded-xl items-center justify-center mr-4">
               <Text className="text-3xl">☁️</Text>
             </View>
             <View className="flex-1">
@@ -54,7 +54,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       <TouchableOpacity onPress={onNavigateToEvaluation} activeOpacity={0.7}>
         <Card className="mb-4">
           <CardContent className="flex-row items-center">
-            <View className="w-14 h-14 bg-[#B8E6E1] rounded-xl items-center justify-center mr-4">
+            <View className="w-14 h-14 bg-gray-100 rounded-xl items-center justify-center mr-4">
               <Text className="text-3xl">📷</Text>
             </View>
             <View className="flex-1">
@@ -69,7 +69,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       <TouchableOpacity activeOpacity={0.7}>
         <Card className="mb-4">
           <CardContent className="flex-row items-center">
-            <View className="w-14 h-14 bg-[#B8E6E1] rounded-xl items-center justify-center mr-4">
+            <View className="w-14 h-14 bg-gray-100 rounded-xl items-center justify-center mr-4">
               <Text className="text-3xl">📊</Text>
             </View>
             <View className="flex-1">

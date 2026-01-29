@@ -67,21 +67,21 @@ export function SplashScreen({ onFinish }: SplashScreenProps) {
   }));
 
   return (
-    <View className="flex-1 bg-[#4FD1C5] items-center justify-center">
+    <View className="flex-1 bg-white items-center justify-center">
       {/* Logo Container */}
       <Animated.View style={logoAnimatedStyle} className="items-center mb-8">
         {/* Logo Circle */}
-        <View className="w-32 h-32 bg-white rounded-full items-center justify-center shadow-2xl">
+        <View className="w-32 h-32 bg-gray-100 rounded-full items-center justify-center shadow-2xl">
           <Text className="text-6xl">🎓</Text>
         </View>
       </Animated.View>
 
       {/* App Name & Tagline */}
       <Animated.View style={textAnimatedStyle} className="items-center px-8">
-        <Text className="text-4xl font-bold text-white mb-3 tracking-tight">
+        <Text className="text-4xl font-bold text-black mb-3 tracking-tight">
           Teachermate AI
         </Text>
-        <Text className="text-lg text-white/90 text-center font-medium">
+        <Text className="text-lg text-gray-600 text-center font-medium">
           Smart Evaluation, Simplified
         </Text>
       </Animated.View>
@@ -121,7 +121,7 @@ function LoadingDot({ delay }: { delay: number }) {
   return (
     <Animated.View
       style={animatedStyle}
-      className="w-2.5 h-2.5 bg-white rounded-full"
+      className="w-2.5 h-2.5 bg-black rounded-full"
     />
   );
 }
