@@ -1,0 +1,26 @@
+{
+    "name": "teachermate-ai",
+    "version": "1.0.0",
+    "private": true,
+    "packageManager": "npm@10.0.0",
+    "description": "TeacherMate.AI - Automated Teaching Assistant",
+    "scripts": {
+        "dev": "turbo run dev --parallel --filter=backend --filter=localstack",
+        "dev:all": "turbo run dev --parallel",
+        "dev:android": "cd app && npm run android",
+        "start": "turbo run start --parallel",
+        "build": "turbo run build"
+    },
+    "devDependencies": {
+        "concurrently": "^9.1.2",
+        "turbo": "^2.3.3"
+    },
+    "workspaces": [
+        "backend",
+        "app",
+        "localstack"
+    ],
+    "engines": {
+        "node": ">=18.0.0"
+    }
+}
