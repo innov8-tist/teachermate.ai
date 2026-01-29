@@ -75,10 +75,10 @@ export function SplashScreen({ onFinish }: SplashScreenProps) {
   }));
 
   return (
-    <View className="flex-1 bg-[#4FD1C5] items-center justify-center">
+    <View className="flex-1 bg-white items-center justify-center">
       {/* Logo Container with Image */}
       <Animated.View style={logoAnimatedStyle} className="items-center mb-8">
-        <View className="w-32 h-32 bg-white rounded-full items-center justify-center shadow-2xl overflow-hidden">
+        <View className="w-32 h-32 bg-gray-100 rounded-full items-center justify-center shadow-2xl overflow-hidden">
           {/* Replace with your logo image */}
           <Image
             source={require('@/assets/images/icon.png')}
@@ -90,10 +90,10 @@ export function SplashScreen({ onFinish }: SplashScreenProps) {
 
       {/* App Name & Tagline */}
       <Animated.View style={textAnimatedStyle} className="items-center px-8">
-        <Text className="text-4xl font-bold text-white mb-3 tracking-tight">
+        <Text className="text-4xl font-bold text-black mb-3 tracking-tight">
           Teachermate AI
         </Text>
-        <Text className="text-lg text-white/90 text-center font-medium">
+        <Text className="text-lg text-gray-600 text-center font-medium">
           Smart Evaluation, Simplified
         </Text>
       </Animated.View>
@@ -133,7 +133,7 @@ function LoadingDot({ delay }: { delay: number }) {
   return (
     <Animated.View
       style={animatedStyle}
-      className="w-2.5 h-2.5 bg-white rounded-full"
+      className="w-2.5 h-2.5 bg-black rounded-full"
     />
   );
 }

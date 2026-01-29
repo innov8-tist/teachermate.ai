@@ -70,7 +70,7 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
       setUploadedPdf(null);
       setSearchResults([]);
       setShowSearchResults(false);
-      
+
       fetchRecentProgress();
     }
   }, [visible, evaluationId]);
@@ -144,7 +144,7 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
 
   const selectStudent = (student: SearchResult | RecentProgress) => {
     const regNo = student.student_reg_no;
-    
+
     // Check if this is a recent progress or search result with evaluation data
     if (student.upload_method && student.upload_method !== '') {
       // This has evaluation data - redirect to evaluation screen
@@ -154,7 +154,7 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
         pdfId: student.pdf_id || undefined,  // Use actual PDF ID from database
         pdfFileName: 'pdf_filename' in student ? student.pdf_filename : undefined,
       };
-      
+
       // Close modal and redirect
       handleClose();
       onConfirm(studentData);
@@ -167,7 +167,7 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
 
   const handleMethodSelect = async (method: 'pdf' | 'camera') => {
     setSelectedMethod(method);
-    
+
     // If PDF method is selected, immediately trigger PDF upload
     if (method === 'pdf') {
       await handlePdfUpload();
@@ -183,7 +183,7 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
     try {
       setIsUploadingPdf(true);
       const uploadResult = await pickAndUploadPDF(token);
-      
+
       if (uploadResult) {
         setUploadedPdf({
           pdfId: uploadResult.pdfId,
@@ -259,7 +259,7 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
             >
               <View style={styles.recentHeader}>
                 <Text style={styles.recentRollNumber}>{progress.student_reg_no}</Text>
-                <View style={[styles.statusBadge, { backgroundColor: progress.status === 'completed' ? '#10B981' : '#F59E0B' }]}>
+                <View style={[styles.statusBadge, { backgroundColor: progress.status === 'completed' ? '#000' : '#F59E0B' }]}>
                   <Text style={styles.statusText}>
                     {progress.completed_questions}/{progress.total_questions}
                   </Text>
@@ -270,7 +270,7 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
               </View>
               <View style={styles.recentFooter}>
                 <Text style={styles.recentMethod}>{progress.upload_method.toUpperCase()}</Text>
-                <Feather name="arrow-right" size={12} color="#14B8A6" />
+                <Feather name="arrow-right" size={12} color="#000" />
               </View>
             </TouchableOpacity>
           ))}
@@ -286,7 +286,7 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
       <View style={styles.searchResultsContainer}>
         {isSearching ? (
           <View style={styles.searchLoading}>
-            <ActivityIndicator size="small" color="#14B8A6" />
+            <ActivityIndicator size="small" color="#000" />
             <Text style={styles.searchLoadingText}>Searching...</Text>
           </View>
         ) : searchResults.length > 0 ? (
@@ -373,113 +373,113 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
                 />
                 {isSearching && (
                   <View style={styles.searchIcon}>
-                    <ActivityIndicator size="small" color="#14B8A6" />
+                    <ActivityIndicator size="small" color="#000" />
                   </View>
                 )}
               </View>
               {renderSearchResults()}
             </View>
 
-          {/* Upload Method Selection */}
-          <View style={styles.section}>
-            <Text style={styles.label}>Upload Method</Text>
-            
-            <TouchableOpacity
-              style={[
-                styles.methodOption,
-                selectedMethod === 'pdf' && styles.methodOptionSelected,
-                isUploadingPdf && styles.methodOptionUploading
-              ]}
-              onPress={() => handleMethodSelect('pdf')}
-              disabled={isUploadingPdf}
-              activeOpacity={0.7}
-            >
-              <View style={styles.methodIcon}>
-                {isUploadingPdf ? (
-                  <ActivityIndicator size={24} color="#14B8A6" />
-                ) : (
-                  <Feather 
-                    name="file-text" 
-                    size={24} 
-                    color={selectedMethod === 'pdf' ? '#14B8A6' : '#666'} 
-                  />
-                )}
-              </View>
-              <View style={styles.methodContent}>
-                <Text style={[
-                  styles.methodTitle,
-                  selectedMethod === 'pdf' && styles.methodTitleSelected
-                ]}>
-                  Upload PDF
-                </Text>
-                {isUploadingPdf ? (
-                  <Text style={styles.methodDescription}>
-                    Uploading PDF file...
-                  </Text>
-                ) : uploadedPdf ? (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Text style={[styles.methodDescription, { color: '#10B981', flex: 1 }]}>
-                      ✓ {uploadedPdf.fileName}
-                    </Text>
-                    <TouchableOpacity 
-                      onPress={handlePdfUpload}
-                      style={{ marginLeft: 8, padding: 4 }}
-                    >
-                      <Feather name="refresh-cw" size={16} color="#666" />
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <Text style={styles.methodDescription}>
-                    Upload a PDF file and crop answer sections
-                  </Text>
-                )}
-              </View>
-              <View style={[
-                styles.radioButton,
-                selectedMethod === 'pdf' && styles.radioButtonSelected
-              ]}>
-                {selectedMethod === 'pdf' && !isUploadingPdf && (
-                  <View style={styles.radioButtonInner} />
-                )}
-              </View>
-            </TouchableOpacity>
+            {/* Upload Method Selection */}
+            <View style={styles.section}>
+              <Text style={styles.label}>Upload Method</Text>
 
-            <TouchableOpacity
-              style={[
-                styles.methodOption,
-                selectedMethod === 'camera' && styles.methodOptionSelected
-              ]}
-              onPress={() => handleMethodSelect('camera')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.methodIcon}>
-                <Feather 
-                  name="camera" 
-                  size={24} 
-                  color={selectedMethod === 'camera' ? '#14B8A6' : '#666'} 
-                />
-              </View>
-              <View style={styles.methodContent}>
-                <Text style={[
-                  styles.methodTitle,
-                  selectedMethod === 'camera' && styles.methodTitleSelected
+              <TouchableOpacity
+                style={[
+                  styles.methodOption,
+                  selectedMethod === 'pdf' && styles.methodOptionSelected,
+                  isUploadingPdf && styles.methodOptionUploading
+                ]}
+                onPress={() => handleMethodSelect('pdf')}
+                disabled={isUploadingPdf}
+                activeOpacity={0.7}
+              >
+                <View style={styles.methodIcon}>
+                  {isUploadingPdf ? (
+                    <ActivityIndicator size={24} color="#000" />
+                  ) : (
+                    <Feather
+                      name="file-text"
+                      size={24}
+                      color={selectedMethod === 'pdf' ? '#000' : '#666'}
+                    />
+                  )}
+                </View>
+                <View style={styles.methodContent}>
+                  <Text style={[
+                    styles.methodTitle,
+                    selectedMethod === 'pdf' && styles.methodTitleSelected
+                  ]}>
+                    Upload PDF
+                  </Text>
+                  {isUploadingPdf ? (
+                    <Text style={styles.methodDescription}>
+                      Uploading PDF file...
+                    </Text>
+                  ) : uploadedPdf ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Text style={[styles.methodDescription, { color: '#000', flex: 1 }]}>
+                        ✓ {uploadedPdf.fileName}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={handlePdfUpload}
+                        style={{ marginLeft: 8, padding: 4 }}
+                      >
+                        <Feather name="refresh-cw" size={16} color="#666" />
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <Text style={styles.methodDescription}>
+                      Upload a PDF file and crop answer sections
+                    </Text>
+                  )}
+                </View>
+                <View style={[
+                  styles.radioButton,
+                  selectedMethod === 'pdf' && styles.radioButtonSelected
                 ]}>
-                  Take Photos
-                </Text>
-                <Text style={styles.methodDescription}>
-                  Use camera to capture answer sections
-                </Text>
-              </View>
-              <View style={[
-                styles.radioButton,
-                selectedMethod === 'camera' && styles.radioButtonSelected
-              ]}>
-                {selectedMethod === 'camera' && (
-                  <View style={styles.radioButtonInner} />
-                )}
-              </View>
-            </TouchableOpacity>
-          </View>
+                  {selectedMethod === 'pdf' && !isUploadingPdf && (
+                    <View style={styles.radioButtonInner} />
+                  )}
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.methodOption,
+                  selectedMethod === 'camera' && styles.methodOptionSelected
+                ]}
+                onPress={() => handleMethodSelect('camera')}
+                activeOpacity={0.7}
+              >
+                <View style={styles.methodIcon}>
+                  <Feather
+                    name="camera"
+                    size={24}
+                    color={selectedMethod === 'camera' ? '#000' : '#666'}
+                  />
+                </View>
+                <View style={styles.methodContent}>
+                  <Text style={[
+                    styles.methodTitle,
+                    selectedMethod === 'camera' && styles.methodTitleSelected
+                  ]}>
+                    Take Photos
+                  </Text>
+                  <Text style={styles.methodDescription}>
+                    Use camera to capture answer sections
+                  </Text>
+                </View>
+                <View style={[
+                  styles.radioButton,
+                  selectedMethod === 'camera' && styles.radioButtonSelected
+                ]}>
+                  {selectedMethod === 'camera' && (
+                    <View style={styles.radioButtonInner} />
+                  )}
+                </View>
+              </TouchableOpacity>
+            </View>
 
             {/* Action Buttons */}
             <View style={styles.actions}>
@@ -490,7 +490,7 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[
                   styles.confirmButton,
@@ -624,7 +624,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#14B8A6',
+    backgroundColor: '#000',
     borderRadius: 2,
   },
   recentMethod: {
@@ -684,7 +684,7 @@ const styles = StyleSheet.create({
   searchResultStats: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#14B8A6',
+    color: '#000',
   },
   searchResultPercentage: {
     fontSize: 10,
@@ -709,12 +709,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9F9F9',
   },
   methodOptionSelected: {
-    borderColor: '#14B8A6',
-    backgroundColor: '#F0FDFA',
+    borderColor: '#000',
+    backgroundColor: '#f9f9f9',
   },
   methodOptionUploading: {
-    borderColor: '#14B8A6',
-    backgroundColor: '#F0FDFA',
+    borderColor: '#000',
+    backgroundColor: '#f9f9f9',
     opacity: 0.8,
   },
   methodIcon: {
@@ -736,7 +736,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   methodTitleSelected: {
-    color: '#14B8A6',
+    color: '#000',
   },
   methodDescription: {
     fontSize: 13, // Reduced from 14
@@ -754,13 +754,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   radioButtonSelected: {
-    borderColor: '#14B8A6',
+    borderColor: '#000',
   },
   radioButtonInner: {
     width: 10, // Reduced from 12
     height: 10, // Reduced from 12
     borderRadius: 5, // Reduced from 6
-    backgroundColor: '#14B8A6',
+    backgroundColor: '#000',
   },
   actions: {
     flexDirection: 'row',
@@ -790,7 +790,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12, // Reduced from 14
     borderRadius: 12,
-    backgroundColor: '#14B8A6',
+    backgroundColor: '#000',
     gap: 8,
   },
   confirmButtonDisabled: {

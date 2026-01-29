@@ -254,8 +254,8 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
                     {/* Header */}
                     <View style={styles.oldCardHeader}>
                       <Text style={styles.oldSubjectName}>{evaluation.subject_name}</Text>
-                      <View style={[styles.statusBadge, { backgroundColor: '#dbeafe' }]}>
-                        <Text style={[styles.statusText, { color: '#3b82f6' }]}>
+                      <View style={[styles.statusBadge, { backgroundColor: '#f5f5f5' }]}>
+                        <Text style={[styles.statusText, { color: '#000' }]}>
                           In Progress
                         </Text>
                       </View>
@@ -276,7 +276,7 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
                         <View
                           style={[
                             styles.oldProgressFill,
-                            { width: `${progress}%`, backgroundColor: '#3b82f6' }
+                            { width: `${progress}%`, backgroundColor: '#000' }
                           ]}
                         />
                       </View>
@@ -301,7 +301,7 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
                               key={i}
                               style={[
                                 styles.questionBox,
-                                { backgroundColor: isCompleted ? '#10b981' : '#f3f4f6' }
+                                { backgroundColor: isCompleted ? '#000' : '#f3f4f6' }
                               ]}
                             >
                               {isCompleted ? (
@@ -320,7 +320,7 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
                       <Text style={styles.footerText}>ID: {evaluation.created_at}</Text>
                       <View style={styles.viewDetails}>
                         <Text style={styles.viewDetailsText}>View Details</Text>
-                        <Feather name="arrow-right" size={16} color="#6366f1" />
+                        <Feather name="arrow-right" size={16} color="#000" />
                       </View>
                     </View>
                   </TouchableOpacity>
@@ -634,7 +634,7 @@ const styles = StyleSheet.create({
   viewDetailsText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#6366f1',
+    color: '#000',
   },
   emptyState: {
     alignItems: 'center',

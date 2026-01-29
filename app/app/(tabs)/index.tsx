@@ -56,30 +56,8 @@ export default function HomeScreenRefactored() {
         const hoursSinceUpload = (Date.now() - progress.timestamp) / (1000 * 60 * 60);
 
         if (hoursSinceUpload < 24) {
-          Alert.alert(
-            'Resume Upload',
-            `You have an incomplete upload for "${progress.subject}". Would you like to continue?`,
-            [
-              {
-                text: 'Start New',
-                style: 'destructive',
-                onPress: async () => {
-                  await AsyncStorage.removeItem(UPLOAD_PROGRESS_KEY);
-                }
-              },
-              {
-                text: 'Resume',
-                onPress: () => {
-                  // Restore the state
-                  setPdfUri(progress.pdfId);
-                  setSelectedSubject(progress.subject);
-                  setSelectedSubjectId(progress.subjectId);
-                  setActiveTab('evaluation');
-                  setEvaluationSubScreen('attachImages');
-                }
-              }
-            ]
-          );
+          // Keep the progress data, user can continue manually
+          console.log(`✅ Found in-progress upload for "${progress.subject}"`);
         } else {
           // Clear old upload data
           await AsyncStorage.removeItem(UPLOAD_PROGRESS_KEY);
@@ -162,7 +140,7 @@ export default function HomeScreenRefactored() {
 
   const handleStartStudentUpload = async (evaluationId: number, studentData: StudentUploadData) => {
     console.log('🎯 Starting student upload for evaluation:', evaluationId, 'Student:', studentData);
-    
+
     try {
       // First, fetch the evaluation details to get the subject_id (template_id)
       const response = await fetch(`${API_BASE_URL}/evaluation/${evaluationId}`, {
@@ -179,11 +157,11 @@ export default function HomeScreenRefactored() {
       const evaluation = data.evaluation;
 
       console.log('✅ Evaluation data for student upload:', evaluation);
-      
+
       // Check if this is a resume (student already has progress in database)
       // We need to check the database, not just if pdfId exists
       let isResume = false;
-      
+
       if (studentData.pdfId && studentData.uploadMethod === 'pdf') {
         // Check if student progress already exists in database
         try {
@@ -192,7 +170,7 @@ export default function HomeScreenRefactored() {
               'Authorization': `Bearer ${token}`,
             },
           });
-          
+
           if (checkProgressResponse.ok) {
             const progressData = await checkProgressResponse.json();
             const existingProgress = progressData.recent_progress?.find(
@@ -206,7 +184,7 @@ export default function HomeScreenRefactored() {
           isResume = false;
         }
       }
-      
+
       if (!isResume) {
         // Create or update student progress for new evaluation
         console.log(`📝 Creating new student progress for ${studentData.rollNumber}`);
@@ -240,7 +218,7 @@ export default function HomeScreenRefactored() {
         }
       } else {
         console.log('🔄 Resuming existing evaluation for student:', studentData.rollNumber);
-        
+
         // For resume, we need to load existing questions and their completion status
         try {
           const questionsResponse = await fetch(`${API_BASE_URL}/evaluation/${evaluationId}/questions`, {
@@ -251,7 +229,7 @@ export default function HomeScreenRefactored() {
 
           if (questionsResponse.ok) {
             const questionsData = await questionsResponse.json();
-            
+
             // Get student progress to see which questions are completed
             const progressResponse = await fetch(`${API_BASE_URL}/api/evaluation/student-progress/${evaluationId}`, {
               headers: {
@@ -284,17 +262,17 @@ export default function HomeScreenRefactored() {
                 const questionsWithStatus = questionsData.questions.map((q: any) => {
                   const completedEvaluation = completedEvaluations.find((evaluation: any) => evaluation.question_no === q.id);
                   const isCompleted = !!completedEvaluation;
-                  
+
                   // If completed, create mock cropped sections from the evaluation data
                   let croppedSections: any[] = [];
                   if (isCompleted && completedEvaluation && completedEvaluation.student_image_paths) {
                     console.log('📸 Loading images for completed question:', q.id, completedEvaluation.student_image_paths);
-                    
+
                     // Convert student image paths to cropped sections for display
                     croppedSections = completedEvaluation.student_image_paths.map((imagePath: string, index: number) => {
                       // S3 URLs should already be complete, no need to modify them
                       console.log(`  📷 Image ${index + 1}: ${imagePath}`);
-                      
+
                       return {
                         questionId: q.id,
                         pdfUri: '',
@@ -305,7 +283,7 @@ export default function HomeScreenRefactored() {
                       };
                     });
                   }
-                  
+
                   return {
                     id: q.id,
                     label: `Question ${q.id}`,
@@ -326,12 +304,12 @@ export default function HomeScreenRefactored() {
           console.warn('⚠️ Could not load resume data, starting fresh:', resumeError);
         }
       }
-      
+
       // Set the state with the correct subject_id
       setSelectedSubjectId(evaluation.template_id); // This is the subject ID!
       setSelectedEvaluationId(evaluationId);
       setStudentUploadData(studentData);
-      
+
       // If PDF was uploaded in the modal, set it here (but not for resume)
       if (studentData.pdfId && studentData.pdfId !== 'existing_pdf') {
         setPdfUri(studentData.pdfId);
@@ -339,7 +317,7 @@ export default function HomeScreenRefactored() {
         // For resume, we might need to set a different PDF URI or handle differently
         setPdfUri(''); // Clear PDF URI for camera mode resume
       }
-      
+
       setEvaluationSubScreen('studentAnswerSheet');
     } catch (error) {
       console.error('❌ Error loading evaluation for student upload:', error);
@@ -418,7 +396,7 @@ export default function HomeScreenRefactored() {
 
     console.log('✅ Updated questions:', updatedQuestions);
     setQuestions(updatedQuestions);
-    
+
     // Navigate back to the correct screen
     if (studentUploadData) {
       setEvaluationSubScreen('studentAnswerSheet');
@@ -443,7 +421,7 @@ export default function HomeScreenRefactored() {
 
     console.log('✅ Updated questions with camera image:', updatedQuestions);
     setQuestions(updatedQuestions);
-    
+
     // Navigate back to the correct screen
     if (studentUploadData) {
       setEvaluationSubScreen('studentAnswerSheet');
@@ -580,11 +558,13 @@ export default function HomeScreenRefactored() {
                     }}
                     onSubmit={() => {
                       Alert.alert('Success', 'Student answer sheet evaluated successfully!', [
-                        { text: 'OK', onPress: () => {
-                          setEvaluationSubScreen('list');
-                          setStudentUploadData(null);
-                          setSelectedEvaluationId(null);
-                        }}
+                        {
+                          text: 'OK', onPress: () => {
+                            setEvaluationSubScreen('list');
+                            setStudentUploadData(null);
+                            setSelectedEvaluationId(null);
+                          }
+                        }
                       ]);
                     }}
                     questions={questions}
@@ -717,11 +697,11 @@ const fabStyles = StyleSheet.create({
     zIndex: 9999,
   },
   submitButton: {
-    backgroundColor: '#4FD1C5',
+    backgroundColor: '#000',
     borderRadius: 12,
     paddingVertical: 16,
     paddingHorizontal: 32,
-    shadowColor: '#4FD1C5',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
