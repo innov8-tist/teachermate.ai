@@ -4,6 +4,7 @@ import { Feather } from '@expo/vector-icons';
 import { CroppedSection } from './pdf-cropper-screen';
 import { BASE_URL } from '../../constants/api';
 import { useAuth } from '../../contexts/auth-context';
+import { networkService } from '../../services/network/network-service';
 
 export interface StudentQuestion {
   id: string;
@@ -150,20 +151,15 @@ export const StudentAnswerSheetScreen: React.FC<StudentAnswerSheetScreenProps> =
         }
       }
 
-      const response = await fetch(`${BASE_URL}/evaluate-student-answer`, {
-        method: 'POST',
-        body: formData,
+      const result = await networkService.submitForm<any>(`${BASE_URL}/evaluate-student-answer`, formData, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
+        timeout: 60000, // 60 seconds for evaluation processing
+        retries: 2,
+        showRetryLogs: true,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to evaluate answer');
-      }
-
-      const result = await response.json();
       console.log(`✅ Student answer ${question.id} evaluated successfully:`, result);
 
       // Update state to success and mark as submitted
@@ -177,14 +173,15 @@ export const StudentAnswerSheetScreen: React.FC<StudentAnswerSheetScreenProps> =
       // Update progress in backend
       try {
         // Get the progress ID from the evaluation and student
-        const progressResponse = await fetch(`${BASE_URL}/api/evaluation/student-progress/${evaluationId}`, {
+        const progressData = await networkService.requestJson<any>(`${BASE_URL}/api/evaluation/student-progress/${evaluationId}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
+          timeout: 10000,
+          retries: 1,
         });
 
-        if (progressResponse.ok) {
-          const progressData = await progressResponse.json();
+        if (progressData.recent_progress) {
           const studentProgress = progressData.recent_progress?.find(
             (p: any) => p.student_reg_no === rollNumber
           );
@@ -194,12 +191,12 @@ export const StudentAnswerSheetScreen: React.FC<StudentAnswerSheetScreenProps> =
             const completeFormData = new FormData();
             completeFormData.append('question_no', question.id);
 
-            await fetch(`${BASE_URL}/api/evaluation/student-progress/${studentProgress.id}/complete-question`, {
-              method: 'PUT',
+            await networkService.submitForm(`${BASE_URL}/api/evaluation/student-progress/${studentProgress.id}/complete-question`, completeFormData, {
               headers: {
                 'Authorization': `Bearer ${token}`,
               },
-              body: completeFormData,
+              timeout: 10000,
+              retries: 1,
             });
 
             console.log(`✅ Question ${question.id} marked as completed in progress`);

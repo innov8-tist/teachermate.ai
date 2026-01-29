@@ -21,7 +21,7 @@ import { StudentAnswerSheetScreen } from '@/screens/evaluation/student-answer-sh
 
 import { CameraScreen } from '@/screens/evaluation/camera-screen';
 
-type EvaluationSubScreen = 'list' | 'upload' | 'attachImages' | 'pdfCropper' | 'details' | 'studentAnswerSheet' | 'camera';
+type EvaluationSubScreen = 'list' | 'upload' | 'attachImages' | 'pdfCropper' | 'details' | 'studentAnswerSheet' | 'camera' | 'results';
 
 const UPLOAD_PROGRESS_KEY = '@evaluation_upload_progress';
 
@@ -576,7 +576,7 @@ export default function HomeScreenRefactored() {
                     }}
                     pdfUri={pdfUri}
                     pdfFileName={studentUploadData.pdfFileName}
-                    subjectId={selectedSubjectId}
+                    subjectId={selectedSubjectId || undefined}
                   />
                 )}
                 {evaluationSubScreen === 'results' && selectedEvaluationId && selectedSubject && (

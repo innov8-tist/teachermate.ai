@@ -1,6 +1,7 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { Alert } from 'react-native';
 import { BASE_URL } from '../constants/api';
+import { networkService } from '../services/network/network-service';
 
 export interface PDFUploadResult {
   pdfId: string;
@@ -10,6 +11,8 @@ export interface PDFUploadResult {
 
 export const pickAndUploadPDF = async (token: string): Promise<PDFUploadResult | null> => {
   try {
+    console.log('📁 Opening PDF picker...');
+    
     // Pick PDF file
     const result = await DocumentPicker.getDocumentAsync({
       type: 'application/pdf',
@@ -17,6 +20,7 @@ export const pickAndUploadPDF = async (token: string): Promise<PDFUploadResult |
     });
 
     if (result.canceled) {
+      console.log('📄 PDF selection cancelled');
       return null;
     }
 
@@ -27,10 +31,22 @@ export const pickAndUploadPDF = async (token: string): Promise<PDFUploadResult |
       return null;
     }
 
+    console.log('📄 PDF selected:', {
+      name: file.name,
+      size: file.size,
+      type: file.mimeType,
+    });
+
     // Validate file size (max 50MB)
     const maxSize = 50 * 1024 * 1024; // 50MB
     if (file.size && file.size > maxSize) {
       Alert.alert('Error', 'File size too large. Please select a file smaller than 50MB.');
+      return null;
+    }
+
+    // Validate file type
+    if (file.mimeType !== 'application/pdf') {
+      Alert.alert('Error', 'Please select a valid PDF file.');
       return null;
     }
 
@@ -42,21 +58,17 @@ export const pickAndUploadPDF = async (token: string): Promise<PDFUploadResult |
       name: file.name,
     } as any);
 
-    const response = await fetch(`${BASE_URL}/api/evaluation/upload-pdf`, {
-      method: 'POST',
-      body: formData,
+    console.log('📤 Uploading PDF to backend...');
+    const uploadResult = await networkService.submitForm<any>(`${BASE_URL}/api/evaluation/upload-pdf`, formData, {
       headers: {
         'Authorization': `Bearer ${token}`,
-        // Don't set Content-Type for multipart/form-data
       },
+      timeout: 120000, // 2 minutes for large PDF uploads
+      retries: 2,
+      showRetryLogs: true,
     });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || 'Failed to upload PDF');
-    }
-
-    const uploadResult = await response.json();
+    
+    console.log('✅ PDF uploaded successfully:', uploadResult);
     
     return {
       pdfId: uploadResult.pdf_id,
@@ -64,9 +76,22 @@ export const pickAndUploadPDF = async (token: string): Promise<PDFUploadResult |
       fileSize: file.size || 0,
     };
 
-  } catch (error) {
-    console.error('Error picking/uploading PDF:', error);
-    Alert.alert('Error', `Failed to upload PDF: ${error}`);
+  } catch (error: any) {
+    console.error('❌ Error picking/uploading PDF:', error.message);
+    
+    // Provide better error messages
+    let errorMessage = 'Failed to upload PDF';
+    if (error.isNetworkError) {
+      errorMessage = 'Network error. Please check your connection and try again.';
+    } else if (error.isTimeoutError) {
+      errorMessage = 'Upload timeout. The file might be too large. Please try again.';
+    } else if (error.isServerError) {
+      errorMessage = 'Server error. Please try again later.';
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    Alert.alert('Upload Failed', errorMessage);
     return null;
   }
 };
