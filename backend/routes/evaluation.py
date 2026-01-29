@@ -72,23 +72,8 @@ async def get_pdf_images(pdf_id: str):
             mat = fitz.Matrix(2, 2)
             pix = page.get_pixmap(matrix=mat)
             
-            # Add padding around the image for easier cropping
-            from io import BytesIO
-            img = Image.open(BytesIO(pix.tobytes("png")))
-            
-            # Add 50px padding on all sides
-            padding = 50
-            padded_width = img.width + (2 * padding)
-            padded_height = img.height + (2 * padding)
-            
-            # Create new image with padding (white background)
-            padded_img = Image.new('RGB', (padded_width, padded_height), (255, 255, 255))
-            padded_img.paste(img, (padding, padding))
-            
-            # Convert back to bytes
-            img_buffer = BytesIO()
-            padded_img.save(img_buffer, format='PNG')
-            img_bytes = img_buffer.getvalue()
+            # Convert to bytes
+            img_bytes = pix.tobytes("png")
             
             # Upload to S3
             s3_url = s3_service.upload_pdf_image(img_bytes, pdf_id, page_num + 1)
@@ -318,24 +303,15 @@ async def crop_pdf_section(crop_request: CropRequest):
         from io import BytesIO
         img = Image.open(BytesIO(img_data))
         
-        # Add padding around the image for easier cropping (same as in get_pdf_images)
-        padding = int(50 * (300/72))  # Scale padding to match DPI
-        padded_width = img.width + (2 * padding)
-        padded_height = img.height + (2 * padding)
-        
-        # Create new image with padding (white background)
-        padded_img = Image.new('RGB', (padded_width, padded_height), (255, 255, 255))
-        padded_img.paste(img, (padding, padding))
-        
-        # Calculate crop coordinates from percentages (on padded image)
-        img_width, img_height = padded_img.size
+        # Calculate crop coordinates from percentages
+        img_width, img_height = img.size
         crop_x = int((crop_request.x / 100) * img_width)
         crop_y = int((crop_request.y / 100) * img_height)
         crop_width = int((crop_request.width / 100) * img_width)
         crop_height = int((crop_request.height / 100) * img_height)
         
-        # Crop image (from padded image)
-        cropped_img = padded_img.crop((
+        # Crop image
+        cropped_img = img.crop((
             crop_x,
             crop_y,
             crop_x + crop_width,

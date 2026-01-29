@@ -21,6 +21,17 @@ const PDF_BOUNDARY_WIDTH = SCREEN_WIDTH - (HORIZONTAL_PADDING * 2);
 // Minimum crop size (10% of container)
 const MIN_CROP_SIZE = 50;
 
+// Cache for persisting scroll position and crop rectangle per PDF
+const cropStateCache: {
+  [pdfId: string]: {
+    scrollOffset: number;
+    cropX: number;
+    cropY: number;
+    cropWidth: number;
+    cropHeight: number;
+  };
+} = {};
+
 export interface CropRect {
   x: number; // percentage 0-100
   y: number; // percentage 0-100
@@ -95,12 +106,31 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
         setPageImages(images);
         setTotalPages(images.length);
 
-        // Initialize crop position after images are loaded
-        // Set initial crop to center of PDF boundary container
-        cropX.value = PDF_BOUNDARY_WIDTH * 0.1;
-        cropY.value = PDF_CONTAINER_HEIGHT * 0.2;
-        cropWidth.value = PDF_BOUNDARY_WIDTH * 0.8;
-        cropHeight.value = PDF_CONTAINER_HEIGHT * 0.4;
+        // Check if we have cached state for this PDF
+        const cachedState = cropStateCache[pdfUri];
+        
+        if (cachedState) {
+          // Restore previous crop position and size
+          console.log('📦 Restoring cached crop state:', cachedState);
+          cropX.value = cachedState.cropX;
+          cropY.value = cachedState.cropY;
+          cropWidth.value = cachedState.cropWidth;
+          cropHeight.value = cachedState.cropHeight;
+          
+          // Restore scroll position after a short delay to ensure images are loaded
+          setTimeout(() => {
+            scrollViewRef.current?.scrollTo({ y: cachedState.scrollOffset, animated: false });
+            setScrollOffset(cachedState.scrollOffset);
+            console.log('📜 Restored scroll position:', cachedState.scrollOffset);
+          }, 100);
+        } else {
+          // Initialize crop position for first time
+          console.log('🆕 Initializing default crop position');
+          cropX.value = PDF_BOUNDARY_WIDTH * 0.1;
+          cropY.value = PDF_CONTAINER_HEIGHT * 0.2;
+          cropWidth.value = PDF_BOUNDARY_WIDTH * 0.8;
+          cropHeight.value = PDF_CONTAINER_HEIGHT * 0.4;
+        }
 
         setLoading(false);
       } catch (error) {
@@ -449,6 +479,16 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
 
   const confirmCrop = () => {
     const crop = getPercentageCrop();
+
+    // Save current state to cache for next crop
+    cropStateCache[pdfUri] = {
+      scrollOffset: scrollOffset,
+      cropX: cropX.value,
+      cropY: cropY.value,
+      cropWidth: cropWidth.value,
+      cropHeight: cropHeight.value,
+    };
+    console.log('💾 Saved crop state to cache:', cropStateCache[pdfUri]);
 
     const croppedSection: CroppedSection = {
       questionId,
