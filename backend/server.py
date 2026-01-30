@@ -586,7 +586,8 @@ async def search_students(
                 "total_questions": student_data.get("total_questions", 0),
                 "upload_method": student_data.get("upload_method", ""),
                 "pdf_id": student_data.get("student_pdf_path"),
-                "last_updated": student_data.get("updated_at", "")
+                "last_updated": student_data.get("updated_at", ""),
+                "progress_id": student_data.get("progress_id")  # Add progress_id
             })
         
         print(f"✅ Returning {len(student_list)} students in response")
@@ -1054,51 +1055,17 @@ async def get_evaluation_questions(
         questions = db_service.get_co_questions_by_template(evaluation.template_id)
         all_question_nos = sorted(set(q.q_no for q in questions))
         
-        # Get completed questions (those with evaluation schemas)
-        completed_schemas = db_service.get_evaluation_schemas_by_template(evaluation.template_id)
-        
+        # Since we have an evaluation schema (answer key uploaded), all questions are available
         # Build response with question status
         questions_data = []
         for q_no in all_question_nos:
-            # Find schema for this question
-            schema = next((s for s in completed_schemas if s.question_no == q_no), None)
-            
             question_data = {
                 "id": q_no,
                 "label": f"Question {q_no}",
-                "is_completed": schema is not None,
+                "is_completed": True,  # All questions are available since answer key is uploaded
                 "images": [],
                 "croppedSections": []
             }
-            
-            # If completed, add the image URLs (stored in image_paths field as JSON)
-            if schema and schema.image_paths:
-                try:
-                    # image_paths is a JSON array of image paths
-                    image_paths = schema.image_paths if isinstance(schema.image_paths, list) else []
-                    
-                    # Prepend BASE_URL if paths are relative
-                    full_image_paths = []
-                    for img_path in image_paths:
-                        if img_path.startswith('/'):
-                            # Relative path, keep as is (will be prepended by frontend)
-                            full_image_paths.append(img_path)
-                        else:
-                            full_image_paths.append(img_path)
-                    
-                    question_data["images"] = full_image_paths
-                    question_data["croppedSections"] = [{
-                        "questionId": q_no,
-                        "previewUri": img_path,
-                        "pageNumber": idx + 1
-                    } for idx, img_path in enumerate(full_image_paths)]
-                    
-                    print(f"Question {q_no} has {len(full_image_paths)} images: {full_image_paths}")
-                except (TypeError, AttributeError) as e:
-                    # Fallback: empty images
-                    print(f"Error processing images for question {q_no}: {e}")
-                    question_data["images"] = []
-                    question_data["croppedSections"] = []
             
             questions_data.append(question_data)
         

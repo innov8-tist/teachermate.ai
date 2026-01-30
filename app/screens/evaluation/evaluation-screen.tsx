@@ -22,12 +22,10 @@ interface EvaluationRecord {
 }
 
 interface EvaluationScreenProps {
-  onViewDetails: (evaluationId: number) => void;
-  onStartStudentUpload: (evaluationId: number, studentData: StudentUploadData) => void;
-  onViewResults: (evaluationId: number, subjectName: string) => void;
+  onViewResults: (evaluationId: number, subjectName: string, studentRegNo?: string) => void;
 }
 
-export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetails, onStartStudentUpload, onViewResults }) => {
+export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewResults }) => {
   const { token, teacher } = useAuth();
   const [evaluations, setEvaluations] = useState<EvaluationRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -147,16 +145,29 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
         Alert.alert('Error', 'Failed to start evaluation');
       }
     } else {
-      // Fallback to old behavior if no progress ID
-      onStartStudentUpload(selectedEvaluationId!, studentData);
+      // No progress ID - this shouldn't happen with the new flow
+      console.error('❌ No progress ID found after evaluation');
       setShowUploadModal(false);
       setSelectedEvaluationId(null);
+      Alert.alert('Error', 'Failed to complete evaluation');
     }
   };
 
   const handleUploadModalClose = () => {
     setShowUploadModal(false);
     setSelectedEvaluationId(null);
+  };
+
+  const handleViewStudentResults = (studentRegNo: string, progressId: number) => {
+    // Navigate to results view for this specific student
+    console.log(`📊 Viewing results for student ${studentRegNo}, progress ID: ${progressId}`);
+    if (selectedEvaluationId) {
+      const evaluation = evaluations.find(e => e.evaluation_id === selectedEvaluationId);
+      if (evaluation) {
+        // Pass the student reg no as the third parameter to filter results
+        onViewResults(selectedEvaluationId, evaluation.subject_name, studentRegNo);
+      }
+    }
   };
 
   const getProgressPercentage = (completed: number, total: number) => {
@@ -171,14 +182,6 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
       </View>
     );
   }
-
-  // Separate completed and in-progress evaluations
-  const completedEvaluations = evaluations.filter(
-    e => e.completed_questions === e.total_questions && e.total_questions > 0
-  );
-  const inProgressEvaluations = evaluations.filter(
-    e => e.completed_questions < e.total_questions || e.total_questions === 0
-  );
 
   return (
     <View style={styles.container}>
@@ -201,8 +204,8 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
             </View>
           ) : (
             <View style={styles.evaluationList}>
-              {/* Show completed evaluations in card format */}
-              {completedEvaluations.map((evaluation) => {
+              {/* Show all evaluations in card format */}
+              {evaluations.map((evaluation) => {
                 const studentProgressPercentage = evaluation.total_students > 0
                   ? Math.round((evaluation.completed_students / evaluation.total_students) * 100)
                   : 0;
@@ -277,96 +280,6 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
                   </View>
                 );
               })}
-
-              {/* Show in-progress evaluations in old format */}
-              {inProgressEvaluations.map((evaluation) => {
-                const progress = getProgressPercentage(
-                  evaluation.completed_questions,
-                  evaluation.total_questions
-                );
-
-                return (
-                  <TouchableOpacity
-                    key={evaluation.evaluation_id}
-                    style={styles.oldCard}
-                    activeOpacity={0.7}
-                    onPress={() => onViewDetails(evaluation.evaluation_id)}
-                  >
-                    {/* Header */}
-                    <View style={styles.oldCardHeader}>
-                      <Text style={styles.oldSubjectName}>{evaluation.subject_name}</Text>
-                      <View style={[styles.statusBadge, { backgroundColor: '#f5f5f5' }]}>
-                        <Text style={[styles.statusText, { color: '#000' }]}>
-                          In Progress
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.oldMetaRow}>
-                      <Text style={styles.oldMetaText}>{evaluation.subject_code}</Text>
-                      <Text style={styles.metaDot}>•</Text>
-                      <Text style={styles.oldMetaText}>Semester {evaluation.semester}</Text>
-                      <Text style={styles.metaDot}>•</Text>
-                      <Text style={styles.oldMetaText}>{evaluation.ia}</Text>
-                    </View>
-
-                    {/* Progress */}
-                    <View style={styles.oldProgressSection}>
-                      <Text style={styles.sectionTitle}>PROGRESS</Text>
-                      <View style={styles.oldProgressBar}>
-                        <View
-                          style={[
-                            styles.oldProgressFill,
-                            { width: `${progress}%`, backgroundColor: '#000' }
-                          ]}
-                        />
-                      </View>
-                      <View style={styles.progressInfo}>
-                        <Text style={styles.progressText}>
-                          {evaluation.completed_questions}/{evaluation.total_questions} questions
-                        </Text>
-                        <Text style={styles.progressPercent}>{progress}% done</Text>
-                      </View>
-                    </View>
-
-                    {/* Questions Grid */}
-                    <View style={styles.questionsSection}>
-                      <Text style={styles.sectionTitle}>QUESTIONS</Text>
-                      <View style={styles.questionsGrid}>
-                        {Array.from({ length: evaluation.total_questions }, (_, i) => {
-                          const questionNum = i + 1;
-                          const isCompleted = questionNum <= evaluation.completed_questions;
-
-                          return (
-                            <View
-                              key={i}
-                              style={[
-                                styles.questionBox,
-                                { backgroundColor: isCompleted ? '#000' : '#f3f4f6' }
-                              ]}
-                            >
-                              {isCompleted ? (
-                                <Feather name="check" size={16} color="#fff" strokeWidth={3} />
-                              ) : (
-                                <Text style={styles.questionNumber}>{questionNum}</Text>
-                              )}
-                            </View>
-                          );
-                        })}
-                      </View>
-                    </View>
-
-                    {/* Footer */}
-                    <View style={styles.cardFooter}>
-                      <Text style={styles.footerText}>ID: {evaluation.created_at}</Text>
-                      <View style={styles.viewDetails}>
-                        <Text style={styles.viewDetailsText}>View Details</Text>
-                        <Feather name="arrow-right" size={16} color="#000" />
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
             </View>
           )}
         </View>
@@ -378,6 +291,7 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
         onClose={handleUploadModalClose}
         onConfirm={handleUploadModalConfirm}
         evaluationId={selectedEvaluationId || 0}
+        onViewResults={handleViewStudentResults}
       />
 
       {/* Upload Answer Key Modal */}

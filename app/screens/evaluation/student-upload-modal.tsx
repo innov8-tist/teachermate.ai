@@ -30,6 +30,7 @@ interface SearchResult {
   upload_method: string;
   pdf_id?: string;
   last_updated: string;
+  progress_id?: number;  // Add progress_id
 }
 
 interface StudentUploadModalProps {
@@ -37,13 +38,15 @@ interface StudentUploadModalProps {
   onClose: () => void;
   onConfirm: (data: StudentUploadData) => Promise<void>;
   evaluationId: number;
+  onViewResults?: (studentRegNo: string, progressId: number) => void; // New prop for viewing results
 }
 
 export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
   visible,
   onClose,
   onConfirm,
-  evaluationId
+  evaluationId,
+  onViewResults
 }) => {
   const { token } = useAuth();
   const [rollNumber, setRollNumber] = useState('');
@@ -55,6 +58,7 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [skipSearch, setSkipSearch] = useState(false); // Flag to skip auto-search after selection
 
   // Fetch recent progress when modal opens and reset state
   useEffect(() => {
@@ -72,7 +76,14 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
 
   // Debounced search
   useEffect(() => {
-    console.log(`🔍 Frontend: useEffect triggered with rollNumber: "${rollNumber}"`);
+    console.log(`🔍 Frontend: useEffect triggered with rollNumber: "${rollNumber}", skipSearch: ${skipSearch}`);
+
+    // If skipSearch flag is set, reset it and don't search
+    if (skipSearch) {
+      setSkipSearch(false);
+      return;
+    }
+
     const timeoutId = setTimeout(() => {
       if (rollNumber.trim().length >= 2) {
         console.log(`🔍 Frontend: Triggering search for: "${rollNumber.trim()}"`);
@@ -140,23 +151,37 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
   const selectStudent = (student: SearchResult | RecentProgress) => {
     const regNo = student.student_reg_no;
 
-    // Check if this is a recent progress or search result with evaluation data
-    if (student.upload_method && student.upload_method !== '') {
-      // This has evaluation data - redirect to evaluation screen
-      const studentData: StudentUploadData = {
-        rollNumber: regNo,
-        uploadMethod: student.upload_method as 'pdf' | 'camera',
-        pdfId: student.pdf_id || undefined,
-      };
+    console.log('🎯 selectStudent called:', {
+      regNo,
+      hasId: 'id' in student,
+      hasProgressId: 'progress_id' in student,
+      uploadMethod: student.upload_method,
+      progressId: 'progress_id' in student ? student.progress_id : ('id' in student ? student.id : null),
+      student
+    });
 
-      // Close modal and redirect
+    // Check if this student has evaluation data
+    // For RecentProgress: has 'id' field
+    // For SearchResult: has 'progress_id' field
+    const progressId = 'id' in student ? student.id : ('progress_id' in student ? student.progress_id : null);
+    const hasProgress = progressId != null && student.upload_method && student.upload_method.trim() !== '';
+
+    console.log('🎯 hasProgress:', hasProgress, 'progressId:', progressId, 'onViewResults:', !!onViewResults);
+
+    if (hasProgress && onViewResults) {
+      // Navigate directly to results
+      console.log('✅ Navigating to results for student:', regNo, 'progressId:', progressId);
       handleClose();
-      onConfirm(studentData);
-    } else {
-      // This is just a search result without progress - fill the input
-      setRollNumber(regNo);
-      setShowSearchResults(false);
+      onViewResults(regNo, progressId);
+      return;
     }
+
+    // No progress yet - fill the input and close search (1 click only!)
+    console.log('📝 Filling input for new evaluation and closing search');
+    setRollNumber(regNo);
+    setShowSearchResults(false);
+    setSearchResults([]); // Clear search results so dropdown doesn't reappear
+    setSkipSearch(true); // Skip the next auto-search triggered by rollNumber change
   };
 
   const handleMethodSelect = async (method: 'pdf' | 'camera') => {
@@ -237,7 +262,7 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
 
     try {
       setIsEvaluating(true);
-      
+
       await onConfirm({
         rollNumber: rollNumber.trim(),
         uploadMethod: selectedMethod,
@@ -264,7 +289,7 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
     if (isEvaluating) {
       return;
     }
-    
+
     setRollNumber('');
     setSelectedMethod(null);
     setUploadedPdf(null);
@@ -389,7 +414,8 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
                   autoCapitalize="characters"
                   autoCorrect={false}
                   onFocus={() => {
-                    if (rollNumber.trim().length >= 2) {
+                    // Only show search results if we have results and the query is long enough
+                    if (rollNumber.trim().length >= 2 && searchResults.length > 0) {
                       setShowSearchResults(true);
                     }
                   }}

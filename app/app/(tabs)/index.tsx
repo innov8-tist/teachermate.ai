@@ -19,7 +19,7 @@ interface CroppedSection {
   pageNumber: number;
   crop: {
     x: number;
-    y: number; 
+    y: number;
     width: number;
     height: number;
   };
@@ -49,6 +49,7 @@ export default function HomeScreenRefactored() {
   const [pdfUri, setPdfUri] = useState<string>('');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [selectedSubjectId, setSelectedSubjectId] = useState<number | null>(null);
+  const [selectedStudentRegNo, setSelectedStudentRegNo] = useState<string | null>(null);
   const [currentQuestionId, setCurrentQuestionId] = useState<string>('');
   const [selectedEvaluationId, setSelectedEvaluationId] = useState<number | null>(null);
   const [viewingEvaluationId, setViewingEvaluationId] = useState<number | null>(null);
@@ -367,11 +368,12 @@ export default function HomeScreenRefactored() {
     }
   };
 
-  const handleViewEvaluationResults = (evaluationId: number, subjectName: string) => {
-    console.log('📊 Viewing results for evaluation:', evaluationId, 'Subject:', subjectName);
+  const handleViewEvaluationResults = (evaluationId: number, subjectName: string, studentRegNo?: string) => {
+    console.log('📊 Viewing results for evaluation:', evaluationId, 'Subject:', subjectName, 'Student:', studentRegNo);
     // Set the evaluation data and switch to results screen
     setSelectedEvaluationId(evaluationId);
     setSelectedSubject(subjectName);
+    setSelectedStudentRegNo(studentRegNo || null);
     setEvaluationSubScreen('results');
   };
 
@@ -475,8 +477,6 @@ export default function HomeScreenRefactored() {
               <>
                 {evaluationSubScreen === 'list' && (
                   <EvaluationScreen
-                    onViewDetails={handleViewEvaluationDetails}
-                    onStartStudentUpload={handleStartStudentUpload}
                     onViewResults={handleViewEvaluationResults}
                   />
                 )}
@@ -517,44 +517,12 @@ export default function HomeScreenRefactored() {
                     evaluationId={viewingEvaluationId}
                   />
                 )}
-                {evaluationSubScreen === 'studentAnswerSheet' && selectedEvaluationId && studentUploadData && (
-                  <StudentAnswerSheetScreen
-                    evaluationId={selectedEvaluationId}
-                    rollNumber={studentUploadData.rollNumber}
-                    uploadMethod={studentUploadData.uploadMethod}
-                    onBack={() => {
-                      setEvaluationSubScreen('list');
-                      setStudentUploadData(null);
-                      setSelectedEvaluationId(null);
-                    }}
-                    onSubmit={() => {
-                      Alert.alert('Success', 'Student answer sheet evaluated successfully!', [
-                        {
-                          text: 'OK', onPress: () => {
-                            setEvaluationSubScreen('list');
-                            setStudentUploadData(null);
-                            setSelectedEvaluationId(null);
-                          }
-                        }
-                      ]);
-                    }}
-                    questions={questions}
-                    onQuestionsChange={setQuestions}
-                    onOpenCropper={handleOpenCropper}
-                    onOpenCamera={(questionId) => {
-                      setCurrentQuestionId(questionId);
-                      setEvaluationSubScreen('camera');
-                    }}
-                    pdfUri={pdfUri}
-                    pdfFileName={studentUploadData.pdfFileName}
-                    subjectId={selectedSubjectId || undefined}
-                  />
-                )}
                 {evaluationSubScreen === 'results' && selectedEvaluationId && selectedSubject && (
                   <EvaluationResultsScreen
                     evaluationId={selectedEvaluationId}
                     subjectName={selectedSubject}
                     onBack={() => setEvaluationSubScreen('list')}
+                    studentRegNo={selectedStudentRegNo || undefined}
                   />
                 )}
               </>

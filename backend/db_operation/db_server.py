@@ -297,6 +297,10 @@ class DBServiceForServer:
                 StudentEvaluationProgress.teacher_id == teacher_id
             ).first()
             
+            print(f"  🔍 Checking progress for {student.reg_no}: {'FOUND' if progress else 'NOT FOUND'}")
+            if progress:
+                print(f"    ✅ Progress ID: {progress.id}, Method: {progress.upload_method}")
+            
             if progress:
                 student_data = {
                     "student_reg_no": student.reg_no,
@@ -304,7 +308,8 @@ class DBServiceForServer:
                     "total_questions": progress.total_questions,
                     "upload_method": progress.upload_method,
                     "student_pdf_path": progress.student_pdf_path,
-                    "updated_at": progress.updated_at
+                    "updated_at": progress.updated_at,
+                    "progress_id": progress.id  # Add progress_id
                 }
             else:
                 student_data = {
@@ -313,7 +318,8 @@ class DBServiceForServer:
                     "total_questions": 0,
                     "upload_method": "",
                     "student_pdf_path": None,
-                    "updated_at": ""
+                    "updated_at": "",
+                    "progress_id": None  # No progress yet
                 }
             
             student_list.append(student_data)
@@ -327,8 +333,10 @@ class DBServiceForServer:
         ).limit(20)
         
         progress_students = progress_query.all()
+        print(f"  🔍 Found {len(progress_students)} students in progress table matching query")
         
         for progress in progress_students:
+            print(f"  🔍 Progress student: {progress.student_reg_no}, already processed: {progress.student_reg_no in processed_reg_nos}")
             if progress.student_reg_no not in processed_reg_nos:
                 # Try to get student name from STUDENTINFO
                 student_info = self.db.query(STUDENTINFO).filter(
@@ -337,13 +345,16 @@ class DBServiceForServer:
                 
                 student_name = student_info.name if student_info else progress.student_reg_no
                 
+                print(f"    ✅ Adding progress student: {progress.student_reg_no} (ID: {progress.id})")
+                
                 student_data = {
                     "student_reg_no": progress.student_reg_no,
                     "student_name": student_name,
                     "total_questions": progress.total_questions,
                     "upload_method": progress.upload_method,
                     "student_pdf_path": progress.student_pdf_path,
-                    "updated_at": progress.updated_at
+                    "updated_at": progress.updated_at,
+                    "progress_id": progress.id  # Add progress_id
                 }
                 
                 student_list.append(student_data)
