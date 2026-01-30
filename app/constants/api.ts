@@ -24,6 +24,8 @@ export const API_ENDPOINTS = {
   AUTH_SIGNUP: `${BASE_URL}/auth/signup`,
   AUTH_ME: `${BASE_URL}/auth/me`,
   PDF_CONVERT: `${BASE_URL}/api/pdf/convert-to-images`,
+  UPLOAD_EVALUATION_PDF: `${BASE_URL}/upload_evaluation_pdf`,
+  UPLOAD_STUDENT_EVALUATION_PDF: `${BASE_URL}/upload_student_evaluation_pdf`,
 };
 
 export { BASE_URL };

@@ -4,6 +4,7 @@ import { Feather } from '@expo/vector-icons';
 import { BASE_URL } from '../../constants/api';
 import { useAuth } from '../../contexts/auth-context';
 import { StudentUploadModal, StudentUploadData } from './student-upload-modal';
+import { UploadAnswerKeyModal } from './upload-answer-key-modal';
 
 interface EvaluationRecord {
   evaluation_id: number;
@@ -31,6 +32,7 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
   const [evaluations, setEvaluations] = useState<EvaluationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showAnswerKeyModal, setShowAnswerKeyModal] = useState(false);
   const [selectedEvaluationId, setSelectedEvaluationId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -100,10 +102,54 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
     setShowUploadModal(true);
   };
 
-  const handleUploadModalConfirm = (studentData: StudentUploadData) => {
-    if (selectedEvaluationId) {
+  const handleUploadModalConfirm = async (studentData: StudentUploadData) => {
+    if (selectedEvaluationId && studentData.progressId) {
+      // DON'T close modal yet - let it show loading state
+
+      // Call the start evaluation endpoint
+      try {
+        console.log('🚀 Starting evaluation for progress_id:', studentData.progressId);
+
+        const response = await fetch(`${BASE_URL}/api/evaluation/start-evaluation/${studentData.progressId}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log('✅ Evaluation completed:', result);
+
+          // NOW close the modal after success
+          setShowUploadModal(false);
+          setSelectedEvaluationId(null);
+
+          Alert.alert('Success', `Evaluation completed! Score: ${result.data.total_marks_obtained}/${result.data.total_marks_possible}`);
+          fetchEvaluations(); // Refresh the list
+        } else {
+          const errorText = await response.text();
+          console.error('❌ Evaluation failed:', errorText);
+
+          // Close modal on error too
+          setShowUploadModal(false);
+          setSelectedEvaluationId(null);
+
+          Alert.alert('Error', 'Failed to start evaluation');
+        }
+      } catch (error) {
+        console.error('❌ Error starting evaluation:', error);
+
+        // Close modal on error
+        setShowUploadModal(false);
+        setSelectedEvaluationId(null);
+
+        Alert.alert('Error', 'Failed to start evaluation');
+      }
+    } else {
+      // Fallback to old behavior if no progress ID
+      onStartStudentUpload(selectedEvaluationId!, studentData);
       setShowUploadModal(false);
-      onStartStudentUpload(selectedEvaluationId, studentData);
       setSelectedEvaluationId(null);
     }
   };
@@ -157,7 +203,7 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
             <View style={styles.evaluationList}>
               {/* Show completed evaluations in card format */}
               {completedEvaluations.map((evaluation) => {
-                const studentProgressPercentage = evaluation.total_students > 0 
+                const studentProgressPercentage = evaluation.total_students > 0
                   ? Math.round((evaluation.completed_students / evaluation.total_students) * 100)
                   : 0;
 
@@ -180,14 +226,9 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
                       </Pressable>
                     </View>
 
-                    {/* Mapping Stats */}
+                    {/* Evaluation Stats */}
                     <View style={styles.statsSection}>
-                      <View style={styles.statsSectionHeader}>
-                        <Text style={styles.sectionTitle}>MAPPING STATS</Text>
-                        <Pressable style={styles.infoButton}>
-                          <Feather name="info" size={16} color="#666" />
-                        </Pressable>
-                      </View>
+                      <Text style={styles.sectionTitle}>EVALUATION STATS</Text>
                       <View style={styles.statsRow}>
                         <Text style={styles.statText}>
                           Total questions:{' '}
@@ -214,7 +255,7 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
 
                     {/* Action Buttons */}
                     <View style={styles.actionsRow}>
-                      <TouchableOpacity 
+                      <TouchableOpacity
                         style={styles.uploadButton}
                         onPress={() => handleUploadClick(evaluation.evaluation_id)}
                       >
@@ -338,6 +379,15 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
         onConfirm={handleUploadModalConfirm}
         evaluationId={selectedEvaluationId || 0}
       />
+
+      {/* Upload Answer Key Modal */}
+      <UploadAnswerKeyModal
+        visible={showAnswerKeyModal}
+        onClose={() => setShowAnswerKeyModal(false)}
+        onSuccess={() => {
+          fetchEvaluations();
+        }}
+      />
     </View>
   );
 };
@@ -424,27 +474,13 @@ const styles = StyleSheet.create({
   statsSection: {
     marginBottom: 16,
   },
-  statsSectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
   sectionTitle: {
     fontSize: 10,
     fontWeight: '800',
     color: '#999999',
     letterSpacing: 1.5,
     textTransform: 'uppercase',
-  },
-  infoButton: {
-    padding: 4,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 12,
-    width: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginBottom: 12,
   },
   statsRow: {
     flexDirection: 'row',
@@ -468,7 +504,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F0F0',
     borderRadius: 3,
     overflow: 'hidden',
-    marginTop: 12,
+    marginTop: 0,
     marginBottom: 8,
   },
   progressFill: {

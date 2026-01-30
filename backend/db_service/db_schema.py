@@ -37,7 +37,7 @@ class COQuestionMapping(Base):
 
 class StudentAnswerMark(Base):
     """Student marks for each question (formerly StudentMark)"""
-    __tablename__ = "student_answer_marks"
+    __tablename__ = "co_student_answer_marks"
     id = Column(Integer, primary_key=True, index=True)
     question_no = Column(String, nullable=False)
     mark = Column(String, nullable=False)
@@ -80,28 +80,25 @@ class StudentEvaluationProgress(Base):
     __tablename__ = "student_evaluation_progress"
     id = Column(Integer, primary_key=True, index=True)
     schema_id = Column(Integer, ForeignKey("evaluation_schemas.id"), nullable=False)
-    student_reg_no = Column(String, nullable=False)
     teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=False)
-    total_questions = Column(Integer, nullable=False)  # Total questions in evaluation
-    completed_questions = Column(Integer, default=0)  # Questions completed so far
+    student_reg_no = Column(String, nullable=False)
     upload_method = Column(String, nullable=False)  # 'pdf' or 'camera'
-    pdf_id = Column(String, nullable=True)  # PDF ID if uploaded
-    pdf_filename = Column(String, nullable=True)  # Original PDF filename
-    status = Column(String, default="in_progress")  # in_progress, completed, abandoned
+    student_pdf_path = Column(String, nullable=True)  # S3 URL or path to student's answer PDF
+    total_questions = Column(Integer, nullable=False, default=0)  # Total questions to evaluate
     created_at = Column(String, nullable=False)  # ISO timestamp
     updated_at = Column(String, nullable=False)  # ISO timestamp
-    last_question_completed = Column(String, nullable=True)  # Last completed question number
+
 
 
 class StudentAnswerEvaluation(Base):
     """Student answer evaluations with AI feedback"""
     __tablename__ = "student_answer_evaluations"
     id = Column(Integer, primary_key=True, index=True)
+    progress_id = Column(Integer, ForeignKey("student_evaluation_progress.id"), nullable=False)
+    teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=False)
+    student_reg_no = Column(String, nullable=True)  # Student registration number 
     question_no = Column(String, nullable=False)
-    template_id = Column(Integer, ForeignKey("co_templates.id"), nullable=False)
-    student_reg_no = Column(String, nullable=True)  # Student registration number
     mark_score = Column(Float, nullable=False)  # Marks awarded
     total_mark = Column(Integer, nullable=False)  # Total marks for question
     feedback = Column(JSON, nullable=False)  # List of feedback points
-    student_image_paths = Column(JSON, nullable=False)  # Paths to student answer images
     evaluated_at = Column(String, nullable=False)  # ISO timestamp

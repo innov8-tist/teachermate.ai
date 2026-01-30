@@ -10,6 +10,7 @@ import { EvaluationResultsScreen } from '@/screens/evaluation/evaluation-results
 import { UploadSchemaScreen } from '@/screens/evaluation/upload-schema-screen';
 import { AttachImagesScreen, Question } from '@/screens/evaluation/attach-images-screen';
 import { StudentUploadData } from '@/screens/evaluation/student-upload-modal';
+import { UploadAnswerKeyModal } from '@/screens/evaluation/upload-answer-key-modal';
 
 // Define CroppedSection locally since we removed the PDF cropper
 interface CroppedSection {
@@ -52,6 +53,7 @@ export default function HomeScreenRefactored() {
   const [selectedEvaluationId, setSelectedEvaluationId] = useState<number | null>(null);
   const [viewingEvaluationId, setViewingEvaluationId] = useState<number | null>(null);
   const [studentUploadData, setStudentUploadData] = useState<StudentUploadData | null>(null);
+  const [showAnswerKeyModal, setShowAnswerKeyModal] = useState(false);
 
   // Questions will be fetched from the API based on selected subject
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -588,13 +590,23 @@ export default function HomeScreenRefactored() {
           <View style={fabStyles.fabContainer}>
             <TouchableOpacity
               style={[fabStyles.fabPrimary, { backgroundColor: '#000000' }]}
-              onPress={() => setEvaluationSubScreen('upload')}
+              onPress={() => setShowAnswerKeyModal(true)}
               activeOpacity={0.8}
             >
               <Feather name="plus" size={28} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
         )}
+
+        {/* Upload Answer Key Modal */}
+        <UploadAnswerKeyModal
+          visible={showAnswerKeyModal}
+          onClose={() => setShowAnswerKeyModal(false)}
+          onSuccess={() => {
+            // Refresh will happen automatically when returning to list
+            setShowAnswerKeyModal(false);
+          }}
+        />
 
         {/* Completed Button for Attach Images Screen */}
         {activeTab === 'evaluation' && evaluationSubScreen === 'attachImages' && (
