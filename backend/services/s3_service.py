@@ -14,23 +14,36 @@ AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "test")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "test")
 AWS_REGION = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "teacher-pfp-bucket")
-
+USE_LOCALSTACK = os.getenv("USE_LOCALSTACK", "false").lower() == "true"
 
 class S3Service:
     
     def __init__(self):
-        print(AWS_ENDPOINT_URL,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_REGION)
-        self.s3_client = boto3.client(
-            's3',
-            endpoint_url=AWS_ENDPOINT_URL,
-            aws_access_key_id=AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-            region_name=AWS_REGION
-        )
+        client_kwargs = {
+            "service_name": "s3",
+            "region_name": AWS_REGION,
+            "aws_access_key_id": AWS_ACCESS_KEY_ID,
+            "aws_secret_access_key": AWS_SECRET_ACCESS_KEY,
+        }
+
+        if USE_LOCALSTACK:
+            client_kwargs.update({
+                "endpoint_url": AWS_ENDPOINT_URL,
+            })
+
+        self.s3_client = boto3.client(**client_kwargs)
         self.bucket_name = S3_BUCKET_NAME
         self.is_available = False
         self._ensure_bucket_exists()
-
+    
+    def _generate_url(self, file_key: str) -> str:
+        """Generate the appropriate URL based on LocalStack or AWS"""
+        if USE_LOCALSTACK:
+            return f"{PUBLIC_ENDPOINT_URL}/{self.bucket_name}/{file_key}"
+        else:
+            # AWS S3 URL format
+            return f"https://{self.bucket_name}.s3.{AWS_REGION}.amazonaws.com/{file_key}"
+    
     def _ensure_bucket_exists(self):
         """Create bucket if it doesn't exist"""
         try:
@@ -69,8 +82,8 @@ class S3Service:
                 ContentType=self._get_content_type(file_extension)
             )
             
-            # Generate URL using PUBLIC_ENDPOINT_URL for mobile app access
-            url = f"{PUBLIC_ENDPOINT_URL}/{self.bucket_name}/{file_key}"
+            # Generate URL using the appropriate method
+            url = self._generate_url(file_key)
             return url
         except ClientError as e:
             print(f"Error uploading file to S3: {e}")
@@ -94,8 +107,8 @@ class S3Service:
                 ContentType=self._get_content_type(file_extension)
             )
             
-            # Generate URL using PUBLIC_ENDPOINT_URL for mobile app access
-            url = f"{PUBLIC_ENDPOINT_URL}/{self.bucket_name}/{file_key}"
+            # Generate URL using the appropriate method
+            url = self._generate_url(file_key)
             print(f"✓ Uploaded CO image to S3: {file_key}")
             return url
         except ClientError as e:
@@ -120,8 +133,8 @@ class S3Service:
                 ContentType=self._get_content_type(file_extension)
             )
             
-            # Generate URL using PUBLIC_ENDPOINT_URL for mobile app access
-            url = f"{PUBLIC_ENDPOINT_URL}/{self.bucket_name}/{file_key}"
+            # Generate URL using the appropriate method
+            url = self._generate_url(file_key)
             print(f"✓ Uploaded student sheet to S3: {file_key}")
             return url
         except ClientError as e:
@@ -153,8 +166,8 @@ class S3Service:
                 ContentType=self._get_content_type(file_extension)
             )
             
-            # Generate URL using PUBLIC_ENDPOINT_URL for mobile app access
-            url = f"{PUBLIC_ENDPOINT_URL}/{self.bucket_name}/{file_key}"
+            # Generate URL using the appropriate method
+            url = self._generate_url(file_key)
             print(f"✓ Uploaded {image_type} image to S3: {file_key}")
             return url
         except ClientError as e:
@@ -187,8 +200,8 @@ class S3Service:
                 ContentType=self._get_content_type(file_extension)
             )
             
-            # Generate URL using PUBLIC_ENDPOINT_URL for mobile app access
-            url = f"{PUBLIC_ENDPOINT_URL}/{self.bucket_name}/{file_key}"
+            # Generate URL using the appropriate method
+            url = self._generate_url(file_key)
             print(f"✓ Uploaded answer image to S3: {file_key}")
             return url
         except ClientError as e:
@@ -217,8 +230,8 @@ class S3Service:
                 ContentType='application/pdf'
             )
             
-            # Generate URL using PUBLIC_ENDPOINT_URL for mobile app access
-            url = f"{PUBLIC_ENDPOINT_URL}/{self.bucket_name}/{file_key}"
+            # Generate URL using the appropriate method
+            url = self._generate_url(file_key)
             print(f"✓ Uploaded evaluation PDF to S3: {file_key}")
             return url, unique_id
         except ClientError as e:
@@ -248,8 +261,8 @@ class S3Service:
                 ContentType='image/png'
             )
             
-            # Generate URL using PUBLIC_ENDPOINT_URL for mobile app access
-            url = f"{PUBLIC_ENDPOINT_URL}/{self.bucket_name}/{file_key}"
+            # Generate URL using the appropriate method
+            url = self._generate_url(file_key)
             return url
         except ClientError as e:
             print(f"Error uploading PDF image to S3: {e}")
@@ -274,8 +287,8 @@ class S3Service:
                 ContentType='image/png'
             )
             
-            # Generate URL using PUBLIC_ENDPOINT_URL for mobile app access
-            url = f"{PUBLIC_ENDPOINT_URL}/{self.bucket_name}/{file_key}"
+            # Generate URL using the appropriate method
+            url = self._generate_url(file_key)
             print(f"✓ Uploaded cropped image to S3: {file_key}")
             return url
         except ClientError as e:

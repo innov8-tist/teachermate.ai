@@ -4,6 +4,7 @@ import { Feather } from '@expo/vector-icons';
 import { CroppedSection } from './pdf-cropper-screen';
 import { BASE_URL } from '../../constants/api';
 import { useAuth } from '../../contexts/auth-context';
+import { networkService } from '../../services/network/network-service';
 
 export interface Question {
   id: string;
@@ -219,22 +220,16 @@ export const AttachImagesScreen: React.FC<AttachImagesScreenProps> = ({
         }
       }
 
-      const response = await fetch(`${BASE_URL}/extract_answer_schema`, {
-        method: 'POST',
-        body: formData,
+      const response = await networkService.submitForm<any>(`${BASE_URL}/extract_answer_schema`, formData, {
         headers: {
-          // Don't set Content-Type for multipart/form-data - let the browser/RN set it with boundary
           'Authorization': `Bearer ${token}`,
         },
+        timeout: 60000, // 60 seconds for image processing
+        retries: 2,
+        showRetryLogs: true,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to submit question');
-      }
-
-      const result = await response.json();
-      console.log(`✅ Question ${question.id} submitted successfully:`, result);
+      console.log(`✅ Question ${question.id} submitted successfully:`, response);
 
       // Update state to success and mark as submitted
       const successQuestions = questions.map(q =>

@@ -6,6 +6,7 @@ import uvicorn
 import os
 import uuid
 import tempfile
+import asyncio
 from pathlib import Path
 from io import BytesIO
 from openpyxl import Workbook
@@ -23,6 +24,101 @@ from comapping.answer_sheet_processing.cutting import ImageProcess
 from comapping.answer_sheet_processing.extraction_pipeline import ExtractionPipeline
 from critera_extraction.answer_schema import main as extract_main
 from student_answer_sheet.answer_sheet import evaluate_student_answer
+
+
+# Async function for AI processing
+async def process_answer_schema_async(
+    temp_image_paths: list[str],
+    question_no: str,
+    subject_id: int,
+    saved_image_urls: list[str] = None
+):
+    """Process answer schema asynchronously"""
+    try:
+        print(f"🔄 Async processing started for Q{question_no}")
+        
+        # Run AI extraction in thread pool to avoid blocking
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            extract_main,
+            temp_image_paths,
+            question_no,
+            subject_id,
+            saved_image_urls if saved_image_urls else None
+        )
+        
+        print(f"✅ Async processing completed for Q{question_no}")
+        
+        # Clean up temp files
+        for temp_path in temp_image_paths:
+            try:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+            except Exception as e:
+                print(f"Warning: Could not delete temp file {temp_path}: {e}")
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ Async processing error for Q{question_no}: {e}")
+        # Clean up temp files on error
+        for temp_path in temp_image_paths:
+            try:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+            except:
+                pass
+        raise
+
+
+# Async function for student answer evaluation
+async def evaluate_student_answer_async(
+    question_no: str,
+    subject_id: int,
+    student_image_paths: list[str],
+    student_reg_no: str,
+    s3_image_urls: list[str] = None
+):
+    """Evaluate student answer asynchronously"""
+    try:
+        print(f"🔄 Async evaluation started for student {student_reg_no}, Q{question_no}")
+        
+        # Run evaluation in thread pool to avoid blocking
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            evaluate_student_answer,
+            question_no,
+            subject_id,
+            student_image_paths,
+            student_reg_no,
+            s3_image_urls
+        )
+        
+        print(f"✅ Async evaluation completed for student {student_reg_no}, Q{question_no}")
+        
+        # Clean up temp files
+        for temp_path in student_image_paths:
+            try:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+            except Exception as e:
+                print(f"Warning: Could not delete temp file {temp_path}: {e}")
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ Async evaluation error for student {student_reg_no}, Q{question_no}: {e}")
+        # Clean up temp files on error
+        for temp_path in student_image_paths:
+            try:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+            except:
+                pass
+        raise
+
 
 app = FastAPI()
 
@@ -481,6 +577,10 @@ async def extract_answer_schema(
     answer_images: list[UploadFile] = File(...),
     current_teacher: Teacher = Depends(get_current_teacher)
 ):
+    """
+    Submit answer schema for AI processing.
+    Returns immediately and processes asynchronously.
+    """
     try:
         temp_image_paths = []
         saved_image_urls = []  # S3 URLs to save in DB
@@ -519,28 +619,25 @@ async def extract_answer_schema(
             else:
                 print(f"⚠ S3 not available, image not stored permanently")
         
-        print(f"Saved {len(temp_image_paths)} images for extraction")
+        print(f"📤 Starting async processing for {len(temp_image_paths)} images")
         print(f"S3 URLs: {saved_image_urls}")
         
-        # Pass S3 URLs to extract_main
-        result = extract_main(
-            image_path=temp_image_paths,
-            QUESTION_NO=question_no,
-            SUBJECT_ID=subject_id,
-            image_paths=saved_image_urls if saved_image_urls else None
+        # Start async processing (fire and forget)
+        asyncio.create_task(
+            process_answer_schema_async(
+                temp_image_paths,
+                question_no,
+                subject_id,
+                saved_image_urls if saved_image_urls else None
+            )
         )
         
-        # Clean up temp files
-        for temp_path in temp_image_paths:
-            try:
-                os.remove(temp_path)
-            except Exception as e:
-                print(f"Warning: Could not delete temp file {temp_path}: {e}")
-        
+        # Return immediately
         return {
-            "status": "success",
-            "message": "Answer schema extracted and saved successfully",
-            "data": result
+            "status": "processing",
+            "message": "Answer schema submitted for processing. You can continue with other questions.",
+            "question_no": question_no,
+            "subject_id": subject_id
         }
         
     except Exception as e:
@@ -571,7 +668,8 @@ async def evaluate_student_answer_endpoint(
     current_teacher: Teacher = Depends(get_current_teacher)
 ):
     """
-    Evaluate a student's answer against the answer schema
+    Evaluate a student's answer against the answer schema.
+    Returns immediately and processes asynchronously.
     
     Args:
         question_no: Question number (e.g., "1", "2.a")
@@ -580,7 +678,7 @@ async def evaluate_student_answer_endpoint(
         answer_images: List of student answer images
         
     Returns:
-        Evaluation result with marks and feedback
+        Immediate response with processing status
     """
     temp_image_paths = []
     s3_image_urls = []
@@ -618,28 +716,27 @@ async def evaluate_student_answer_endpoint(
                 else:
                     print(f"  ⚠ Failed to upload image {idx} to S3")
         
-        print(f"✓ Saved {len(temp_image_paths)} images for evaluation")
+        print(f"📤 Starting async evaluation for {len(temp_image_paths)} images")
         
-        result = evaluate_student_answer(
-            question_no=question_no,
-            subject_id=subject_id,
-            student_image_paths=temp_image_paths,
-            student_reg_no=reg_no,
-            s3_image_urls=s3_image_urls
+        # Start async evaluation (fire and forget)
+        asyncio.create_task(
+            evaluate_student_answer_async(
+                question_no=question_no,
+                subject_id=subject_id,
+                student_image_paths=temp_image_paths,
+                student_reg_no=reg_no,
+                s3_image_urls=s3_image_urls
+            )
         )
         
-        for temp_path in temp_image_paths:
-            try:
-                if os.path.exists(temp_path):
-                    os.remove(temp_path)
-            except Exception as e:
-                print(f"Warning: Could not delete temp file {temp_path}: {e}")
-        
-        if result["status"] == "success":
-            result["data"]["s3_image_urls"] = s3_image_urls
-        
-        print(f"✓ Evaluation completed successfully")
-        return result
+        # Return immediately
+        return {
+            "status": "processing",
+            "message": "Student answer submitted for evaluation. You can continue with other questions.",
+            "question_no": question_no,
+            "student_reg_no": reg_no,
+            "subject_id": subject_id
+        }
         
     except Exception as e:
         for temp_path in temp_image_paths:

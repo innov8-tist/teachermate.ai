@@ -4,6 +4,7 @@ import { Feather } from '@expo/vector-icons';
 import { CroppedSection } from './pdf-cropper-screen';
 import { BASE_URL } from '../../constants/api';
 import { useAuth } from '../../contexts/auth-context';
+import { networkService } from '../../services/network/network-service';
 
 export interface StudentQuestion {
   id: string;
@@ -150,20 +151,15 @@ export const StudentAnswerSheetScreen: React.FC<StudentAnswerSheetScreenProps> =
         }
       }
 
-      const response = await fetch(`${BASE_URL}/evaluate-student-answer`, {
-        method: 'POST',
-        body: formData,
+      const result = await networkService.submitForm<any>(`${BASE_URL}/evaluate-student-answer`, formData, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
+        timeout: 60000, // 60 seconds for evaluation processing
+        retries: 2,
+        showRetryLogs: true,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to evaluate answer');
-      }
-
-      const result = await response.json();
       console.log(`✅ Student answer ${question.id} evaluated successfully:`, result);
 
       // Update state to success and mark as submitted
@@ -174,45 +170,17 @@ export const StudentAnswerSheetScreen: React.FC<StudentAnswerSheetScreenProps> =
       );
       onQuestionsChange(successQuestions);
 
-      // Update progress in backend
-      try {
-        // Get the progress ID from the evaluation and student
-        const progressResponse = await fetch(`${BASE_URL}/api/evaluation/student-progress/${evaluationId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-
-        if (progressResponse.ok) {
-          const progressData = await progressResponse.json();
-          const studentProgress = progressData.recent_progress?.find(
-            (p: any) => p.student_reg_no === rollNumber
-          );
-
-          if (studentProgress) {
-            // Mark question as completed
-            const completeFormData = new FormData();
-            completeFormData.append('question_no', question.id);
-
-            await fetch(`${BASE_URL}/api/evaluation/student-progress/${studentProgress.id}/complete-question`, {
-              method: 'PUT',
-              headers: {
-                'Authorization': `Bearer ${token}`,
-              },
-              body: completeFormData,
-            });
-
-            console.log(`✅ Question ${question.id} marked as completed in progress`);
-          }
-        }
-      } catch (progressError) {
-        console.warn('⚠️ Failed to update progress, but evaluation succeeded:', progressError);
-      }
+      // Update progress in backend - but only after evaluation is complete
+      // Since evaluation is async, we should wait for it to complete first
+      // For now, let's just mark it as submitted in the frontend
+      // The backend should handle progress updates when evaluation completes
+      
+      console.log(`✅ Student answer ${question.id} submitted for evaluation`);
 
       // Check if all questions are now submitted
       const allSubmitted = successQuestions.every(q => q.isSubmitted);
       if (allSubmitted) {
-        Alert.alert('Success', 'All answers evaluated successfully!', [
+        Alert.alert('Success', 'All answers submitted for evaluation!', [
           { text: 'OK', onPress: onSubmit }
         ]);
       }

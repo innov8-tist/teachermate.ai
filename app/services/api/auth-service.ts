@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '@/constants/api';
+import { networkService } from '../network/network-service';
 
 export interface LoginRequest {
   email: string;
@@ -30,23 +31,26 @@ export interface AuthResponse {
 
 export const authService = {
   async login(data: LoginRequest): Promise<AuthResponse> {
+    console.log('🔐 Attempting login for:', data.email);
+    
     const formData = new FormData();
     formData.append('email', data.email);
     formData.append('password', data.password);
 
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
-      method: 'POST',
-      body: formData,
-    });
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Login failed');
+    try {
+      return await networkService.submitForm<AuthResponse>(`${API_BASE_URL}/auth/login`, formData, {
+        timeout: 15000, // 15 seconds for auth
+        retries: 1, // Only 1 retry for auth
+      });
+    } catch (error: any) {
+      console.error('❌ Login failed:', error.message);
+      throw new Error(error.message || 'Login failed');
     }
-
-    return response.json();
   },
 
   async signup(data: SignupRequest): Promise<AuthResponse> {
+    console.log('📝 Attempting signup for:', data.email);
+    
     const formData = new FormData();
     formData.append('teacher_name', data.teacher_name);
     formData.append('email', data.email);
@@ -58,16 +62,14 @@ export const authService = {
       formData.append('pfp', data.pfp as any);
     }
 
-    const response = await fetch(`${API_BASE_URL}/auth/signup`, {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Signup failed');
+    try {
+      return await networkService.submitForm<AuthResponse>(`${API_BASE_URL}/auth/signup`, formData, {
+        timeout: 30000, // 30 seconds for signup (may include image upload)
+        retries: 1, // Only 1 retry for auth
+      });
+    } catch (error: any) {
+      console.error('❌ Signup failed:', error.message);
+      throw new Error(error.message || 'Signup failed');
     }
-
-    return response.json();
   },
 };

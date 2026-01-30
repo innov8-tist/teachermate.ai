@@ -9,7 +9,7 @@ const BASE_URL = 'http://192.168.1.8:8000';
 // const BASE_URL = 'http://20.40.47.177:8000';
 
 // For expo go 
-// const BASE_URL = 'http://192.168.0.109:8000';
+//  const BASE_URL = 'http://192.168.1.6:8000';
 export const API_BASE_URL = BASE_URL;
 
 export const API_ENDPOINTS = {

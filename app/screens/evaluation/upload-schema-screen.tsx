@@ -5,6 +5,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_URL } from '../../constants/api';
 import { useAuth } from '../../contexts/auth-context';
+import { networkService } from '../../services/network/network-service';
 
 interface COTemplate {
   id: number;
@@ -101,17 +102,15 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
     setLoadingCOs(true);
     try {
       console.log('📥 Fetching CO templates for teacher:', teacher.id);
-      const response = await fetch(`${BASE_URL}/co_fetch/${teacher.id}`);
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch CO templates');
-      }
-
-      const data = await response.json();
+      const data = await networkService.requestJson<COTemplate[]>(`${BASE_URL}/co_fetch/${teacher.id}`, {
+        timeout: 10000,
+        retries: 2,
+      });
+      
       console.log('✅ CO templates fetched:', data);
       setCoTemplates(data);
-    } catch (error) {
-      console.error('❌ Error fetching CO templates:', error);
+    } catch (error: any) {
+      console.error('❌ Error fetching CO templates:', error.message);
       Alert.alert('Error', 'Failed to load subjects. Please try again.');
     } finally {
       setLoadingCOs(false);
@@ -170,22 +169,16 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
           console.log('📤 Sending request to:', `${BASE_URL}/api/evaluation/upload-schema-pdf`);
           console.log('📤 File details:', { name: file.name, size: file.size, type: file.mimeType });
 
-          const response = await fetch(`${BASE_URL}/api/evaluation/upload-schema-pdf`, {
-            method: 'POST',
-            body: formData,
+          const responseData = await networkService.submitForm<any>(`${BASE_URL}/api/evaluation/upload-schema-pdf`, formData, {
             headers: {
-              // Don't set Content-Type for multipart/form-data - let the browser/RN set it with boundary
               'Authorization': `Bearer ${token}`,
             },
-            // Add timeout of 60 seconds for large files
+            timeout: 60000, // 60 seconds for large files
+            retries: 2,
+            showRetryLogs: true,
           });
 
-          const responseData = await response.json();
           console.log('📥 Upload response:', responseData);
-
-          if (!response.ok) {
-            throw new Error(responseData.detail || 'Failed to upload PDF');
-          }
 
           if (responseData.success) {
             console.log('✅ PDF uploaded successfully, ID:', responseData.pdf_id);
@@ -203,10 +196,14 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
         } catch (uploadError: any) {
           console.error('❌ Upload error:', uploadError);
 
-          // Better error messages
+          // Better error messages based on error type
           let errorMessage = 'Failed to upload PDF';
-          if (uploadError.message === 'Network request failed') {
+          if (uploadError.isNetworkError) {
             errorMessage = 'Network error. Please check:\n\n1. Backend server is running\n2. Your internet connection\n3. Try again';
+          } else if (uploadError.isTimeoutError) {
+            errorMessage = 'Upload timeout. The file might be too large or connection is slow. Please try again.';
+          } else if (uploadError.isServerError) {
+            errorMessage = 'Server error. Please try again later.';
           } else if (uploadError.message) {
             errorMessage = uploadError.message;
           }

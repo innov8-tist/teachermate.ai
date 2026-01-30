@@ -7,6 +7,7 @@ import { captureRef } from 'react-native-view-shot';
 import { manipulateAsync, SaveFormat, FlipType } from 'expo-image-manipulator';
 import { downloadAsync, cacheDirectory } from 'expo-file-system/legacy';
 import { BASE_URL } from '../../constants/api';
+import { networkService } from '../../services/network/network-service';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const HEADER_HEIGHT = 60;
@@ -450,20 +451,12 @@ export const PDFCropperScreen: React.FC<PDFCropperScreenProps> = ({
 
           console.log('📤 Sending stitch request...');
 
-          const stitchResponse = await fetch(`${BASE_URL}/api/evaluation/stitch-images`, {
-            method: 'POST',
-            body: formData,
+          const stitchData = await networkService.submitForm<any>(`${BASE_URL}/api/evaluation/stitch-images`, formData, {
+            timeout: 60000, // 60 seconds for image stitching
+            retries: 2,
+            showRetryLogs: true,
           });
 
-          console.log('📥 Stitch response status:', stitchResponse.status);
-
-          if (!stitchResponse.ok) {
-            const errorText = await stitchResponse.text();
-            console.error('❌ Stitch error response:', errorText);
-            throw new Error(`Failed to stitch images: ${errorText}`);
-          }
-
-          const stitchData = await stitchResponse.json();
           console.log('✅ Images stitched:', stitchData);
 
           const stitchedUri = `${BASE_URL}${stitchData.stitched_uri}`;
