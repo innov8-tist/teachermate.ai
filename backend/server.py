@@ -15,6 +15,7 @@ from db_operation.db_server import DBServiceForServer
 from comapping.teacher_co_processing.extracting import main_func
 from routes.auth import router as auth_router
 from routes.evaluation import router as evaluation_router
+from routes.analytics import router as analytics_router
 from auth.dependencies import get_current_teacher
 from db_service.db_schema import Teacher
 from services.s3_service import s3_service
@@ -35,6 +36,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(evaluation_router)
+app.include_router(analytics_router)
 
 # Mount static files for serving PDFs and cropped images
 app.mount("/public", StaticFiles(directory="public"), name="public")

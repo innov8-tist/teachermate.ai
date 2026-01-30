@@ -17,7 +17,9 @@ S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "teacher-pfp-bucket")
 
 
 class S3Service:
+    
     def __init__(self):
+        print(AWS_ENDPOINT_URL,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_REGION)
         self.s3_client = boto3.client(
             's3',
             endpoint_url=AWS_ENDPOINT_URL,
@@ -28,7 +30,7 @@ class S3Service:
         self.bucket_name = S3_BUCKET_NAME
         self.is_available = False
         self._ensure_bucket_exists()
-    
+
     def _ensure_bucket_exists(self):
         """Create bucket if it doesn't exist"""
         try:
