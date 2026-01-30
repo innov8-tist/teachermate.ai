@@ -188,20 +188,10 @@ class DBServiceForServer:
             raise e
 
 
-    def get_co_templates_by_teacher(self, teacher_id: int):
-        """Get all CO templates for a teacher"""
-        return self.db.query(COTemplate).filter(COTemplate.teacher_id == teacher_id).all()
-    
     def get_co_questions_by_template(self, template_id: int):
         """Get all CO question mappings for a template"""
         from db_service.db_schema import COQuestionMapping
         return self.db.query(COQuestionMapping).filter(COQuestionMapping.template_id == template_id).all()
-    
-    def get_evaluation_schemas_by_template(self, template_id: int):
-        """Get all evaluation schemas (completed questions) for a template"""
-        from db_service.db_schema import EvaluationSchema
-        return self.db.query(EvaluationSchema).filter(EvaluationSchema.template_id == template_id).all()
-
 
     def get_evaluation_schemas_by_teacher(self, teacher_id: int):
         """Get all evaluation schemas for a teacher"""
@@ -392,28 +382,6 @@ class DBServiceForServer:
         self.db.refresh(evaluation_schema)
         return evaluation_schema
 
-    def get_student_completed_evaluations(self, schema_id: int, student_reg_no: str, teacher_id: int):
-        """Get completed evaluations for a specific student"""
-        from db_service.db_schema import StudentAnswerEvaluation, StudentEvaluationProgress
-        
-        # Get progress records for this schema and student
-        progress_records = self.db.query(StudentEvaluationProgress).filter(
-            StudentEvaluationProgress.schema_id == schema_id,
-            StudentEvaluationProgress.student_reg_no == student_reg_no,
-            StudentEvaluationProgress.teacher_id == teacher_id
-        ).all()
-        
-        if not progress_records:
-            return []
-        
-        # Get evaluations for all progress records
-        progress_ids = [p.id for p in progress_records]
-        evaluations = self.db.query(StudentAnswerEvaluation).filter(
-            StudentAnswerEvaluation.progress_id.in_(progress_ids)
-        ).all()
-        
-        return evaluations
-    
     def create_student_answer_evaluations(self, evaluations_data: list):
         """
         Bulk create student answer evaluations
@@ -466,21 +434,6 @@ class DBServiceForServer:
             StudentEvaluationProgress.id == progress_id
         ).first()
     
-    def update_progress_timestamp(self, progress_id: int):
-        """Update the timestamp for a progress record after evaluation"""
-        from db_service.db_schema import StudentEvaluationProgress
-        from datetime import datetime
-        
-        progress = self.db.query(StudentEvaluationProgress).filter(
-            StudentEvaluationProgress.id == progress_id
-        ).first()
-        
-        if progress:
-            progress.updated_at = datetime.now().isoformat()
-            self.db.commit()
-            return True
-        return False
-
     def count_completed_students(self, schema_id: int):
         """Count the number of students who have completed evaluations for a schema"""
         from db_service.db_schema import StudentEvaluationProgress
