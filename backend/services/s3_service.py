@@ -237,36 +237,6 @@ class S3Service:
             print(f"Error uploading evaluation PDF to S3: {e}")
             return None, None
     
-    def upload_pdf_image(self, file_content: bytes, pdf_id: str, page_number: int) -> Optional[str]:
-        """
-        Upload a PDF page image to S3 and return the URL
-        
-        Args:
-            file_content: Image file content as bytes
-            pdf_id: PDF unique identifier
-            page_number: Page number
-        """
-        if not self.is_available:
-            print("S3 service not available, skipping PDF image upload")
-            return None
-            
-        try:
-            file_key = f"pdf-images/{pdf_id}/page_{page_number}.png"
-            
-            self.s3_client.put_object(
-                Bucket=self.bucket_name,
-                Key=file_key,
-                Body=file_content,
-                ContentType='image/png'
-            )
-            
-            # Generate URL using the appropriate method
-            url = self._generate_url(file_key)
-            return url
-        except ClientError as e:
-            print(f"Error uploading PDF image to S3: {e}")
-            return None
-    
     def upload_cropped_image(self, file_content: bytes) -> Optional[str]:
         """
         Upload a cropped image to S3 and return the URL

@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { EvaluationScreen } from './evaluation-screen';
 import { StudentAnswerSheetScreen, StudentQuestion } from './student-answer-sheet-screen';
-import { PDFCropperScreen, CroppedSection } from './pdf-cropper-screen';
-import { CameraScreen } from './camera-screen';
+import { CameraScreen, CroppedSection } from './camera-screen';
 import { EvaluationResultsScreen } from './evaluation-results-screen';
 import { StudentUploadData } from './student-upload-modal';
 import { Alert } from 'react-native';
@@ -12,7 +11,6 @@ import { useAuth } from '../../contexts/auth-context';
 type Screen = 
   | 'evaluation-list'
   | 'student-answer-sheet'
-  | 'pdf-cropper'
   | 'camera'
   | 'results';
 
@@ -73,40 +71,13 @@ export const EvaluationContainer: React.FC<EvaluationContainerProps> = ({ onView
   };
 
   const handleOpenCropper = async (questionId: string) => {
-    if (!pdfUri && studentData?.uploadMethod === 'pdf') {
-      // Upload PDF first (only if we don't have an existing PDF ID)
-      if (!studentData.pdfId) {
-        if (!token) {
-          Alert.alert('Error', 'Authentication required');
-          return;
-        }
-
-        try {
-          const uploadResult = await pickAndUploadPDF(token);
-          if (uploadResult) {
-            setPdfUri(uploadResult.pdfId);
-            setCurrentQuestionId(questionId);
-            setCurrentScreen('pdf-cropper');
-          }
-        } catch (error) {
-          console.error('PDF upload failed:', error);
-        }
-        return;
-      } else {
-        // We have an existing PDF ID, use it
-        setPdfUri(studentData.pdfId);
-      }
-    }
-    
-    // Ensure we have a valid PDF URI before opening cropper
-    const finalPdfUri = pdfUri || studentData?.pdfId;
-    if (!finalPdfUri) {
-      Alert.alert('Error', 'No PDF available for cropping. Please upload a PDF first.');
-      return;
-    }
-    
-    setCurrentQuestionId(questionId);
-    setCurrentScreen('pdf-cropper');
+    // PDF cropping functionality has been removed
+    // For now, just show an alert that this feature is no longer available
+    Alert.alert(
+      'Feature Simplified',
+      'PDF cropping has been simplified. The entire PDF is now used as the answer schema.',
+      [{ text: 'OK' }]
+    );
   };
 
   const handleOpenCamera = (questionId: string) => {
@@ -114,31 +85,7 @@ export const EvaluationContainer: React.FC<EvaluationContainerProps> = ({ onView
     setCurrentScreen('camera');
   };
 
-  const handleCropperBack = () => {
-    setCurrentScreen('student-answer-sheet');
-    setCurrentQuestionId('');
-  };
-
   const handleCameraBack = () => {
-    setCurrentScreen('student-answer-sheet');
-    setCurrentQuestionId('');
-  };
-
-  const handleCropConfirm = (croppedSection: CroppedSection) => {
-    // Update the question with the cropped section
-    setQuestions(prevQuestions => 
-      prevQuestions.map(q => 
-        q.id === currentQuestionId 
-          ? { 
-              ...q, 
-              croppedSections: [...(q.croppedSections || []), croppedSection],
-              processingState: 'idle' as const,
-              isSubmitted: false
-            }
-          : q
-      )
-    );
-    
     setCurrentScreen('student-answer-sheet');
     setCurrentQuestionId('');
   };
@@ -204,16 +151,6 @@ export const EvaluationContainer: React.FC<EvaluationContainerProps> = ({ onView
           pdfUri={pdfUri}
           questions={questions}
           onQuestionsChange={setQuestions}
-        />
-      );
-
-    case 'pdf-cropper':
-      return (
-        <PDFCropperScreen
-          pdfUri={pdfUri}
-          questionId={currentQuestionId}
-          onBack={handleCropperBack}
-          onConfirm={handleCropConfirm}
         />
       );
 

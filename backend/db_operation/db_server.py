@@ -203,41 +203,23 @@ class DBServiceForServer:
         return self.db.query(EvaluationSchema).filter(EvaluationSchema.template_id == template_id).all()
 
 
-    def create_evaluation(self, template_id: int, teacher_id: int, pdf_path: str, created_at: str, updated_at: str):
-        """Create a new evaluation record"""
-        from db_service.db_schema import Evaluation
-        evaluation = Evaluation(
-            template_id=template_id,
-            teacher_id=teacher_id,
-            pdf_path=pdf_path,
-            status="in_progress",
-            created_at=created_at,
-            updated_at=updated_at
-        )
-        self.db.add(evaluation)
-        self.db.commit()
-        self.db.refresh(evaluation)
-        return evaluation
+    def get_evaluation_schemas_by_teacher(self, teacher_id: int):
+        """Get all evaluation schemas for a teacher"""
+        from db_service.db_schema import EvaluationSchema
+        return self.db.query(EvaluationSchema).filter(EvaluationSchema.teacher_id == teacher_id).all()
 
+    def get_evaluation_schema_by_id(self, schema_id: int):
+        """Get evaluation schema by ID"""
+        from db_service.db_schema import EvaluationSchema
+        return self.db.query(EvaluationSchema).filter(EvaluationSchema.id == schema_id).first()
 
-    def get_evaluations_by_teacher(self, teacher_id: int):
-        """Get all evaluations for a teacher"""
-        from db_service.db_schema import Evaluation
-        return self.db.query(Evaluation).filter(Evaluation.teacher_id == teacher_id).all()
-
-
-    def get_evaluation_by_id(self, evaluation_id: int):
-        """Get evaluation by ID"""
-        from db_service.db_schema import Evaluation
-        return self.db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
-
-    def create_student_progress(self, evaluation_id: int, student_reg_no: str, teacher_id: int, 
+    def create_student_progress(self, schema_id: int, student_reg_no: str, teacher_id: int, 
                               total_questions: int, upload_method: str, pdf_id: str = None, 
                               pdf_filename: str = None, created_at: str = None, updated_at: str = None):
         """Create a new student evaluation progress record"""
         from db_service.db_schema import StudentEvaluationProgress
         progress = StudentEvaluationProgress(
-            evaluation_id=evaluation_id,
+            schema_id=schema_id,
             student_reg_no=student_reg_no,
             teacher_id=teacher_id,
             total_questions=total_questions,
@@ -254,11 +236,11 @@ class DBServiceForServer:
         self.db.refresh(progress)
         return progress
 
-    def get_student_progress(self, evaluation_id: int, student_reg_no: str):
-        """Get existing student progress for an evaluation"""
+    def get_student_progress(self, schema_id: int, student_reg_no: str):
+        """Get existing student progress for an evaluation schema"""
         from db_service.db_schema import StudentEvaluationProgress
         return self.db.query(StudentEvaluationProgress).filter(
-            StudentEvaluationProgress.evaluation_id == evaluation_id,
+            StudentEvaluationProgress.schema_id == schema_id,
             StudentEvaluationProgress.student_reg_no == student_reg_no
         ).first()
 
@@ -285,15 +267,15 @@ class DBServiceForServer:
         
         return progress
 
-    def get_recent_student_progress(self, evaluation_id: int, teacher_id: int, limit: int = 10):
-        """Get recent student progress for an evaluation"""
+    def get_recent_student_progress(self, schema_id: int, teacher_id: int, limit: int = 10):
+        """Get recent student progress for an evaluation schema"""
         from db_service.db_schema import StudentEvaluationProgress
         return self.db.query(StudentEvaluationProgress).filter(
-            StudentEvaluationProgress.evaluation_id == evaluation_id,
+            StudentEvaluationProgress.schema_id == schema_id,
             StudentEvaluationProgress.teacher_id == teacher_id
         ).order_by(StudentEvaluationProgress.updated_at.desc()).limit(limit).all()
 
-    def search_students_with_progress(self, evaluation_id: int, teacher_id: int, query: str):
+    def search_students_with_progress(self, schema_id: int, teacher_id: int, query: str):
         """Search students by registration number and return with progress info"""
         from db_service.db_schema import StudentEvaluationProgress, STUDENTINFO
         from sqlalchemy import or_, distinct
@@ -315,7 +297,7 @@ class DBServiceForServer:
         for student in students:
             processed_reg_nos.add(student.reg_no)
             progress = self.db.query(StudentEvaluationProgress).filter(
-                StudentEvaluationProgress.evaluation_id == evaluation_id,
+                StudentEvaluationProgress.schema_id == schema_id,
                 StudentEvaluationProgress.student_reg_no == student.reg_no,
                 StudentEvaluationProgress.teacher_id == teacher_id
             ).first()
@@ -350,7 +332,7 @@ class DBServiceForServer:
         # Also search in StudentEvaluationProgress for students who have started evaluations
         # but might not be in STUDENTINFO table
         progress_query = self.db.query(StudentEvaluationProgress).filter(
-            StudentEvaluationProgress.evaluation_id == evaluation_id,
+            StudentEvaluationProgress.schema_id == schema_id,
             StudentEvaluationProgress.teacher_id == teacher_id,
             StudentEvaluationProgress.student_reg_no.ilike(f"%{query}%")
         ).limit(20)
@@ -415,36 +397,48 @@ class DBServiceForServer:
         
         return progress
 
-    def get_evaluation_questions(self, evaluation_id: int):
-        """Get questions for an evaluation (from CO question mappings)"""
-        # First get the evaluation to find the template_id
-        evaluation = self.get_evaluation_by_id(evaluation_id)
-        if not evaluation:
+    def get_evaluation_questions(self, schema_id: int):
+        """Get questions for an evaluation schema (from CO question mappings)"""
+        # First get the schema to find the template_id
+        schema = self.get_evaluation_schema_by_id(schema_id)
+        if not schema:
             return []
         
         # Get questions from CO mappings
         from db_service.db_schema import COQuestionMapping
         questions = self.db.query(COQuestionMapping).filter(
-            COQuestionMapping.template_id == evaluation.template_id
+            COQuestionMapping.template_id == schema.template_id
         ).all()
         
         return [{"id": q.q_no, "label": f"Question {q.q_no}"} for q in questions]
-    def get_student_completed_evaluations(self, evaluation_id: int, student_reg_no: str, teacher_id: int):
+    def create_evaluation_schema(self, template_id: int, teacher_id: int, pdf_path: str, created_at: str, updated_at: str):
+        """Create a new evaluation schema record"""
+        from db_service.db_schema import EvaluationSchema
+        evaluation_schema = EvaluationSchema(
+            template_id=template_id,
+            teacher_id=teacher_id,
+            pdf_path=pdf_path,
+            status="active",
+            created_at=created_at,
+            updated_at=updated_at
+        )
+        self.db.add(evaluation_schema)
+        self.db.commit()
+        self.db.refresh(evaluation_schema)
+        return evaluation_schema
+
+    def get_student_completed_evaluations(self, schema_id: int, student_reg_no: str, teacher_id: int):
         """Get completed evaluations for a specific student"""
-        from db_service.db_schema import StudentAnswerEvaluation, Evaluation
+        from db_service.db_schema import StudentAnswerEvaluation
         
-        # First get the evaluation to find the template_id
-        evaluation = self.db.query(Evaluation).filter(
-            Evaluation.id == evaluation_id,
-            Evaluation.teacher_id == teacher_id
-        ).first()
-        
-        if not evaluation:
+        # First get the schema to find the template_id
+        schema = self.get_evaluation_schema_by_id(schema_id)
+        if not schema:
             return []
         
         # Get completed evaluations for this student and template
         evaluations = self.db.query(StudentAnswerEvaluation).filter(
-            StudentAnswerEvaluation.template_id == evaluation.template_id,
+            StudentAnswerEvaluation.template_id == schema.template_id,
             StudentAnswerEvaluation.student_reg_no == student_reg_no
         ).all()
         

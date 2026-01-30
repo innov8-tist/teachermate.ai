@@ -9,8 +9,22 @@ import { EvaluationScreen } from '@/screens/evaluation/evaluation-screen';
 import { EvaluationResultsScreen } from '@/screens/evaluation/evaluation-results-screen';
 import { UploadSchemaScreen } from '@/screens/evaluation/upload-schema-screen';
 import { AttachImagesScreen, Question } from '@/screens/evaluation/attach-images-screen';
-import { PDFCropperScreen, CroppedSection } from '@/screens/evaluation/pdf-cropper-screen';
 import { StudentUploadData } from '@/screens/evaluation/student-upload-modal';
+
+// Define CroppedSection locally since we removed the PDF cropper
+interface CroppedSection {
+  questionId: string;
+  pdfUri: string;
+  pageNumber: number;
+  crop: {
+    x: number;
+    y: number; 
+    width: number;
+    height: number;
+  };
+  timestamp: number;
+  previewUri?: string;
+}
 import { ProfileScreen } from '@/screens/profile/profile-screen';
 import { COMapperContainer, COSubScreen } from '@/screens/co-mapper/co-mapper-container';
 import { Feather } from '@expo/vector-icons';
@@ -21,7 +35,7 @@ import { StudentAnswerSheetScreen } from '@/screens/evaluation/student-answer-sh
 
 import { CameraScreen } from '@/screens/evaluation/camera-screen';
 
-type EvaluationSubScreen = 'list' | 'upload' | 'attachImages' | 'pdfCropper' | 'details' | 'studentAnswerSheet' | 'camera' | 'results';
+type EvaluationSubScreen = 'list' | 'upload' | 'attachImages' | 'details' | 'studentAnswerSheet' | 'camera' | 'results';
 
 const UPLOAD_PROGRESS_KEY = '@evaluation_upload_progress';
 
@@ -76,15 +90,6 @@ export default function HomeScreenRefactored() {
         return true;
       }
       if (activeTab === 'evaluation') {
-        if (evaluationSubScreen === 'pdfCropper') {
-          // Check if we came from student answer sheet or regular attach images
-          if (studentUploadData) {
-            setEvaluationSubScreen('studentAnswerSheet');
-          } else {
-            setEvaluationSubScreen('attachImages');
-          }
-          return true;
-        }
         if (evaluationSubScreen === 'camera') {
           // Check if we came from student answer sheet or regular attach images
           if (studentUploadData) {
@@ -368,41 +373,20 @@ export default function HomeScreenRefactored() {
     setEvaluationSubScreen('results');
   };
 
-  const handleUploadSchemaSuccess = (pdfId: string, subject: string, subjectId: number) => {
-    setPdfUri(pdfId); // Now this is a PDF ID, not a file URI
+  const handleUploadSchemaSuccess = (evaluationSchemaId: number, subject: string) => {
+    console.log('✅ Schema uploaded successfully:', { evaluationSchemaId, subject });
     setSelectedSubject(subject);
-    setSelectedSubjectId(subjectId);
-    setEvaluationSubScreen('attachImages');
+    // Navigate back to evaluation list
+    setEvaluationSubScreen('list');
   };
 
   const handleOpenCropper = (questionId: string) => {
-    setCurrentQuestionId(questionId);
-    setEvaluationSubScreen('pdfCropper');
-  };
-
-  const handleCropConfirm = (croppedSection: CroppedSection) => {
-    console.log('🎯 handleCropConfirm called');
-    console.log('📦 Cropped section:', croppedSection);
-    console.log('📋 Current questions:', questions);
-
-    const updatedQuestions = questions.map(q =>
-      q.id === croppedSection.questionId
-        ? {
-          ...q,
-          croppedSections: [...(q.croppedSections || []), croppedSection]
-        }
-        : q
+    // PDF cropping functionality has been removed
+    Alert.alert(
+      'Feature Simplified',
+      'PDF cropping has been simplified. The entire PDF is now used as the answer schema.',
+      [{ text: 'OK' }]
     );
-
-    console.log('✅ Updated questions:', updatedQuestions);
-    setQuestions(updatedQuestions);
-
-    // Navigate back to the correct screen
-    if (studentUploadData) {
-      setEvaluationSubScreen('studentAnswerSheet');
-    } else {
-      setEvaluationSubScreen('attachImages');
-    }
   };
 
   const handleCameraConfirm = (croppedSection: CroppedSection) => {
@@ -458,24 +442,9 @@ export default function HomeScreenRefactored() {
       <View className="flex-1 bg-white">
         <Header showMenuButton={false} />
 
-        {/* Conditionally render ScrollView - disable for PDF cropper and camera */}
-        {(evaluationSubScreen === 'pdfCropper' || evaluationSubScreen === 'camera') ? (
+        {/* Conditionally render ScrollView - disable for camera */}
+        {evaluationSubScreen === 'camera' ? (
           <View className="flex-1">
-            {activeTab === 'evaluation' && evaluationSubScreen === 'pdfCropper' && pdfUri && (
-              <PDFCropperScreen
-                pdfUri={pdfUri}
-                questionId={currentQuestionId}
-                onBack={() => {
-                  // Check if we came from student answer sheet or regular attach images
-                  if (studentUploadData) {
-                    setEvaluationSubScreen('studentAnswerSheet');
-                  } else {
-                    setEvaluationSubScreen('attachImages');
-                  }
-                }}
-                onConfirm={handleCropConfirm}
-              />
-            )}
             {activeTab === 'evaluation' && evaluationSubScreen === 'camera' && (
               <CameraScreen
                 questionId={currentQuestionId}

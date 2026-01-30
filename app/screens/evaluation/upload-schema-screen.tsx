@@ -17,7 +17,7 @@ interface COTemplate {
 
 interface UploadSchemaScreenProps {
   onBack: () => void;
-  onSuccess: (pdfId: string, subject: string, subjectId: number) => void;
+  onSuccess: (evaluationSchemaId: number, subject: string) => void;
 }
 
 const UPLOAD_PROGRESS_KEY = '@evaluation_upload_progress';
@@ -181,15 +181,21 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
           console.log('📥 Upload response:', responseData);
 
           if (responseData.success) {
-            console.log('✅ PDF uploaded successfully, ID:', responseData.pdf_id);
+            console.log('✅ PDF uploaded successfully, Evaluation Schema ID:', responseData.evaluation_schema_id);
 
-            // Save upload progress for resuming later
-            if (selectedSubjectId) {
-              await saveUploadProgress(responseData.pdf_id, selectedSubject, selectedSubjectId);
-              onSuccess(responseData.pdf_id, selectedSubject, selectedSubjectId);
-            } else {
-              throw new Error('Subject ID not found');
-            }
+            // Clear any previous upload progress since we're done
+            await clearUploadProgress();
+            
+            Alert.alert(
+              'Success!', 
+              'Answer schema uploaded successfully. You can now start evaluating student answers.',
+              [
+                {
+                  text: 'OK',
+                  onPress: () => onSuccess(responseData.evaluation_schema_id, selectedSubject)
+                }
+              ]
+            );
           } else {
             throw new Error('Upload failed');
           }
@@ -361,7 +367,7 @@ export const UploadSchemaScreen: React.FC<UploadSchemaScreenProps> = ({ onBack, 
           <View style={styles.infoTextContainer}>
             <Text style={styles.infoTitle}>What is an Answer Schema?</Text>
             <Text style={styles.infoText}>
-              Upload the official answer key PDF for this assessment. You'll be able to crop specific sections for each question.
+              Upload the official answer key PDF for this assessment. The entire PDF will be saved as your evaluation schema.
             </Text>
           </View>
         </View>

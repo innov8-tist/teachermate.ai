@@ -761,36 +761,32 @@ async def get_evaluations(
     db_service: DBServiceForServer = Depends(get_db_service)
 ):
     """
-    Get all evaluations for a teacher with their completion status
+    Get all evaluation schemas for a teacher with their completion status
     """
     try:
         # Verify teacher is accessing their own data
         if current_teacher.id != teacher_id:
             raise HTTPException(status_code=403, detail="Access denied")
         
-        # Get all evaluations for this teacher
-        evaluations_data = db_service.get_evaluations_by_teacher(teacher_id)
+        # Get all evaluation schemas for this teacher
+        evaluation_schemas = db_service.get_evaluation_schemas_by_teacher(teacher_id)
         
         evaluations = []
-        for eval_record in evaluations_data:
+        for schema in evaluation_schemas:
             # Get template info
-            template = db_service.get_subject_info(eval_record.template_id)
+            template = db_service.get_subject_info(schema.template_id)
             if not template:
                 continue
             
             # Get all questions for this template
-            questions = db_service.get_co_questions_by_template(eval_record.template_id)
-            
-            # Get evaluation schemas (completed questions)
-            completed_schemas = db_service.get_evaluation_schemas_by_template(eval_record.template_id)
-            completed_question_nos = set(schema.question_no for schema in completed_schemas)
+            questions = db_service.get_co_questions_by_template(schema.template_id)
             
             # Get student completion data
             from student_answer_sheet.db_operation import StudentAnswerService
             service = StudentAnswerService()
             
             # Get all student evaluations for this template
-            all_student_evaluations = service.get_student_evaluations(eval_record.template_id)
+            all_student_evaluations = service.get_student_evaluations(schema.template_id)
             
             # Group by student to count completed students
             student_completion = {}
@@ -801,7 +797,7 @@ async def get_evaluations(
                 student_completion[reg_no].add(student_eval.question_no)
             
             # Count students who completed all available questions
-            total_available_questions = len(completed_question_nos)
+            total_available_questions = len(questions)
             completed_students = 0
             
             for reg_no, completed_questions_set in student_completion.items():
@@ -812,20 +808,20 @@ async def get_evaluations(
             total_students_in_class = template.get('student_count', 0)
             
             evaluation = {
-                "evaluation_id": eval_record.id,
-                "subject_id": eval_record.template_id,
+                "evaluation_id": schema.id,  # Use schema ID as evaluation ID
+                "subject_id": schema.template_id,
                 "subject_name": template['name'],
                 "subject_code": f"{template['branch']}-{template['sem']}",
                 "semester": str(template['sem']),
                 "branch": template['branch'],
-                "ia": template.get('ia', 'N/A'),
-                "total_questions": len(set(q.q_no for q in questions)),
-                "completed_questions": len(completed_question_nos),
+                "ia": template.get('ia', ''),
+                "total_questions": len(questions),
+                "completed_questions": len(questions),  # All questions are available since we have the schema
                 "total_students": total_students_in_class,
                 "completed_students": completed_students,
-                "status": eval_record.status,
-                "created_at": eval_record.created_at,
-                "updated_at": eval_record.updated_at
+                "status": schema.status,
+                "created_at": schema.created_at,
+                "updated_at": schema.updated_at
             }
             evaluations.append(evaluation)
         

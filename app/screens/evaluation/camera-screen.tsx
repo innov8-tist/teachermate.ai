@@ -2,7 +2,21 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useImagePicker } from '../../hooks/use-image-picker';
-import { CroppedSection } from './pdf-cropper-screen';
+
+// Define CroppedSection locally since we removed the PDF cropper
+export interface CroppedSection {
+  questionId: string;
+  pdfUri: string;
+  pageNumber: number;
+  crop: {
+    x: number;
+    y: number; 
+    width: number;
+    height: number;
+  };
+  timestamp: number;
+  previewUri?: string;
+}
 
 interface CameraScreenProps {
   questionId: string;

@@ -60,13 +60,11 @@ class EvaluationSchema(Base):
     __tablename__ = "evaluation_schemas"
     id = Column(Integer, primary_key=True, index=True)
     template_id = Column(Integer, ForeignKey("co_templates.id"), nullable=False)
-    question_no = Column(String, nullable=False)
-    question = Column(Text, nullable=False)
-    total_mark = Column(Integer, nullable=False)
-    mark_criteria = Column(JSON, nullable=False)  # Marking scheme
-    answer = Column(Text, nullable=False)  # Expected answer
-    image_explanation = Column(Text, nullable=True)  # AI-extracted explanation from image
-    image_paths = Column(JSON, nullable=True)  # List of cropped image paths
+    teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=False)
+    pdf_path = Column(String, nullable=False)  # S3 URL of the complete answer schema PDF
+    status = Column(String, default="active")  # active, archived
+    created_at = Column(String, nullable=False)
+    updated_at = Column(String, nullable=False)
 
 class STUDENTINFO(Base):
     __tablename__="student_info"
@@ -77,23 +75,11 @@ class STUDENTINFO(Base):
     division=Column(String,nullable=False)
 
 
-class Evaluation(Base):
-    """Evaluation sessions for answer schema processing"""
-    __tablename__ = "evaluations"
-    id = Column(Integer, primary_key=True, index=True)
-    template_id = Column(Integer, ForeignKey("co_templates.id"), nullable=False)
-    teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=False)
-    pdf_path = Column(String, nullable=False)  # Path to uploaded PDF
-    status = Column(String, default="in_progress")  # in_progress, completed
-    created_at = Column(String, nullable=False)  # ISO timestamp
-    updated_at = Column(String, nullable=False)  # ISO timestamp
-
-
 class StudentEvaluationProgress(Base):
     """Track student evaluation progress for resuming evaluations"""
     __tablename__ = "student_evaluation_progress"
     id = Column(Integer, primary_key=True, index=True)
-    evaluation_id = Column(Integer, ForeignKey("evaluations.id"), nullable=False)
+    schema_id = Column(Integer, ForeignKey("evaluation_schemas.id"), nullable=False)
     student_reg_no = Column(String, nullable=False)
     teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=False)
     total_questions = Column(Integer, nullable=False)  # Total questions in evaluation

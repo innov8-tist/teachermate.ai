@@ -1,9 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Alert, Image, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { CroppedSection } from './pdf-cropper-screen';
 import { BASE_URL } from '../../constants/api';
 import { useAuth } from '../../contexts/auth-context';
+
+// Define CroppedSection locally since we removed the PDF cropper
+export interface CroppedSection {
+  questionId: string;
+  pdfUri: string;
+  pageNumber: number;
+  crop: {
+    x: number;
+    y: number; 
+    width: number;
+    height: number;
+  };
+  timestamp: number;
+  previewUri?: string;
+}
 import { networkService } from '../../services/network/network-service';
 
 export interface StudentQuestion {
