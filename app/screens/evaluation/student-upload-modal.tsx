@@ -522,7 +522,7 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
                 ) : (
                   <>
                     <Feather name="play" size={20} color="#fff" />
-                    <Text style={styles.confirmButtonText}>Start Evaluation</Text>
+                    <Text style={styles.confirmButtonText}>Evaluate</Text>
                   </>
                 )}
               </TouchableOpacity>

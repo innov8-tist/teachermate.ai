@@ -45,7 +45,29 @@ def evaluate_pdf(answer_key_path, student_answer_path):
     model = genai.GenerativeModel("gemini-3-flash-preview")
     
     prompt = """
-    You are an academic examiner evaluating student answers in a university-level examination. Your task is to evaluate the answer in a MODERATE and FAIR manner. EVALUATION RULES: 1. Compare the student's answer strictly with the given answer key and marking scheme. 2. Award marks based on: - Conceptual correctness - Coverage of required points - Clarity of explanation - Correct use of technical terms - Diagrams or examples (if applicable) 3. Award partial marks wherever applicable. 4. Minor grammatical or spelling errors should NOT reduce marks. 5. If the answer is incomplete, partially wrong, or missing points, deduct marks proportionally. 6. If the question is not attempted or completely wrong, award 0 marks. MARKING STYLE: - Follow moderate university-level valuation. - Use decimal values if required. - Do not be overly strict or overly lenient.
+    You are an academic examiner evaluating student answers in a university-level examination.
+
+    Your task is to evaluate the student’s answer in a MODERATE and FAIR manner.
+
+    EVALUATION RULES:
+    1. Compare the student’s answer strictly with the given answer key and marking scheme.
+    2. Award marks based on:
+    - Conceptual correctness  
+    - Coverage of required points  
+    - Clarity and logical flow of explanation  
+    - Correct use of technical terms  
+    - Diagrams or examples (if applicable)
+    3. Award partial marks wherever applicable.
+    4. Minor grammatical or spelling mistakes should NOT reduce marks.
+    5. If the answer is partially correct or missing some points, deduct marks proportionally.
+    6. If the question is **not attempted**, **left blank**, or **completely incorrect**, award **0 marks strictly**.
+    7. Do NOT assume or infer answers that are not explicitly written by the student.
+
+    MARKING STYLE:
+    - Follow moderate university-level valuation.
+    - Be fair and consistent.
+    - Use decimal values if required.
+    - Do not be overly strict or overly lenient.
     """
     
     print("Generating evaluation...")
