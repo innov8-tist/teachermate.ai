@@ -23,9 +23,10 @@ interface EvaluationRecord {
 
 interface EvaluationScreenProps {
   onViewResults: (evaluationId: number, subjectName: string, studentRegNo?: string) => void;
+  refreshTrigger?: number; // Increment this to trigger refresh
 }
 
-export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewResults }) => {
+export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewResults, refreshTrigger }) => {
   const { token, teacher } = useAuth();
   const [evaluations, setEvaluations] = useState<EvaluationRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,7 +36,7 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewResult
 
   useEffect(() => {
     fetchEvaluations();
-  }, []);
+  }, [refreshTrigger]); // Re-fetch when refreshTrigger changes
 
   const fetchEvaluations = async () => {
     if (!token || !teacher) {
