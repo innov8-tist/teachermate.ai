@@ -463,7 +463,7 @@ const styles = StyleSheet.create({
   
   // Context Banner
   contextBanner: {
-    backgroundColor: '#111827',
+    backgroundColor: '#000000',
     padding: 20,
     marginBottom: 24,
     borderRadius: 12,
