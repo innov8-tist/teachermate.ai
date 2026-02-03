@@ -112,8 +112,8 @@ export default function HomeScreenRefactored() {
                 {activeTab === 'co' && coSubScreen === 'myCOs' && (
                     <View style={fabStyles.fabContainer}>
                         <TouchableOpacity
-                            style={[fabStyles.fabPrimary, { backgroundColor: '#000000' }]}
-                            onPress={() => setCoSubScreen('creation')}
+                            style={fabStyles.fabPrimary}
+                            onPress={() => setCoSubScreen('uploadCO' as COSubScreen)}
                             activeOpacity={0.8}
                         >
                             <Feather name="plus" size={24} color="#ffffff" />

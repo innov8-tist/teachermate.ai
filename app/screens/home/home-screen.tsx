@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, Dimensions, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 import { Card, CardContent } from '@/components/ui/card';
-import { PieChart, LineChart } from 'react-native-gifted-charts';
 import axios from 'axios';
 import { BASE_URL } from '@/constants/api';
 import { useAuth } from '@/contexts/auth-context';
@@ -11,27 +10,55 @@ interface HomeScreenProps {
   onNavigateToEvaluation: () => void;
 }
 
+interface Context {
+  semester: string;
+  ia: string;
+  branch: string;
+  templateId: number;
+  subjectName: string;
+}
+
 interface SummaryData {
   totalEvaluations: number;
-  pendingEvaluations: number;
-  completedEvaluations: number;
   totalStudentsEvaluated: number;
+  totalSubjects: number;
 }
 
-interface EvaluationOverview {
+interface PerformanceData {
   averageScore: number;
-  totalQuestionsEvaluated: number;
+  passRate: number;
+  totalStudents: number;
 }
 
-interface EvaluationStatus {
-  pending: number;
-  completed: number;
-  total: number;
-}
-
-interface PerformanceRange {
+interface ScoreRange {
   range: string;
   count: number;
+  label: string;
+}
+
+interface QuestionInsight {
+  questionNo: string;
+  percentage: number;
+  averageMarks: number;
+}
+
+interface QuestionInsightsData {
+  averageMarksPerQuestion: number;
+  lowestPerforming: QuestionInsight[];
+  highestPerforming: QuestionInsight[];
+}
+
+interface COData {
+  label: string;
+  percentage: number;
+  coNo: string;
+}
+
+interface COAttainmentData {
+  cos: COData[];
+  strongCOs: string[];
+  weakCOs: string[];
+  coverageComplete: boolean;
 }
 
 interface TrendData {
@@ -39,55 +66,85 @@ interface TrendData {
   value: number;
 }
 
-interface COData {
-  label: string;
-  percentage: number;
+interface ClassTrendData {
+  trend: TrendData[];
+  hasData: boolean;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = () => {
   const { token } = useAuth();
-  const screenWidth = Dimensions.get('window').width - 80;
 
   // State
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [contexts, setContexts] = useState<Context[]>([]);
+  const [currentContextIndex, setCurrentContextIndex] = useState(0);
+  
   const [summary, setSummary] = useState<SummaryData | null>(null);
-  const [overview, setOverview] = useState<EvaluationOverview | null>(null);
-  const [status, setStatus] = useState<EvaluationStatus | null>(null);
-  const [distribution, setDistribution] = useState<PerformanceRange[]>([]);
-  const [trend, setTrend] = useState<TrendData[]>([]);
-  const [coAttainment, setCoAttainment] = useState<COData[]>([]);
+  const [performance, setPerformance] = useState<PerformanceData | null>(null);
+  const [distribution, setDistribution] = useState<ScoreRange[]>([]);
+  const [questionInsights, setQuestionInsights] = useState<QuestionInsightsData | null>(null);
+  const [coAttainment, setCoAttainment] = useState<COAttainmentData | null>(null);
+  const [classTrend, setClassTrend] = useState<ClassTrendData | null>(null);
 
   useEffect(() => {
-    fetchAllData();
+    fetchContexts();
   }, []);
 
-  const fetchAllData = async () => {
+  useEffect(() => {
+    if (contexts.length > 0) {
+      fetchAnalyticsForContext(contexts[currentContextIndex]);
+    }
+  }, [currentContextIndex, contexts]);
+
+  const fetchContexts = async () => {
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const response = await axios.get(`${BASE_URL}/api/analytics/contexts`, { headers });
+      setContexts(response.data.contexts);
+      
+      if (response.data.contexts.length > 0) {
+        fetchAnalyticsForContext(response.data.contexts[0]);
+      } else {
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Error fetching contexts:', error);
+      setLoading(false);
+    }
+  };
+
+  const fetchAnalyticsForContext = async (context: Context) => {
+    try {
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const params = {
+        semester: context.semester,
+        ia: context.ia,
+        branch: context.branch
+      };
 
       const [
         summaryRes,
-        overviewRes,
-        statusRes,
+        performanceRes,
         distributionRes,
-        trendRes,
-        coRes
+        questionRes,
+        coRes,
+        trendRes
       ] = await Promise.all([
-        axios.get(`${BASE_URL}/api/analytics/summary`, { headers }),
-        axios.get(`${BASE_URL}/api/analytics/evaluation-overview`, { headers }),
-        axios.get(`${BASE_URL}/api/analytics/evaluation-status`, { headers }),
-        axios.get(`${BASE_URL}/api/analytics/student-distribution`, { headers }),
-        axios.get(`${BASE_URL}/api/analytics/evaluation-trend`, { headers }),
-        axios.get(`${BASE_URL}/api/analytics/co-attainment`, { headers })
+        axios.get(`${BASE_URL}/api/analytics/summary`, { headers, params }),
+        axios.get(`${BASE_URL}/api/analytics/performance-overview`, { headers, params }),
+        axios.get(`${BASE_URL}/api/analytics/score-distribution`, { headers, params }),
+        axios.get(`${BASE_URL}/api/analytics/question-insights`, { headers, params }),
+        axios.get(`${BASE_URL}/api/analytics/co-attainment`, { headers, params }),
+        axios.get(`${BASE_URL}/api/analytics/class-performance-trend`, { headers, params })
       ]);
 
       setSummary(summaryRes.data);
-      setOverview(overviewRes.data);
-      setStatus(statusRes.data);
+      setPerformance(performanceRes.data);
       setDistribution(distributionRes.data.ranges);
-      setTrend(trendRes.data.data);
-      setCoAttainment(coRes.data.cos);
+      setQuestionInsights(questionRes.data);
+      setCoAttainment(coRes.data);
+      setClassTrend(trendRes.data);
     } catch (error) {
       console.error('Error fetching analytics:', error);
     } finally {
@@ -96,29 +153,36 @@ export const HomeScreen: React.FC<HomeScreenProps> = () => {
     }
   };
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchAllData();
+  const cycleContext = () => {
+    if (contexts.length > 1) {
+      setCurrentContextIndex((prev) => (prev + 1) % contexts.length);
+    }
   };
 
-  const pieData = status ? [
-    { value: status.pending, color: '#9CA3AF', text: status.pending.toString() },
-    { value: status.completed, color: '#111827', text: status.completed.toString() },
-  ] : [];
-
-  const trendData = trend.map(item => ({
-    value: item.value,
-    label: item.label
-  }));
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchContexts();
+  };
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#111827" />
-        <Text style={styles.loadingText}>Loading dashboard...</Text>
+        <Text style={styles.loadingText}>Loading analytics...</Text>
       </View>
     );
   }
+
+  if (contexts.length === 0) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyTitle}>No Data Available</Text>
+        <Text style={styles.emptyText}>Start by creating CO mappings and evaluating students.</Text>
+      </View>
+    );
+  }
+
+  const currentContext = contexts[currentContextIndex];
 
   return (
     <ScrollView
@@ -127,12 +191,30 @@ export const HomeScreen: React.FC<HomeScreenProps> = () => {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#111827']} />
       }
     >
-      {/* KPI Summary Section */}
+      {/* Context Indicator */}
+      <TouchableOpacity 
+        style={styles.contextBanner} 
+        onPress={cycleContext}
+        activeOpacity={0.7}
+      >
+        <View style={styles.contextContent}>
+          <Text style={styles.contextLabel}>Current Context</Text>
+          <Text style={styles.contextValue}>
+            {currentContext.semester} • {currentContext.ia} • {currentContext.branch}
+          </Text>
+          <Text style={styles.contextSubject}>{currentContext.subjectName}</Text>
+        </View>
+        {contexts.length > 1 && (
+          <Text style={styles.contextCycle}>Tap to cycle →</Text>
+        )}
+      </TouchableOpacity>
+
+      {/* Workload & Coverage Summary */}
       <View style={styles.section}>
+        <Text style={styles.sectionHeader}>Workload & Coverage</Text>
         <View style={styles.kpiGrid}>
           <Card style={styles.kpiCard}>
             <CardContent style={styles.kpiContent}>
-              <Text style={styles.kpiMicro}>TOTAL</Text>
               <Text style={styles.kpiNumber}>{summary?.totalEvaluations || 0}</Text>
               <Text style={styles.kpiLabel}>Evaluations</Text>
             </CardContent>
@@ -140,152 +222,210 @@ export const HomeScreen: React.FC<HomeScreenProps> = () => {
 
           <Card style={styles.kpiCard}>
             <CardContent style={styles.kpiContent}>
-              <Text style={styles.kpiMicro}>PENDING</Text>
-              <Text style={styles.kpiNumber}>{summary?.pendingEvaluations || 0}</Text>
-              <Text style={styles.kpiLabel}>Evaluations</Text>
-            </CardContent>
-          </Card>
-
-          <Card style={styles.kpiCard}>
-            <CardContent style={styles.kpiContent}>
-              <Text style={styles.kpiMicro}>COMPLETED</Text>
-              <Text style={styles.kpiNumber}>{summary?.completedEvaluations || 0}</Text>
-              <Text style={styles.kpiLabel}>Evaluations</Text>
-            </CardContent>
-          </Card>
-
-          <Card style={styles.kpiCard}>
-            <CardContent style={styles.kpiContent}>
-              <Text style={styles.kpiMicro}>STUDENTS</Text>
               <Text style={styles.kpiNumber}>{summary?.totalStudentsEvaluated || 0}</Text>
-              <Text style={styles.kpiLabel}>Evaluated</Text>
+              <Text style={styles.kpiLabel}>Students</Text>
+            </CardContent>
+          </Card>
+
+          <Card style={styles.kpiCard}>
+            <CardContent style={styles.kpiContent}>
+              <Text style={styles.kpiNumber}>{summary?.totalSubjects || 0}</Text>
+              <Text style={styles.kpiLabel}>Subjects</Text>
             </CardContent>
           </Card>
         </View>
       </View>
 
-      {/* Evaluation Overview - Emphasized Card */}
-      <View style={styles.section}>
+      {/* Student Performance Overview */}
+      <TouchableOpacity 
+        style={styles.section} 
+        onPress={cycleContext}
+        activeOpacity={0.9}
+      >
+        <Text style={styles.sectionHeader}>Student Performance</Text>
         <Card style={styles.emphasisCard}>
           <CardContent style={styles.emphasisContent}>
-            <View style={styles.emphasisPrimary}>
-              <Text style={styles.emphasisLabel}>Average Score</Text>
-              <Text style={styles.emphasisNumber}>{overview?.averageScore.toFixed(1) || 0}%</Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.emphasisSecondary}>
-              <Text style={styles.secondaryLabel}>Total Questions Evaluated</Text>
-              <Text style={styles.secondaryNumber}>{overview?.totalQuestionsEvaluated.toLocaleString() || 0}</Text>
-            </View>
-          </CardContent>
-        </Card>
-      </View>
-
-      {/* Evaluation Status Pie Chart */}
-      <View style={styles.section}>
-        <Card style={styles.chartCard}>
-          <CardContent style={styles.chartContent}>
-            <Text style={styles.sectionTitle}>Evaluation Status</Text>
-            <View style={styles.chartWrapper}>
-              <PieChart
-                data={pieData}
-                donut
-                radius={80}
-                innerRadius={50}
-                centerLabelComponent={() => (
-                  <View style={styles.pieCenter}>
-                    <Text style={styles.pieCenterNumber}>{status?.total || 0}</Text>
-                    <Text style={styles.pieCenterLabel}>Total</Text>
-                  </View>
-                )}
-              />
-            </View>
-            <View style={styles.legend}>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: '#9CA3AF' }]} />
-                <Text style={styles.legendText}>Pending ({status?.pending || 0})</Text>
+            <View style={styles.performanceRow}>
+              <View style={styles.performanceItem}>
+                <Text style={styles.performanceLabel}>Average Score</Text>
+                <Text style={styles.performanceNumber}>{performance?.averageScore.toFixed(1) || 0}%</Text>
               </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: '#111827' }]} />
-                <Text style={styles.legendText}>Completed ({status?.completed || 0})</Text>
+              <View style={styles.dividerVertical} />
+              <View style={styles.performanceItem}>
+                <Text style={styles.performanceLabel}>Pass Rate</Text>
+                <Text style={styles.performanceNumber}>{performance?.passRate.toFixed(1) || 0}%</Text>
               </View>
             </View>
           </CardContent>
         </Card>
-      </View>
+      </TouchableOpacity>
 
-      {/* Student Performance Distribution */}
-      <View style={styles.section}>
+      {/* Score Distribution */}
+      <TouchableOpacity 
+        style={styles.section} 
+        onPress={cycleContext}
+        activeOpacity={0.9}
+      >
+        <Text style={styles.sectionHeader}>Score Distribution</Text>
         <Card style={styles.chartCard}>
           <CardContent style={styles.chartContent}>
-            <Text style={styles.sectionTitle}>Student Performance Distribution</Text>
             <View style={styles.distributionGrid}>
               {distribution.map((item, index) => (
                 <View key={index} style={styles.distributionCard}>
-                  <Text style={styles.distributionRange}>{item.range}</Text>
+                  <Text style={styles.distributionLabel}>{item.label}</Text>
                   <Text style={styles.distributionCount}>{item.count}</Text>
-                  <Text style={styles.distributionLabel}>students</Text>
+                  <Text style={styles.distributionRange}>{item.range}</Text>
                 </View>
               ))}
             </View>
           </CardContent>
         </Card>
-      </View>
+      </TouchableOpacity>
 
-      {/* Evaluation Trend Line Chart */}
-      <View style={styles.section}>
+      {/* Question-Level Insights */}
+      <TouchableOpacity 
+        style={styles.section} 
+        onPress={cycleContext}
+        activeOpacity={0.9}
+      >
+        <Text style={styles.sectionHeader}>Question Insights</Text>
         <Card style={styles.chartCard}>
           <CardContent style={styles.chartContent}>
-            <Text style={styles.sectionTitle}>Evaluation Trend</Text>
-            <View style={styles.chartWrapper}>
-              <LineChart
-                data={trendData}
-                width={screenWidth}
-                height={240}
-                spacing={50}
-                color="#111827"
-                thickness={2.5}
-                startFillColor="rgba(17, 24, 39, 0.08)"
-                endFillColor="rgba(17, 24, 39, 0.01)"
-                startOpacity={0.3}
-                endOpacity={0.1}
-                initialSpacing={10}
-                noOfSections={4}
-                yAxisColor="#E5E7EB"
-                xAxisColor="#E5E7EB"
-                yAxisThickness={1}
-                xAxisThickness={1}
-                yAxisTextStyle={styles.axisText}
-                xAxisLabelTextStyle={styles.axisText}
-                curved
-                areaChart
-              />
+            <View style={styles.insightRow}>
+              <Text style={styles.insightLabel}>Average Performance</Text>
+              <Text style={styles.insightValue}>{questionInsights?.averageMarksPerQuestion.toFixed(1) || 0}%</Text>
             </View>
+            
+            {questionInsights && questionInsights.lowestPerforming.length > 0 && (
+              <>
+                <View style={styles.divider} />
+                <Text style={styles.insightSubheader}>Lowest Performing</Text>
+                {questionInsights.lowestPerforming.map((q, idx) => (
+                  <View key={idx} style={styles.questionRow}>
+                    <Text style={styles.questionNo}>Q{q.questionNo}</Text>
+                    <Text style={styles.questionPercentage}>{q.percentage}%</Text>
+                  </View>
+                ))}
+              </>
+            )}
+            
+            {questionInsights && questionInsights.highestPerforming.length > 0 && (
+              <>
+                <View style={styles.divider} />
+                <Text style={styles.insightSubheader}>Highest Performing</Text>
+                {questionInsights.highestPerforming.map((q, idx) => (
+                  <View key={idx} style={styles.questionRow}>
+                    <Text style={styles.questionNo}>Q{q.questionNo}</Text>
+                    <Text style={styles.questionPercentage}>{q.percentage}%</Text>
+                  </View>
+                ))}
+              </>
+            )}
           </CardContent>
         </Card>
-      </View>
+      </TouchableOpacity>
 
-      {/* CO Attainment Overview */}
-      <View style={[styles.section, styles.lastSection]}>
+      {/* CO Attainment */}
+      <TouchableOpacity 
+        style={styles.section} 
+        onPress={cycleContext}
+        activeOpacity={0.9}
+      >
+        <Text style={styles.sectionHeader}>CO Attainment</Text>
         <Card style={styles.chartCard}>
           <CardContent style={styles.chartContent}>
-            <Text style={styles.sectionTitle}>CO Attainment Overview</Text>
-            <View style={styles.coList}>
-              {coAttainment.map((co, index) => (
-                <View key={index} style={styles.coRow}>
-                  <View style={styles.coHeader}>
-                    <Text style={styles.coLabel}>{co.label}</Text>
-                    <Text style={styles.coPercentage}>{co.percentage}%</Text>
-                  </View>
-                  <View style={styles.coBarContainer}>
-                    <View style={[styles.coBar, { width: `${co.percentage}%` }]} />
-                  </View>
+            {coAttainment && coAttainment.cos.length > 0 ? (
+              <>
+                <View style={styles.coList}>
+                  {coAttainment.cos.map((co, index) => (
+                    <View key={index} style={styles.coRow}>
+                      <View style={styles.coHeader}>
+                        <Text style={styles.coLabel}>{co.label}</Text>
+                        <Text style={styles.coPercentage}>{co.percentage}%</Text>
+                      </View>
+                      <View style={styles.coBarContainer}>
+                        <View style={[styles.coBar, { width: `${co.percentage}%` }]} />
+                      </View>
+                    </View>
+                  ))}
                 </View>
-              ))}
-            </View>
+                
+                {(coAttainment.strongCOs.length > 0 || coAttainment.weakCOs.length > 0) && (
+                  <>
+                    <View style={styles.divider} />
+                    <View style={styles.coSummaryRow}>
+                      {coAttainment.strongCOs.length > 0 && (
+                        <View style={styles.coSummaryItem}>
+                          <Text style={styles.coSummaryLabel}>Strong</Text>
+                          <Text style={styles.coSummaryValue}>{coAttainment.strongCOs.join(', ')}</Text>
+                        </View>
+                      )}
+                      {coAttainment.weakCOs.length > 0 && (
+                        <View style={styles.coSummaryItem}>
+                          <Text style={styles.coSummaryLabel}>Needs Focus</Text>
+                          <Text style={styles.coSummaryValue}>{coAttainment.weakCOs.join(', ')}</Text>
+                        </View>
+                      )}
+                    </View>
+                  </>
+                )}
+              </>
+            ) : (
+              <Text style={styles.emptyText}>No CO data available</Text>
+            )}
           </CardContent>
         </Card>
-      </View>
+      </TouchableOpacity>
+
+      {/* Class Performance Trend */}
+      <TouchableOpacity 
+        style={[styles.section, styles.lastSection]} 
+        onPress={cycleContext}
+        activeOpacity={0.9}
+      >
+        <Text style={styles.sectionHeader}>Class Performance Trend</Text>
+        <Card style={styles.chartCard}>
+          <CardContent style={styles.chartContent}>
+            {classTrend && classTrend.hasData && classTrend.trend.length > 0 ? (
+              <>
+                <View style={styles.trendList}>
+                  {classTrend.trend.map((item, index) => (
+                    <View key={index} style={styles.trendRow}>
+                      <View style={styles.trendHeader}>
+                        <Text style={styles.trendLabel}>{item.label}</Text>
+                        <Text style={styles.trendValue}>{item.value}/50</Text>
+                      </View>
+                      <View style={styles.trendBarContainer}>
+                        <View style={[styles.trendBar, { width: `${(item.value / 50) * 100}%` }]} />
+                      </View>
+                    </View>
+                  ))}
+                </View>
+                
+                {classTrend.trend.length > 1 && (
+                  <>
+                    <View style={styles.divider} />
+                    <View style={styles.trendSummary}>
+                      <Text style={styles.trendSummaryLabel}>
+                        {classTrend.trend[classTrend.trend.length - 1].value > classTrend.trend[0].value 
+                          ? '📈 Improving' 
+                          : classTrend.trend[classTrend.trend.length - 1].value < classTrend.trend[0].value
+                          ? '📉 Declining'
+                          : '➡️ Stable'}
+                      </Text>
+                      <Text style={styles.trendSummaryText}>
+                        {Math.abs(classTrend.trend[classTrend.trend.length - 1].value - classTrend.trend[0].value).toFixed(1)} marks change
+                      </Text>
+                    </View>
+                  </>
+                )}
+              </>
+            ) : (
+              <Text style={styles.emptyText}>No trend data available. Complete evaluations for multiple IAs to see trends.</Text>
+            )}
+          </CardContent>
+        </Card>
+      </TouchableOpacity>
     </ScrollView>
   );
 };
@@ -303,51 +443,98 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontWeight: '500',
   },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  
+  // Context Banner
+  contextBanner: {
+    backgroundColor: '#111827',
+    padding: 20,
+    marginBottom: 24,
+    borderRadius: 12,
+  },
+  contextContent: {
+    marginBottom: 8,
+  },
+  contextLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#9CA3AF',
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+  contextValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  contextSubject: {
+    fontSize: 13,
+    color: '#D1D5DB',
+  },
+  contextCycle: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontWeight: '500',
+    textAlign: 'right',
+  },
+  
+  // Sections
   section: {
     marginBottom: 24,
   },
   lastSection: {
     marginBottom: 40,
   },
+  sectionHeader: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 12,
+    letterSpacing: 0.3,
+  },
 
   // KPI Cards
   kpiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 16,
+    gap: 12,
   },
   kpiCard: {
     flex: 1,
-    minWidth: '45%',
+    minWidth: '30%',
     backgroundColor: '#FFFFFF',
     borderColor: '#E5E7EB',
     borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
   },
   kpiContent: {
-    paddingVertical: 24,
+    paddingVertical: 20,
     alignItems: 'center',
   },
-  kpiMicro: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#9CA3AF',
-    letterSpacing: 1.2,
-    marginBottom: 8,
-  },
   kpiNumber: {
-    fontSize: 42,
+    fontSize: 32,
     fontWeight: '700',
     color: '#111827',
-    lineHeight: 48,
     marginBottom: 4,
   },
   kpiLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '500',
     color: '#6B7280',
   },
@@ -357,51 +544,33 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderColor: '#E5E7EB',
     borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
   },
   emphasisContent: {
-    paddingVertical: 32,
+    paddingVertical: 24,
   },
-  emphasisPrimary: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  emphasisLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginBottom: 12,
-    letterSpacing: 0.3,
-  },
-  emphasisNumber: {
-    fontSize: 56,
-    fontWeight: '700',
-    color: '#111827',
-    lineHeight: 64,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#F3F4F6',
-    marginHorizontal: 32,
-    marginBottom: 24,
-  },
-  emphasisSecondary: {
+  performanceRow: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  secondaryLabel: {
+  performanceItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  performanceLabel: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#9CA3AF',
+    color: '#6B7280',
     marginBottom: 8,
   },
-  secondaryNumber: {
-    fontSize: 28,
-    fontWeight: '600',
-    color: '#374151',
+  performanceNumber: {
+    fontSize: 36,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  dividerVertical: {
+    width: 1,
+    height: 60,
+    backgroundColor: '#E5E7EB',
   },
 
   // Chart Cards
@@ -409,62 +578,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderColor: '#E5E7EB',
     borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
   },
   chartContent: {
-    paddingVertical: 24,
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 20,
-    letterSpacing: 0.2,
-  },
-  chartWrapper: {
-    alignItems: 'center',
-    paddingVertical: 16,
-  },
-
-  // Pie Chart
-  pieCenter: {
-    alignItems: 'center',
-  },
-  pieCenterNumber: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  pieCenterLabel: {
-    fontSize: 11,
-    color: '#6B7280',
-    fontWeight: '500',
-    marginTop: 2,
-  },
-  legend: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 32,
-    marginTop: 24,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  legendDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 8,
-  },
-  legendText: {
-    fontSize: 13,
-    color: '#6B7280',
-    fontWeight: '500',
+    paddingVertical: 20,
   },
 
   // Distribution Grid
@@ -477,44 +593,83 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: '45%',
     backgroundColor: '#FAFAFA',
-    borderRadius: 12,
-    padding: 20,
+    borderRadius: 8,
+    padding: 16,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#F3F4F6',
   },
-  distributionRange: {
-    fontSize: 12,
+  distributionLabel: {
+    fontSize: 11,
     fontWeight: '600',
     color: '#6B7280',
-    marginBottom: 12,
+    marginBottom: 8,
     letterSpacing: 0.5,
   },
   distributionCount: {
-    fontSize: 36,
+    fontSize: 28,
     fontWeight: '700',
     color: '#111827',
     marginBottom: 4,
   },
-  distributionLabel: {
-    fontSize: 11,
+  distributionRange: {
+    fontSize: 10,
     color: '#9CA3AF',
     fontWeight: '500',
   },
 
-  // Line Chart
-  axisText: {
-    color: '#9CA3AF',
-    fontSize: 10,
+  // Question Insights
+  insightRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  insightLabel: {
+    fontSize: 14,
     fontWeight: '500',
+    color: '#6B7280',
+  },
+  insightValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  insightSubheader: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#9CA3AF',
+    marginTop: 12,
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  questionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#FAFAFA',
+    borderRadius: 6,
+    marginBottom: 6,
+  },
+  questionNo: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  questionPercentage: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
   },
 
   // CO Attainment
   coList: {
-    gap: 20,
+    gap: 16,
   },
   coRow: {
-    gap: 10,
+    gap: 8,
   },
   coHeader: {
     flexDirection: 'row',
@@ -525,22 +680,153 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#111827',
-    letterSpacing: 0.3,
   },
   coPercentage: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: '#111827',
   },
   coBarContainer: {
-    height: 10,
+    height: 8,
     backgroundColor: '#F3F4F6',
-    borderRadius: 5,
+    borderRadius: 4,
     overflow: 'hidden',
   },
   coBar: {
     height: '100%',
     backgroundColor: '#111827',
-    borderRadius: 5,
+    borderRadius: 4,
+  },
+  coSummaryRow: {
+    flexDirection: 'row',
+    gap: 16,
+    marginTop: 12,
+  },
+  coSummaryItem: {
+    flex: 1,
+  },
+  coSummaryLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#9CA3AF',
+    marginBottom: 4,
+    letterSpacing: 0.5,
+  },
+  coSummaryValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#111827',
+  },
+
+  // Class Performance Trend
+  trendList: {
+    gap: 16,
+  },
+  trendRow: {
+    gap: 8,
+  },
+  trendHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  trendLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  trendValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  trendBarContainer: {
+    height: 8,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  trendBar: {
+    height: '100%',
+    backgroundColor: '#111827',
+    borderRadius: 4,
+  },
+  trendSummary: {
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  trendSummaryLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  trendSummaryText: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+
+  // Documentation Readiness (kept for backward compatibility, but not used)
+  readinessGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 8,
+  },
+  readinessItem: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  readinessIndicator: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+  },
+  readinessComplete: {
+    backgroundColor: '#111827',
+    borderColor: '#111827',
+  },
+  readinessLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  completionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  completionLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  completionPercentage: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  completionBarContainer: {
+    height: 12,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  completionBar: {
+    height: '100%',
+    backgroundColor: '#111827',
+    borderRadius: 6,
+  },
+
+  // Divider
+  divider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginVertical: 16,
   },
 });

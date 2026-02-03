@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, Modal, TextInput, Alert, StyleSheet, ActivityIndicator, ScrollView, FlatList } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, Modal, TextInput, Alert, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { pickAndUploadPDF } from '../../utils/pdf-picker';
 import { useAuth } from '../../contexts/auth-context';
@@ -8,20 +8,17 @@ import { API_BASE_URL } from '../../constants/api';
 export interface StudentUploadData {
   rollNumber: string;
   uploadMethod: 'pdf' | 'camera';
-  pdfId?: string; // Add PDF ID for when PDF is uploaded
-  pdfFileName?: string; // Add filename for display
+  progressId?: number; // Progress ID from database
+  pdfId?: string; // PDF ID for display
+  pdfFileName?: string; // Filename for display
 }
 
 interface RecentProgress {
   id: number;
   student_reg_no: string;
-  completed_questions: number;
   total_questions: number;
   upload_method: string;
-  pdf_id?: string;  // Add PDF ID for resuming
-  pdf_filename?: string;
-  status: string;
-  progress_percentage: number;
+  pdf_id?: string;
   created_at: string;
   updated_at: string;
 }
@@ -29,37 +26,39 @@ interface RecentProgress {
 interface SearchResult {
   student_reg_no: string;
   student_name: string;
-  completed_questions: number;
   total_questions: number;
   upload_method: string;
-  pdf_id?: string;  // Add PDF ID for resuming
-  status: string;
-  progress_percentage: number;
+  pdf_id?: string;
   last_updated: string;
+  progress_id?: number;  // Add progress_id
 }
 
 interface StudentUploadModalProps {
   visible: boolean;
   onClose: () => void;
-  onConfirm: (data: StudentUploadData) => void;
+  onConfirm: (data: StudentUploadData) => Promise<void>;
   evaluationId: number;
+  onViewResults?: (studentRegNo: string, progressId: number) => void; // New prop for viewing results
 }
 
 export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
   visible,
   onClose,
   onConfirm,
-  evaluationId
+  evaluationId,
+  onViewResults
 }) => {
   const { token } = useAuth();
   const [rollNumber, setRollNumber] = useState('');
   const [selectedMethod, setSelectedMethod] = useState<'pdf' | 'camera' | null>(null);
   const [uploadedPdf, setUploadedPdf] = useState<{ pdfId: string; fileName: string } | null>(null);
   const [isUploadingPdf, setIsUploadingPdf] = useState(false);
+  const [isEvaluating, setIsEvaluating] = useState(false);
   const [recentProgress, setRecentProgress] = useState<RecentProgress[]>([]);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [skipSearch, setSkipSearch] = useState(false); // Flag to skip auto-search after selection
 
   // Fetch recent progress when modal opens and reset state
   useEffect(() => {
@@ -77,7 +76,14 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
 
   // Debounced search
   useEffect(() => {
-    console.log(`🔍 Frontend: useEffect triggered with rollNumber: "${rollNumber}"`);
+    console.log(`🔍 Frontend: useEffect triggered with rollNumber: "${rollNumber}", skipSearch: ${skipSearch}`);
+
+    // If skipSearch flag is set, reset it and don't search
+    if (skipSearch) {
+      setSkipSearch(false);
+      return;
+    }
+
     const timeoutId = setTimeout(() => {
       if (rollNumber.trim().length >= 2) {
         console.log(`🔍 Frontend: Triggering search for: "${rollNumber.trim()}"`);
@@ -145,24 +151,37 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
   const selectStudent = (student: SearchResult | RecentProgress) => {
     const regNo = student.student_reg_no;
 
-    // Check if this is a recent progress or search result with evaluation data
-    if (student.upload_method && student.upload_method !== '') {
-      // This has evaluation data - redirect to evaluation screen
-      const studentData: StudentUploadData = {
-        rollNumber: regNo,
-        uploadMethod: student.upload_method as 'pdf' | 'camera',
-        pdfId: student.pdf_id || undefined,  // Use actual PDF ID from database
-        pdfFileName: 'pdf_filename' in student ? student.pdf_filename : undefined,
-      };
+    console.log('🎯 selectStudent called:', {
+      regNo,
+      hasId: 'id' in student,
+      hasProgressId: 'progress_id' in student,
+      uploadMethod: student.upload_method,
+      progressId: 'progress_id' in student ? student.progress_id : ('id' in student ? student.id : null),
+      student
+    });
 
-      // Close modal and redirect
+    // Check if this student has evaluation data
+    // For RecentProgress: has 'id' field
+    // For SearchResult: has 'progress_id' field
+    const progressId = 'id' in student ? student.id : ('progress_id' in student ? student.progress_id : null);
+    const hasProgress = progressId != null && student.upload_method && student.upload_method.trim() !== '';
+
+    console.log('🎯 hasProgress:', hasProgress, 'progressId:', progressId, 'onViewResults:', !!onViewResults);
+
+    if (hasProgress && onViewResults) {
+      // Navigate directly to results
+      console.log('✅ Navigating to results for student:', regNo, 'progressId:', progressId);
       handleClose();
-      onConfirm(studentData);
-    } else {
-      // This is just a search result without progress - fill the input
-      setRollNumber(regNo);
-      setShowSearchResults(false);
+      onViewResults(regNo, progressId);
+      return;
     }
+
+    // No progress yet - fill the input and close search (1 click only!)
+    console.log('📝 Filling input for new evaluation and closing search');
+    setRollNumber(regNo);
+    setShowSearchResults(false);
+    setSearchResults([]); // Clear search results so dropdown doesn't reappear
+    setSkipSearch(true); // Skip the next auto-search triggered by rollNumber change
   };
 
   const handleMethodSelect = async (method: 'pdf' | 'camera') => {
@@ -180,9 +199,23 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
       return;
     }
 
+    // Check if we have roll number entered
+    if (!rollNumber.trim()) {
+      Alert.alert('Error', 'Please enter student roll number first');
+      setSelectedMethod(null);
+      return;
+    }
+
     try {
       setIsUploadingPdf(true);
-      const uploadResult = await pickAndUploadPDF(token);
+      console.log('📤 Calling pickAndUploadPDF with:');
+      console.log('  - evaluationId:', evaluationId);
+      console.log('  - studentRegNo:', rollNumber.trim());
+
+      const uploadResult = await pickAndUploadPDF(token, {
+        evaluationId: evaluationId,
+        studentRegNo: rollNumber.trim(),
+      });
 
       if (uploadResult) {
         setUploadedPdf({
@@ -190,6 +223,14 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
           fileName: uploadResult.fileName
         });
         console.log('✅ PDF uploaded successfully:', uploadResult);
+        if (uploadResult.progressId) {
+          console.log('✅ Progress saved to database with ID:', uploadResult.progressId);
+          // Store progress ID for evaluation
+          setUploadedPdf({
+            pdfId: uploadResult.progressId.toString(), // Store progress ID as pdfId
+            fileName: uploadResult.fileName
+          });
+        }
       } else {
         // User cancelled or upload failed
         setSelectedMethod(null);
@@ -202,7 +243,7 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
     }
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!rollNumber.trim()) {
       Alert.alert('Error', 'Please enter student roll number');
       return;
@@ -219,22 +260,36 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
       return;
     }
 
-    onConfirm({
-      rollNumber: rollNumber.trim(),
-      uploadMethod: selectedMethod,
-      pdfId: uploadedPdf?.pdfId,
-      pdfFileName: uploadedPdf?.fileName
-    });
+    try {
+      setIsEvaluating(true);
 
-    // Reset form completely
-    setRollNumber('');
-    setSelectedMethod(null);
-    setUploadedPdf(null);
-    setSearchResults([]);
-    setShowSearchResults(false);
+      await onConfirm({
+        rollNumber: rollNumber.trim(),
+        uploadMethod: selectedMethod,
+        progressId: uploadedPdf?.pdfId ? parseInt(uploadedPdf.pdfId) : undefined,
+        pdfId: uploadedPdf?.pdfId,
+        pdfFileName: uploadedPdf?.fileName
+      });
+
+      // Reset form completely after successful evaluation
+      setRollNumber('');
+      setSelectedMethod(null);
+      setUploadedPdf(null);
+      setSearchResults([]);
+      setShowSearchResults(false);
+    } catch (error) {
+      console.error('Error during evaluation:', error);
+    } finally {
+      setIsEvaluating(false);
+    }
   };
 
   const handleClose = () => {
+    // Don't allow closing during evaluation
+    if (isEvaluating) {
+      return;
+    }
+
     setRollNumber('');
     setSelectedMethod(null);
     setUploadedPdf(null);
@@ -259,17 +314,16 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
             >
               <View style={styles.recentHeader}>
                 <Text style={styles.recentRollNumber}>{progress.student_reg_no}</Text>
-                <View style={[styles.statusBadge, { backgroundColor: progress.status === 'completed' ? '#000' : '#F59E0B' }]}>
+                <View style={[styles.statusBadge, { backgroundColor: '#000' }]}>
                   <Text style={styles.statusText}>
-                    {progress.completed_questions}/{progress.total_questions}
+                    {progress.upload_method.toUpperCase()}
                   </Text>
                 </View>
               </View>
-              <View style={styles.progressBar}>
-                <View style={[styles.progressFill, { width: `${progress.progress_percentage}%` }]} />
-              </View>
               <View style={styles.recentFooter}>
-                <Text style={styles.recentMethod}>{progress.upload_method.toUpperCase()}</Text>
+                <Text style={styles.recentMethod}>
+                  {new Date(progress.updated_at).toLocaleDateString()}
+                </Text>
                 <Feather name="arrow-right" size={12} color="#000" />
               </View>
             </TouchableOpacity>
@@ -290,11 +344,10 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
             <Text style={styles.searchLoadingText}>Searching...</Text>
           </View>
         ) : searchResults.length > 0 ? (
-          <FlatList
-            data={searchResults}
-            keyExtractor={(item) => item.student_reg_no}
-            renderItem={({ item }) => (
+          <View style={styles.searchResultsList}>
+            {searchResults.map((item) => (
               <TouchableOpacity
+                key={item.student_reg_no}
                 style={styles.searchResultItem}
                 onPress={() => selectStudent(item)}
                 activeOpacity={0.7}
@@ -303,21 +356,16 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
                   <Text style={styles.searchResultRoll}>{item.student_reg_no}</Text>
                   <Text style={styles.searchResultName}>{item.student_name}</Text>
                 </View>
-                {item.status !== 'not_started' && (
+                {item.upload_method && (
                   <View style={styles.searchResultProgress}>
                     <Text style={styles.searchResultStats}>
-                      {item.completed_questions}/{item.total_questions}
-                    </Text>
-                    <Text style={styles.searchResultPercentage}>
-                      {item.progress_percentage}%
+                      {item.upload_method.toUpperCase()}
                     </Text>
                   </View>
                 )}
               </TouchableOpacity>
-            )}
-            style={styles.searchResultsList}
-            keyboardShouldPersistTaps="handled"
-          />
+            ))}
+          </View>
         ) : rollNumber.trim().length >= 2 ? (
           <View style={styles.noResults}>
             <Text style={styles.noResultsText}>No students found</Text>
@@ -339,8 +387,8 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>Upload Student Answer Sheet</Text>
-            <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-              <Feather name="x" size={24} color="#666" />
+            <TouchableOpacity onPress={handleClose} style={styles.closeButton} disabled={isEvaluating}>
+              <Feather name="x" size={24} color={isEvaluating ? "#ccc" : "#666"} />
             </TouchableOpacity>
           </View>
 
@@ -366,7 +414,8 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
                   autoCapitalize="characters"
                   autoCorrect={false}
                   onFocus={() => {
-                    if (rollNumber.trim().length >= 2) {
+                    // Only show search results if we have results and the query is long enough
+                    if (rollNumber.trim().length >= 2 && searchResults.length > 0) {
                       setShowSearchResults(true);
                     }
                   }}
@@ -430,7 +479,7 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
                     </View>
                   ) : (
                     <Text style={styles.methodDescription}>
-                      Upload a PDF file and crop answer sections
+                      Upload student's answer PDF
                     </Text>
                   )}
                 </View>
@@ -443,42 +492,6 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
                   )}
                 </View>
               </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.methodOption,
-                  selectedMethod === 'camera' && styles.methodOptionSelected
-                ]}
-                onPress={() => handleMethodSelect('camera')}
-                activeOpacity={0.7}
-              >
-                <View style={styles.methodIcon}>
-                  <Feather
-                    name="camera"
-                    size={24}
-                    color={selectedMethod === 'camera' ? '#000' : '#666'}
-                  />
-                </View>
-                <View style={styles.methodContent}>
-                  <Text style={[
-                    styles.methodTitle,
-                    selectedMethod === 'camera' && styles.methodTitleSelected
-                  ]}>
-                    Take Photos
-                  </Text>
-                  <Text style={styles.methodDescription}>
-                    Use camera to capture answer sections
-                  </Text>
-                </View>
-                <View style={[
-                  styles.radioButton,
-                  selectedMethod === 'camera' && styles.radioButtonSelected
-                ]}>
-                  {selectedMethod === 'camera' && (
-                    <View style={styles.radioButtonInner} />
-                  )}
-                </View>
-              </TouchableOpacity>
             </View>
 
             {/* Action Buttons */}
@@ -487,21 +500,31 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
                 style={styles.cancelButton}
                 onPress={handleClose}
                 activeOpacity={0.7}
+                disabled={isEvaluating}
               >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={[styles.cancelButtonText, isEvaluating && { color: '#ccc' }]}>Cancel</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[
                   styles.confirmButton,
-                  (!rollNumber.trim() || !selectedMethod || (selectedMethod === 'pdf' && !uploadedPdf) || isUploadingPdf) && styles.confirmButtonDisabled
+                  (!rollNumber.trim() || !selectedMethod || (selectedMethod === 'pdf' && !uploadedPdf) || isUploadingPdf || isEvaluating) && styles.confirmButtonDisabled
                 ]}
                 onPress={handleConfirm}
-                disabled={!rollNumber.trim() || !selectedMethod || (selectedMethod === 'pdf' && !uploadedPdf) || isUploadingPdf}
+                disabled={!rollNumber.trim() || !selectedMethod || (selectedMethod === 'pdf' && !uploadedPdf) || isUploadingPdf || isEvaluating}
                 activeOpacity={0.7}
               >
-                <Feather name="arrow-right" size={20} color="#fff" />
-                <Text style={styles.confirmButtonText}>Continue</Text>
+                {isEvaluating ? (
+                  <>
+                    <ActivityIndicator size={20} color="#fff" />
+                    <Text style={styles.confirmButtonText}>Evaluating...</Text>
+                  </>
+                ) : (
+                  <>
+                    <Feather name="play" size={20} color="#fff" />
+                    <Text style={styles.confirmButtonText}>Start Evaluation</Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
           </ScrollView>

@@ -188,64 +188,33 @@ class DBServiceForServer:
             raise e
 
 
-    def get_co_templates_by_teacher(self, teacher_id: int):
-        """Get all CO templates for a teacher"""
-        return self.db.query(COTemplate).filter(COTemplate.teacher_id == teacher_id).all()
-    
     def get_co_questions_by_template(self, template_id: int):
         """Get all CO question mappings for a template"""
         from db_service.db_schema import COQuestionMapping
         return self.db.query(COQuestionMapping).filter(COQuestionMapping.template_id == template_id).all()
-    
-    def get_evaluation_schemas_by_template(self, template_id: int):
-        """Get all evaluation schemas (completed questions) for a template"""
+
+    def get_evaluation_schemas_by_teacher(self, teacher_id: int):
+        """Get all evaluation schemas for a teacher"""
         from db_service.db_schema import EvaluationSchema
-        return self.db.query(EvaluationSchema).filter(EvaluationSchema.template_id == template_id).all()
+        return self.db.query(EvaluationSchema).filter(EvaluationSchema.teacher_id == teacher_id).all()
 
+    def get_evaluation_schema_by_id(self, schema_id: int):
+        """Get evaluation schema by ID"""
+        from db_service.db_schema import EvaluationSchema
+        return self.db.query(EvaluationSchema).filter(EvaluationSchema.id == schema_id).first()
 
-    def create_evaluation(self, template_id: int, teacher_id: int, pdf_path: str, created_at: str, updated_at: str):
-        """Create a new evaluation record"""
-        from db_service.db_schema import Evaluation
-        evaluation = Evaluation(
-            template_id=template_id,
-            teacher_id=teacher_id,
-            pdf_path=pdf_path,
-            status="in_progress",
-            created_at=created_at,
-            updated_at=updated_at
-        )
-        self.db.add(evaluation)
-        self.db.commit()
-        self.db.refresh(evaluation)
-        return evaluation
-
-
-    def get_evaluations_by_teacher(self, teacher_id: int):
-        """Get all evaluations for a teacher"""
-        from db_service.db_schema import Evaluation
-        return self.db.query(Evaluation).filter(Evaluation.teacher_id == teacher_id).all()
-
-
-    def get_evaluation_by_id(self, evaluation_id: int):
-        """Get evaluation by ID"""
-        from db_service.db_schema import Evaluation
-        return self.db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
-
-    def create_student_progress(self, evaluation_id: int, student_reg_no: str, teacher_id: int, 
-                              total_questions: int, upload_method: str, pdf_id: str = None, 
-                              pdf_filename: str = None, created_at: str = None, updated_at: str = None):
+    def create_student_progress(self, schema_id: int, student_reg_no: str, teacher_id: int, 
+                              total_questions: int, upload_method: str, student_pdf_path: str = None, 
+                              created_at: str = None, updated_at: str = None):
         """Create a new student evaluation progress record"""
         from db_service.db_schema import StudentEvaluationProgress
         progress = StudentEvaluationProgress(
-            evaluation_id=evaluation_id,
+            schema_id=schema_id,
             student_reg_no=student_reg_no,
             teacher_id=teacher_id,
             total_questions=total_questions,
-            completed_questions=0,
             upload_method=upload_method,
-            pdf_id=pdf_id,
-            pdf_filename=pdf_filename,
-            status="in_progress",
+            student_pdf_path=student_pdf_path,
             created_at=created_at,
             updated_at=updated_at
         )
@@ -254,16 +223,16 @@ class DBServiceForServer:
         self.db.refresh(progress)
         return progress
 
-    def get_student_progress(self, evaluation_id: int, student_reg_no: str):
-        """Get existing student progress for an evaluation"""
+    def get_student_progress(self, schema_id: int, student_reg_no: str):
+        """Get existing student progress for an evaluation schema"""
         from db_service.db_schema import StudentEvaluationProgress
         return self.db.query(StudentEvaluationProgress).filter(
-            StudentEvaluationProgress.evaluation_id == evaluation_id,
+            StudentEvaluationProgress.schema_id == schema_id,
             StudentEvaluationProgress.student_reg_no == student_reg_no
         ).first()
 
     def update_student_progress(self, progress_id: int, upload_method: str = None, 
-                              pdf_id: str = None, pdf_filename: str = None, updated_at: str = None):
+                              student_pdf_path: str = None, updated_at: str = None):
         """Update existing student progress"""
         from db_service.db_schema import StudentEvaluationProgress
         progress = self.db.query(StudentEvaluationProgress).filter(
@@ -273,10 +242,8 @@ class DBServiceForServer:
         if progress:
             if upload_method:
                 progress.upload_method = upload_method
-            if pdf_id:
-                progress.pdf_id = pdf_id
-            if pdf_filename:
-                progress.pdf_filename = pdf_filename
+            if student_pdf_path:
+                progress.student_pdf_path = student_pdf_path
             if updated_at:
                 progress.updated_at = updated_at
             
@@ -285,15 +252,15 @@ class DBServiceForServer:
         
         return progress
 
-    def get_recent_student_progress(self, evaluation_id: int, teacher_id: int, limit: int = 10):
-        """Get recent student progress for an evaluation"""
+    def get_recent_student_progress(self, schema_id: int, teacher_id: int, limit: int = 10):
+        """Get recent student progress for an evaluation schema"""
         from db_service.db_schema import StudentEvaluationProgress
         return self.db.query(StudentEvaluationProgress).filter(
-            StudentEvaluationProgress.evaluation_id == evaluation_id,
+            StudentEvaluationProgress.schema_id == schema_id,
             StudentEvaluationProgress.teacher_id == teacher_id
         ).order_by(StudentEvaluationProgress.updated_at.desc()).limit(limit).all()
 
-    def search_students_with_progress(self, evaluation_id: int, teacher_id: int, query: str):
+    def search_students_with_progress(self, schema_id: int, teacher_id: int, query: str):
         """Search students by registration number and return with progress info"""
         from db_service.db_schema import StudentEvaluationProgress, STUDENTINFO
         from sqlalchemy import or_, distinct
@@ -315,34 +282,34 @@ class DBServiceForServer:
         for student in students:
             processed_reg_nos.add(student.reg_no)
             progress = self.db.query(StudentEvaluationProgress).filter(
-                StudentEvaluationProgress.evaluation_id == evaluation_id,
+                StudentEvaluationProgress.schema_id == schema_id,
                 StudentEvaluationProgress.student_reg_no == student.reg_no,
                 StudentEvaluationProgress.teacher_id == teacher_id
             ).first()
+            
+            print(f"  🔍 Checking progress for {student.reg_no}: {'FOUND' if progress else 'NOT FOUND'}")
+            if progress:
+                print(f"    ✅ Progress ID: {progress.id}, Method: {progress.upload_method}")
             
             if progress:
                 student_data = {
                     "student_reg_no": student.reg_no,
                     "student_name": student.name,
-                    "completed_questions": progress.completed_questions,
                     "total_questions": progress.total_questions,
                     "upload_method": progress.upload_method,
-                    "pdf_id": progress.pdf_id,  # Include PDF ID for resuming
-                    "status": progress.status,
-                    "progress_percentage": round((progress.completed_questions / progress.total_questions) * 100) if progress.total_questions > 0 else 0,
-                    "updated_at": progress.updated_at
+                    "student_pdf_path": progress.student_pdf_path,
+                    "updated_at": progress.updated_at,
+                    "progress_id": progress.id  # Add progress_id
                 }
             else:
                 student_data = {
                     "student_reg_no": student.reg_no,
                     "student_name": student.name,
-                    "completed_questions": 0,
                     "total_questions": 0,
                     "upload_method": "",
-                    "pdf_id": None,
-                    "status": "not_started",
-                    "progress_percentage": 0,
-                    "updated_at": ""
+                    "student_pdf_path": None,
+                    "updated_at": "",
+                    "progress_id": None  # No progress yet
                 }
             
             student_list.append(student_data)
@@ -350,14 +317,16 @@ class DBServiceForServer:
         # Also search in StudentEvaluationProgress for students who have started evaluations
         # but might not be in STUDENTINFO table
         progress_query = self.db.query(StudentEvaluationProgress).filter(
-            StudentEvaluationProgress.evaluation_id == evaluation_id,
+            StudentEvaluationProgress.schema_id == schema_id,
             StudentEvaluationProgress.teacher_id == teacher_id,
             StudentEvaluationProgress.student_reg_no.ilike(f"%{query}%")
         ).limit(20)
         
         progress_students = progress_query.all()
+        print(f"  🔍 Found {len(progress_students)} students in progress table matching query")
         
         for progress in progress_students:
+            print(f"  🔍 Progress student: {progress.student_reg_no}, already processed: {progress.student_reg_no in processed_reg_nos}")
             if progress.student_reg_no not in processed_reg_nos:
                 # Try to get student name from STUDENTINFO
                 student_info = self.db.query(STUDENTINFO).filter(
@@ -366,16 +335,16 @@ class DBServiceForServer:
                 
                 student_name = student_info.name if student_info else progress.student_reg_no
                 
+                print(f"    ✅ Adding progress student: {progress.student_reg_no} (ID: {progress.id})")
+                
                 student_data = {
                     "student_reg_no": progress.student_reg_no,
                     "student_name": student_name,
-                    "completed_questions": progress.completed_questions,
                     "total_questions": progress.total_questions,
                     "upload_method": progress.upload_method,
-                    "pdf_id": progress.pdf_id,
-                    "status": progress.status,
-                    "progress_percentage": round((progress.completed_questions / progress.total_questions) * 100) if progress.total_questions > 0 else 0,
-                    "updated_at": progress.updated_at
+                    "student_pdf_path": progress.student_pdf_path,
+                    "updated_at": progress.updated_at,
+                    "progress_id": progress.id  # Add progress_id
                 }
                 
                 student_list.append(student_data)
@@ -383,69 +352,95 @@ class DBServiceForServer:
         
         return student_list
 
-    def complete_question_progress(self, progress_id: int, question_no: str, updated_at: str):
-        """Mark a question as completed and increment progress"""
-        from db_service.db_schema import StudentEvaluationProgress
-        progress = self.db.query(StudentEvaluationProgress).filter(
-            StudentEvaluationProgress.id == progress_id
-        ).first()
-        
-        if progress:
-            progress.completed_questions += 1
-            progress.last_question_completed = question_no
-            progress.updated_at = updated_at
-            
-            self.db.commit()
-            self.db.refresh(progress)
-        
-        return progress
-
-    def update_progress_status(self, progress_id: int, status: str, updated_at: str):
-        """Update the status of student progress"""
-        from db_service.db_schema import StudentEvaluationProgress
-        progress = self.db.query(StudentEvaluationProgress).filter(
-            StudentEvaluationProgress.id == progress_id
-        ).first()
-        
-        if progress:
-            progress.status = status
-            progress.updated_at = updated_at
-            self.db.commit()
-            self.db.refresh(progress)
-        
-        return progress
-
-    def get_evaluation_questions(self, evaluation_id: int):
-        """Get questions for an evaluation (from CO question mappings)"""
-        # First get the evaluation to find the template_id
-        evaluation = self.get_evaluation_by_id(evaluation_id)
-        if not evaluation:
+    def get_evaluation_questions(self, schema_id: int):
+        """Get questions for an evaluation schema (from CO question mappings)"""
+        # First get the schema to find the template_id
+        schema = self.get_evaluation_schema_by_id(schema_id)
+        if not schema:
             return []
         
         # Get questions from CO mappings
         from db_service.db_schema import COQuestionMapping
         questions = self.db.query(COQuestionMapping).filter(
-            COQuestionMapping.template_id == evaluation.template_id
+            COQuestionMapping.template_id == schema.template_id
         ).all()
         
         return [{"id": q.q_no, "label": f"Question {q.q_no}"} for q in questions]
-    def get_student_completed_evaluations(self, evaluation_id: int, student_reg_no: str, teacher_id: int):
-        """Get completed evaluations for a specific student"""
-        from db_service.db_schema import StudentAnswerEvaluation, Evaluation
+    def create_evaluation_schema(self, template_id: int, teacher_id: int, pdf_path: str, created_at: str, updated_at: str):
+        """Create a new evaluation schema record"""
+        from db_service.db_schema import EvaluationSchema
+        evaluation_schema = EvaluationSchema(
+            template_id=template_id,
+            teacher_id=teacher_id,
+            pdf_path=pdf_path,
+            status="active",
+            created_at=created_at,
+            updated_at=updated_at
+        )
+        self.db.add(evaluation_schema)
+        self.db.commit()
+        self.db.refresh(evaluation_schema)
+        return evaluation_schema
+
+    def create_student_answer_evaluations(self, evaluations_data: list):
+        """
+        Bulk create student answer evaluations
         
-        # First get the evaluation to find the template_id
-        evaluation = self.db.query(Evaluation).filter(
-            Evaluation.id == evaluation_id,
-            Evaluation.teacher_id == teacher_id
+        Args:
+            evaluations_data: List of dicts with keys:
+                - progress_id
+                - teacher_id
+                - student_reg_no
+                - question_no
+                - mark_score
+                - total_mark
+                - feedback (list)
+                - evaluated_at
+        """
+        try:
+            from db_service.db_schema import StudentAnswerEvaluation
+            
+            evaluation_records = []
+            for eval_data in evaluations_data:
+                evaluation = StudentAnswerEvaluation(
+                    progress_id=eval_data['progress_id'],
+                    teacher_id=eval_data['teacher_id'],
+                    student_reg_no=eval_data['student_reg_no'],
+                    question_no=eval_data['question_no'],
+                    mark_score=eval_data['mark_score'],
+                    total_mark=eval_data['total_mark'],
+                    feedback=eval_data['feedback'],
+                    evaluated_at=eval_data['evaluated_at']
+                )
+                evaluation_records.append(evaluation)
+            
+            self.db.bulk_save_objects(evaluation_records)
+            self.db.commit()
+            
+            print(f"✅ Created {len(evaluation_records)} evaluation records")
+            return True
+            
+        except Exception as e:
+            self.db.rollback()
+            print(f"Error creating student answer evaluations: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def get_student_progress_by_id(self, progress_id: int):
+        """Get student evaluation progress by ID"""
+        from db_service.db_schema import StudentEvaluationProgress
+        return self.db.query(StudentEvaluationProgress).filter(
+            StudentEvaluationProgress.id == progress_id
         ).first()
+    
+    def count_completed_students(self, schema_id: int):
+        """Count the number of students who have completed evaluations for a schema"""
+        from db_service.db_schema import StudentEvaluationProgress
         
-        if not evaluation:
-            return []
+        # Count distinct students who have progress records for this schema
+        count = self.db.query(StudentEvaluationProgress.student_reg_no).filter(
+            StudentEvaluationProgress.schema_id == schema_id
+        ).distinct().count()
         
-        # Get completed evaluations for this student and template
-        evaluations = self.db.query(StudentAnswerEvaluation).filter(
-            StudentAnswerEvaluation.template_id == evaluation.template_id,
-            StudentAnswerEvaluation.student_reg_no == student_reg_no
-        ).all()
-        
-        return evaluations
+        return count

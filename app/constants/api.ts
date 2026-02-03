@@ -3,13 +3,13 @@
 // For iOS simulator use localhost
 // For physical device, replace with your computer's IP (e.g., 192.168.1.5)
 
-const BASE_URL = 'http://192.168.1.8:8000';
+// const BASE_URL = 'http://192.168.1.8:8000';
 
 //Server hosted 
 // const BASE_URL = 'http://20.40.47.177:8000';
 
 // For expo go 
-//  const BASE_URL = 'http://192.168.1.6:8000';
+const BASE_URL = 'http://192.168.1.8:8000';
 export const API_BASE_URL = BASE_URL;
 
 export const API_ENDPOINTS = {
@@ -24,6 +24,7 @@ export const API_ENDPOINTS = {
   AUTH_SIGNUP: `${BASE_URL}/auth/signup`,
   AUTH_ME: `${BASE_URL}/auth/me`,
   PDF_CONVERT: `${BASE_URL}/api/pdf/convert-to-images`,
+  UPLOAD_EVALUATION_PDF: `${BASE_URL}/upload_evaluation_pdf`,
 };
 
 export { BASE_URL };
