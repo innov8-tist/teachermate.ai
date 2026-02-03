@@ -23,9 +23,10 @@ interface EvaluationRecord {
 
 interface EvaluationScreenProps {
   onViewResults: (evaluationId: number, subjectName: string, studentRegNo?: string) => void;
+  refreshTrigger?: number; // Increment this to trigger refresh
 }
 
-export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewResults }) => {
+export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewResults, refreshTrigger }) => {
   const { token, teacher } = useAuth();
   const [evaluations, setEvaluations] = useState<EvaluationRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,7 +36,7 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewResult
 
   useEffect(() => {
     fetchEvaluations();
-  }, []);
+  }, [refreshTrigger]); // Re-fetch when refreshTrigger changes
 
   const fetchEvaluations = async () => {
     if (!token || !teacher) {
@@ -44,18 +45,34 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewResult
     }
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
       const response = await fetch(`${BASE_URL}/evaluations/${teacher.id}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (response.ok) {
         const data = await response.json();
         setEvaluations(data.evaluations || []);
+      } else {
+        console.error('Failed to fetch evaluations:', response.status);
+        Alert.alert('Error', 'Failed to load evaluations. Please try again.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching evaluations:', error);
+      if (error.name === 'AbortError') {
+        Alert.alert('Timeout', 'Request took too long. Please check your connection and try again.');
+      } else if (error.message?.includes('Network')) {
+        Alert.alert('Network Error', 'Please check your internet connection and try again.');
+      } else {
+        Alert.alert('Error', 'Failed to load evaluations. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -108,12 +125,18 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewResult
       try {
         console.log('🚀 Starting evaluation for progress_id:', studentData.progressId);
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout for evaluation
+
         const response = await fetch(`${BASE_URL}/api/evaluation/start-evaluation/${studentData.progressId}`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
           },
+          signal: controller.signal,
         });
+
+        clearTimeout(timeoutId);
 
         if (response.ok) {
           const result = await response.json();
@@ -133,16 +156,22 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewResult
           setShowUploadModal(false);
           setSelectedEvaluationId(null);
 
-          Alert.alert('Error', 'Failed to start evaluation');
+          Alert.alert('Error', 'Evaluation failed. Please try again.');
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ Error starting evaluation:', error);
 
         // Close modal on error
         setShowUploadModal(false);
         setSelectedEvaluationId(null);
 
-        Alert.alert('Error', 'Failed to start evaluation');
+        if (error.name === 'AbortError') {
+          Alert.alert('Timeout', 'Evaluation took too long. The file might be too large or the server is busy. Please try again.');
+        } else if (error.message?.includes('Network')) {
+          Alert.alert('Network Error', 'Please check your internet connection and try again.');
+        } else {
+          Alert.alert('Error', 'Failed to start evaluation. Please try again.');
+        }
       }
     } else {
       // No progress ID - this shouldn't happen with the new flow

@@ -22,6 +22,7 @@ export default function HomeScreenRefactored() {
     const [selectedStudentRegNo, setSelectedStudentRegNo] = useState<string | null>(null);
     const [selectedEvaluationId, setSelectedEvaluationId] = useState<number | null>(null);
     const [showAnswerKeyModal, setShowAnswerKeyModal] = useState(false);
+    const [evaluationRefreshTrigger, setEvaluationRefreshTrigger] = useState(0);
 
     // Handle Android back button
     useEffect(() => {
@@ -82,6 +83,7 @@ export default function HomeScreenRefactored() {
                             {evaluationSubScreen === 'list' && (
                                 <EvaluationScreen
                                     onViewResults={handleViewEvaluationResults}
+                                    refreshTrigger={evaluationRefreshTrigger}
                                 />
                             )}
                             {evaluationSubScreen === 'results' && selectedEvaluationId && selectedSubject && (
@@ -140,6 +142,8 @@ export default function HomeScreenRefactored() {
                     onClose={() => setShowAnswerKeyModal(false)}
                     onSuccess={() => {
                         setShowAnswerKeyModal(false);
+                        // Trigger refresh of evaluation list
+                        setEvaluationRefreshTrigger(prev => prev + 1);
                     }}
                 />
             </View>

@@ -22,12 +22,19 @@ from db_service.db_schema import Teacher
 from services.s3_service import s3_service
 from comapping.answer_sheet_processing.cutting import ImageProcess
 from comapping.answer_sheet_processing.extraction_pipeline import ExtractionPipeline
+from datetime import datetime
+from db_service import COTemplate
+from db_service.db_schema import  StudentAnswerEvaluation, STUDENTINFO
+from db_service.db_schema import EvaluationSchema, StudentEvaluationProgress
+from direct_evalution import evaluate_pdf,groq_structure
+import requests
 import sys
-sys.path.append(str(Path(__file__).parent / "direct evalution"))
-from app import evaluate_pdf, groq_structure
-
+import traceback
+import fitz
+import tempfile
+import os
+import shutil
 app = FastAPI()
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -35,16 +42,13 @@ app.add_middleware(
     allow_methods=["*"],  
     allow_headers=["*"],  
 )
-
 app.include_router(auth_router)
 app.include_router(analytics_router)
-
-# Mount static files for serving PDFs and cropped images
 app.mount("/public", StaticFiles(directory="public"), name="public")
 
-# Temp folder for processing images before uploading to S3
 TEMP_FOLDER = Path(tempfile.gettempdir()) / "co_images"
 TEMP_FOLDER.mkdir(parents=True, exist_ok=True)
+
 
 def get_db_service():
     db_service = DBServiceForServer()
@@ -72,11 +76,11 @@ async def co_creation(
     current_teacher: Teacher = Depends(get_current_teacher),
     db_service: DBServiceForServer = Depends(get_db_service)
 ):
-    print(f"🔍 Received Form Data:")
-    print(f"  subject_name: {subject_name} (type: {type(subject_name)})")
-    print(f"  sem: {sem} (type: {type(sem)})")
-    print(f"  ia_number: {ia_number} (type: {type(ia_number)})")
-    print(f"  student_count: {student_count} (type: {type(student_count)})")
+    print(f"Received Form Data:")
+    print(f"subject_name: {subject_name} (type: {type(subject_name)})")
+    print(f"sem: {sem} (type: {type(sem)})")
+    print(f"ia_number: {ia_number} (type: {type(ia_number)})")
+    print(f"student_count: {student_count} (type: {type(student_count)})")
     
     co_data = CoCreationModel(
         subject_name=subject_name,
@@ -88,16 +92,14 @@ async def co_creation(
     unique_id = str(uuid.uuid4())
     file_extension = os.path.splitext(co_image.filename)[1]
     
-    # Read file content
     file_content = await co_image.read()
     
-    # Upload to S3
+
     s3_url = None
     if s3_service.is_available:
         s3_url = s3_service.upload_co_image(file_content, file_extension)
-        print(f"✓ Uploaded CO image to S3: {s3_url}")
+        print(f"Uploaded CO image to S3: {s3_url}")
     
-    # Save to temp folder for processing
     temp_filename = f"{unique_id}{file_extension}"
     temp_path = TEMP_FOLDER / temp_filename
     with open(temp_path, "wb") as buffer:
@@ -123,18 +125,16 @@ async def co_creation(
             ia_number=co_data.ia_number,
             student_count=co_data.student_count,
             teacher_id=current_teacher.id,
-            image_path=s3_url or str(temp_path)  # Use S3 URL if available, else temp path
+            image_path=s3_url or str(temp_path)  
         )
         
-        # Process the image from temp path
         main_func(image_path=str(temp_path), subject_id=created_subject.id)
         
-        # Clean up temp file after processing
         try:
             os.remove(temp_path)
-            print(f"✓ Cleaned up temp file: {temp_path}")
+            print(f"Cleaned up temp file: {temp_path}")
         except Exception as e:
-            print(f"⚠ Failed to clean up temp file: {e}")
+            print(f"Failed to clean up temp file: {e}")
         
         return {
             "status": "success",
@@ -150,7 +150,7 @@ async def co_creation(
             }
         }
     except ValueError as e:
-        # Clean up temp file on error
+    
         if temp_path.exists():
             os.remove(temp_path)
         return {
@@ -158,7 +158,7 @@ async def co_creation(
             "message": str(e)
         }
     except Exception as e:
-        # Clean up temp file on error
+  
         if temp_path.exists():
             os.remove(temp_path)
         return {
@@ -302,7 +302,7 @@ def download_co_excel(subject_id: int, db_service: DBServiceForServer = Depends(
         )
     except Exception as e:
         print(f"Error generating Excel: {str(e)}")
-        import traceback
+        
         traceback.print_exc()
         return {"status": "error", "message": f"Failed to generate Excel: {str(e)}"}
 
@@ -327,19 +327,16 @@ async def upload_evaluation_pdf(
     Teacher selects a CO subject and uploads the answer key PDF
     """
     try:
-        # Validate file type
         if not answer_key_pdf.filename.endswith('.pdf'):
             raise HTTPException(status_code=400, detail="Only PDF files are allowed")
         
-        # Verify template exists and belongs to teacher
         template = db_service.get_subject_info(template_id)
         if not template:
             raise HTTPException(status_code=404, detail="Subject not found")
         
-        # Read file content
         file_content = await answer_key_pdf.read()
         
-        # Upload to S3
+
         pdf_s3_url = None
         if s3_service.is_available:
             pdf_s3_url = s3_service.upload_evaluation_pdf(
@@ -348,9 +345,9 @@ async def upload_evaluation_pdf(
                 teacher_id=current_teacher.id,
                 filename=answer_key_pdf.filename
             )
-            print(f"✓ Uploaded answer key PDF to S3: {pdf_s3_url}")
+            print(f"Uploaded answer key PDF to S3: {pdf_s3_url}")
         else:
-            # Fallback: save locally if S3 not available
+
             local_dir = Path("public/evaluation_pdfs")
             local_dir.mkdir(parents=True, exist_ok=True)
             pdf_filename = f"{template_id}_{uuid.uuid4()}.pdf"
@@ -358,13 +355,11 @@ async def upload_evaluation_pdf(
             with open(pdf_path, "wb") as f:
                 f.write(file_content)
             pdf_s3_url = f"/public/evaluation_pdfs/{pdf_filename}"
-            print(f"⚠ S3 not available, saved locally: {pdf_s3_url}")
+            print(f"S3 not available, saved locally: {pdf_s3_url}")
         
-        # Create timestamp
-        from datetime import datetime
+        
         timestamp = datetime.now().isoformat()
         
-        # Save to database
         evaluation_schema = db_service.create_evaluation_schema(
             template_id=template_id,
             teacher_id=current_teacher.id,
@@ -398,7 +393,6 @@ async def upload_evaluation_pdf(
         raise
     except Exception as e:
         print(f"Error uploading evaluation PDF: {str(e)}")
-        import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to upload PDF: {str(e)}")
 
@@ -428,7 +422,7 @@ async def get_student_progress(
                 "updated_at": progress.updated_at
             })
         
-        print(f"✅ Found {len(progress_list)} recent progress entries")
+        print(f"Found {len(progress_list)} recent progress entries")
         
         return {
             "success": True,
@@ -436,8 +430,7 @@ async def get_student_progress(
         }
     
     except Exception as e:
-        print(f"❌ Error getting student progress: {str(e)}")
-        import traceback
+        print(f"Error getting student progress: {str(e)}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to get student progress: {str(e)}")
 
@@ -453,13 +446,13 @@ async def search_students(
     Search for students by registration number with progress info
     """
     try:
-        print(f"🔍 Searching students for query: '{query}' in schema {schema_id}")
-        print(f"🔍 Teacher ID: {current_teacher.id}")
+        print(f"Searching students for query: '{query}' in schema {schema_id}")
+        print(f"Teacher ID: {current_teacher.id}")
         
-        # Search students and get their progress
+
         students = db_service.search_students_with_progress(schema_id, current_teacher.id, query)
         
-        print(f"🔍 Found {len(students)} students matching query '{query}'")
+        print(f"Found {len(students)} students matching query '{query}'")
         
         student_list = []
         for student_data in students:
@@ -470,10 +463,10 @@ async def search_students(
                 "upload_method": student_data.get("upload_method", ""),
                 "pdf_id": student_data.get("student_pdf_path"),
                 "last_updated": student_data.get("updated_at", ""),
-                "progress_id": student_data.get("progress_id")  # Add progress_id
+                "progress_id": student_data.get("progress_id")  
             })
         
-        print(f"✅ Returning {len(student_list)} students in response")
+        print(f"Returning {len(student_list)} students in response")
         for student in student_list:
             print(f"  - {student['student_reg_no']}: {student['student_name']}")
         
@@ -483,8 +476,7 @@ async def search_students(
         }
     
     except Exception as e:
-        print(f"❌ Error searching students: {str(e)}")
-        import traceback
+        print(f"Error searching students: {str(e)}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to search students: {str(e)}")
 
@@ -502,10 +494,10 @@ async def upload_student_pdf_for_evaluation(
     If evaluation_id and student_reg_no are provided, also saves to student_evaluation_progress
     """
     try:
-        print(f"📤 Uploading student PDF: {pdf_file.filename}")
-        print(f"📤 Teacher ID: {current_teacher.id}")
-        print(f"📤 Evaluation ID: {evaluation_id}")
-        print(f"📤 Student Reg No: {student_reg_no}")
+        print(f"Uploading student PDF: {pdf_file.filename}")
+        print(f"Teacher ID: {current_teacher.id}")
+        print(f"Evaluation ID: {evaluation_id}")
+        print(f"Student Reg No: {student_reg_no}")
         
         file_extension = os.path.splitext(pdf_file.filename)[1]
         
@@ -513,12 +505,11 @@ async def upload_student_pdf_for_evaluation(
             raise HTTPException(status_code=400, detail="Only PDF files are allowed")
         
         content = await pdf_file.read()
-        print(f"📤 PDF size: {len(content)} bytes")
+        print(f"PDF size: {len(content)} bytes")
         
-        # Generate unique ID for this PDF
         unique_id = str(uuid.uuid4())
         
-        # Upload to S3
+   
         s3_url = None
         if s3_service.is_available:
             s3_url = s3_service.upload_student_pdf(
@@ -527,9 +518,9 @@ async def upload_student_pdf_for_evaluation(
                 filename=pdf_file.filename,
                 unique_id=unique_id
             )
-            print(f"✅ Student PDF uploaded to S3: {s3_url}")
+            print(f"Student PDF uploaded to S3: {s3_url}")
         else:
-            # Fallback: save locally if S3 not available
+           
             local_dir = Path("public/student_pdfs")
             local_dir.mkdir(parents=True, exist_ok=True)
             pdf_filename = f"{unique_id}.pdf"
@@ -537,14 +528,11 @@ async def upload_student_pdf_for_evaluation(
             with open(pdf_path, "wb") as f:
                 f.write(content)
             s3_url = f"/public/student_pdfs/{pdf_filename}"
-            print(f"⚠ S3 not available, saved locally: {s3_url}")
+            print(f"S3 not available, saved locally: {s3_url}")
         
         if not s3_url:
             raise HTTPException(status_code=500, detail="Failed to upload PDF")
         
-        # Get page count using PyMuPDF
-        import fitz
-        import tempfile
         
         with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
             tmp_file.write(content)
@@ -555,30 +543,30 @@ async def upload_student_pdf_for_evaluation(
             page_count = len(doc)
             doc.close()
         finally:
-            # Clean up temp file
+            
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
         
-        print(f"✅ Student PDF has {page_count} pages")
-        print(f"✅ PDF ID: {unique_id}")
+        print(f"Student PDF has {page_count} pages")
+        print(f"PDF ID: {unique_id}")
         
-        # If evaluation_id and student_reg_no are provided, save to database
+
         progress_id = None
         if evaluation_id and student_reg_no:
-            print(f"📝 Saving to student_evaluation_progress...")
+            print(f"Saving to student_evaluation_progress...")
             
-            from datetime import datetime
+            
             timestamp = datetime.now().isoformat()
             
-            # Get total questions for this evaluation
+
             questions = db_service.get_evaluation_questions(evaluation_id)
             total_questions = len(questions) if questions else 0
             
-            # Check if progress already exists
+     
             existing_progress = db_service.get_student_progress(evaluation_id, student_reg_no)
             
             if existing_progress:
-                print(f"📝 Updating existing progress (ID: {existing_progress.id})")
+                print(f"Updating existing progress (ID: {existing_progress.id})")
                 progress = db_service.update_student_progress(
                     progress_id=existing_progress.id,
                     upload_method='pdf',
@@ -586,9 +574,9 @@ async def upload_student_pdf_for_evaluation(
                     updated_at=timestamp
                 )
                 progress_id = existing_progress.id
-                print(f"✅ Updated progress for student {student_reg_no}")
+                print(f"Updated progress for student {student_reg_no}")
             else:
-                print(f"📝 Creating new progress record")
+                print(f"Creating new progress record")
                 progress = db_service.create_student_progress(
                     schema_id=evaluation_id,
                     student_reg_no=student_reg_no,
@@ -600,7 +588,7 @@ async def upload_student_pdf_for_evaluation(
                     updated_at=timestamp
                 )
                 progress_id = progress.id
-                print(f"✅ Created progress for student {student_reg_no} (ID: {progress_id})")
+                print(f"Created progress for student {student_reg_no} (ID: {progress_id})")
         
         return {
             "success": True,
@@ -614,8 +602,7 @@ async def upload_student_pdf_for_evaluation(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Student PDF upload error: {str(e)}")
-        import traceback
+        print(f"Student PDF upload error: {str(e)}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to upload PDF: {str(e)}")
 
@@ -647,11 +634,7 @@ async def student_sheet_upload(
     try:
         unique_id = str(uuid.uuid4())
         file_extension = os.path.splitext(student_image.filename)[1]
-        
-        # Read file content
         file_content = await student_image.read()
-        
-        # Upload original image to S3
         original_s3_url = None
         if s3_service.is_available:
             original_s3_url = s3_service.upload_student_sheet(
@@ -660,8 +643,6 @@ async def student_sheet_upload(
                 subject_id=subject_id,
                 unique_id=unique_id
             )
-        
-        # Save to temp file for processing
         temp_filename = f"{subject_id}_{unique_id}{file_extension}"
         temp_path = TEMP_FOLDER / temp_filename
         with open(temp_path, "wb") as buffer:
@@ -675,25 +656,22 @@ async def student_sheet_upload(
         print(f"Temp Path: {temp_path}")
         print("=" * 50)
         
-        from db_service import COTemplate
+        
         template = db_service.db.query(COTemplate).filter(COTemplate.id == subject_id).first()
         if not template:
-            # Clean up temp file
             if temp_path.exists():
                 os.remove(temp_path)
             return {"status": "error", "message": "CO template not found"}
         ia_number = int(template.ia.replace("IA", ""))
-    
-        # Process the image
+
         image_processor = ImageProcess()
         processed_images = image_processor.process_student_image(
             image_path=str(temp_path),
             subject_id=subject_id,
             unique_id=unique_id,
-            output_dir=None  # Don't save locally, we'll upload to S3
+            output_dir=None  
         )
         
-        # Upload processed images to S3
         top_s3_url = None
         bot_s3_url = None
         if s3_service.is_available:
@@ -718,7 +696,6 @@ async def student_sheet_upload(
         print(f"Bottom S3 URL: {bot_s3_url or 'S3 not available'}")
         print("=" * 50)
         
-        # Extract data using temporary files
         extraction_pipeline = ExtractionPipeline()
         extracted_data = extraction_pipeline.process_student_sheet(
             top_image_path=processed_images['top_image_path'],
@@ -736,7 +713,6 @@ async def student_sheet_upload(
         print("Data saved to database!")
         print("=" * 50)
         
-        # Clean up all temporary files
         try:
             if temp_path.exists():
                 os.remove(temp_path)
@@ -744,9 +720,9 @@ async def student_sheet_upload(
                 processed_images['top_image_path'],
                 processed_images['bot_image_path']
             )
-            print("✓ All temporary files cleaned up")
+            print("All temporary files cleaned up")
         except Exception as e:
-            print(f"⚠ Failed to clean up some temp files: {e}")
+            print(f"Failed to clean up some temp files: {e}")
         
         return {
             "status": "success",
@@ -764,7 +740,6 @@ async def student_sheet_upload(
         }
     except Exception as e:
         print(f"Error: {str(e)}")
-        # Clean up temp files on error
         try:
             if 'temp_path' in locals() and temp_path.exists():
                 os.remove(temp_path)
@@ -780,20 +755,6 @@ async def student_sheet_upload(
             "message": f"Failed to upload: {str(e)}"
         }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-#====================================================================================================
 @app.get("/evaluations/{teacher_id}")
 async def get_evaluations(
     teacher_id: int,
@@ -804,31 +765,21 @@ async def get_evaluations(
     Get all evaluation schemas for a teacher with their completion status
     """
     try:
-        # Verify teacher is accessing their own data
         if current_teacher.id != teacher_id:
             raise HTTPException(status_code=403, detail="Access denied")
-        
-        # Get all evaluation schemas for this teacher
         evaluation_schemas = db_service.get_evaluation_schemas_by_teacher(teacher_id)
         
         evaluations = []
         for schema in evaluation_schemas:
-            # Get template info
             template = db_service.get_subject_info(schema.template_id)
             if not template:
                 continue
-            
-            # Get all questions for this template
             questions = db_service.get_co_questions_by_template(schema.template_id)
-            
-            # Get total student count from template
             total_students_in_class = template.get('student_count', 0)
-            
-            # Count completed students from student_evaluation_progress table
             completed_students = db_service.count_completed_students(schema.id)
             
             evaluation = {
-                "evaluation_id": schema.id,  # Use schema ID as evaluation ID
+                "evaluation_id": schema.id, 
                 "subject_id": schema.template_id,
                 "subject_name": template['name'],
                 "subject_code": f"{template['branch']}-{template['sem']}",
@@ -836,9 +787,9 @@ async def get_evaluations(
                 "branch": template['branch'],
                 "ia": template.get('ia', ''),
                 "total_questions": len(questions),
-                "completed_questions": len(questions),  # All questions are available since we have the schema
+                "completed_questions": len(questions),  
                 "total_students": total_students_in_class,
-                "completed_students": completed_students,  # Count from progress table
+                "completed_students": completed_students,  
                 "status": schema.status,
                 "created_at": schema.created_at,
                 "updated_at": schema.updated_at
@@ -854,7 +805,6 @@ async def get_evaluations(
         raise
     except Exception as e:
         print(f"Error fetching evaluations: {e}")
-        import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -874,22 +824,16 @@ async def get_evaluation_details(
         if not evaluation:
             raise HTTPException(status_code=404, detail="Evaluation not found")
         
-        # Verify teacher owns this evaluation
         if evaluation.teacher_id != current_teacher.id:
             raise HTTPException(status_code=403, detail="Access denied")
         
-        # Get template info
         template = db_service.get_subject_info(evaluation.template_id)
         
-        # Extract PDF ID from S3 URL or local path
         pdf_path = evaluation.pdf_path
         if pdf_path.startswith('http'):
-            # S3 URL - extract the unique ID from the path
-            # Format: http://10.0.2.2:4566/bucket/evaluation-pdfs/{uuid}.pdf
             pdf_id = pdf_path.split('/')[-1].replace('.pdf', '')
         else:
-            # Local path - extract filename
-            import os
+            
             pdf_filename = os.path.basename(pdf_path)
             pdf_id = os.path.splitext(pdf_filename)[0]
         
@@ -900,7 +844,7 @@ async def get_evaluation_details(
                 "template_id": evaluation.template_id,
                 "subject_name": template['name'] if template else "Unknown",
                 "pdf_id": pdf_id,
-                "pdf_uri": evaluation.pdf_path,  # Return the actual S3 URL or local path
+                "pdf_uri": evaluation.pdf_path,  
                 "status": evaluation.status,
                 "created_at": evaluation.created_at,
                 "updated_at": evaluation.updated_at
@@ -911,7 +855,6 @@ async def get_evaluation_details(
         raise
     except Exception as e:
         print(f"Error fetching evaluation details: {e}")
-        import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -934,18 +877,15 @@ async def get_evaluation_questions(
         if evaluation.teacher_id != current_teacher.id:
             raise HTTPException(status_code=403, detail="Access denied")
         
-        # Get all questions for this template
         questions = db_service.get_co_questions_by_template(evaluation.template_id)
         all_question_nos = sorted(set(q.q_no for q in questions))
         
-        # Since we have an evaluation schema (answer key uploaded), all questions are available
-        # Build response with question status
         questions_data = []
         for q_no in all_question_nos:
             question_data = {
                 "id": q_no,
                 "label": f"Question {q_no}",
-                "is_completed": True,  # All questions are available since answer key is uploaded
+                "is_completed": True, 
                 "images": [],
                 "croppedSections": []
             }
@@ -961,7 +901,6 @@ async def get_evaluation_questions(
         raise
     except Exception as e:
         print(f"Error fetching evaluation questions: {e}")
-        import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -984,9 +923,7 @@ async def get_evaluation_results(
         if evaluation.teacher_id != current_teacher.id:
             raise HTTPException(status_code=403, detail="Access denied")
         
-        # Get all progress records for this schema
-        from db_service.db_schema import StudentEvaluationProgress, StudentAnswerEvaluation, STUDENTINFO
-        
+
         progress_records = db_service.db.query(StudentEvaluationProgress).filter(
             StudentEvaluationProgress.schema_id == evaluation_id,
             StudentEvaluationProgress.teacher_id == current_teacher.id
@@ -994,7 +931,6 @@ async def get_evaluation_results(
         
         students = []
         for progress in progress_records:
-            # Get evaluations for this progress
             evaluations = db_service.db.query(StudentAnswerEvaluation).filter(
                 StudentAnswerEvaluation.progress_id == progress.id
             ).all()
@@ -1002,7 +938,6 @@ async def get_evaluation_results(
             if not evaluations:
                 continue
             
-            # Calculate total marks
             total_marks_obtained = sum(e.mark_score for e in evaluations)
             total_marks_possible = sum(e.total_mark for e in evaluations)
             
@@ -1022,7 +957,6 @@ async def get_evaluation_results(
         raise
     except Exception as e:
         print(f"Error fetching evaluation results: {e}")
-        import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1046,8 +980,7 @@ async def get_student_evaluation_details(
         if evaluation.teacher_id != current_teacher.id:
             raise HTTPException(status_code=403, detail="Access denied")
         
-        # Get progress record
-        from db_service.db_schema import StudentEvaluationProgress, StudentAnswerEvaluation
+        
         
         progress = db_service.db.query(StudentEvaluationProgress).filter(
             StudentEvaluationProgress.schema_id == evaluation_id,
@@ -1058,12 +991,10 @@ async def get_student_evaluation_details(
         if not progress:
             raise HTTPException(status_code=404, detail="Student evaluation not found")
         
-        # Get all evaluations
         evaluations = db_service.db.query(StudentAnswerEvaluation).filter(
             StudentAnswerEvaluation.progress_id == progress.id
         ).order_by(StudentAnswerEvaluation.question_no).all()
         
-        # Format detailed results
         results = []
         for evaluation in evaluations:
             results.append({
@@ -1081,7 +1012,6 @@ async def get_student_evaluation_details(
         raise
     except Exception as e:
         print(f"Error fetching student evaluation details: {e}")
-        import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1105,8 +1035,7 @@ async def delete_student_evaluation_results(
         if evaluation.teacher_id != current_teacher.id:
             raise HTTPException(status_code=403, detail="Access denied")
         
-        # Get progress record and delete evaluations
-        from db_service.db_schema import StudentEvaluationProgress, StudentAnswerEvaluation
+        
         
         progress = db_service.db.query(StudentEvaluationProgress).filter(
             StudentEvaluationProgress.schema_id == evaluation_id,
@@ -1117,12 +1046,10 @@ async def delete_student_evaluation_results(
         if not progress:
             raise HTTPException(status_code=404, detail="Student evaluation not found")
         
-        # Delete all evaluations for this progress
         db_service.db.query(StudentAnswerEvaluation).filter(
             StudentAnswerEvaluation.progress_id == progress.id
         ).delete()
         
-        # Delete progress record
         db_service.db.delete(progress)
         db_service.db.commit()
         
@@ -1130,16 +1057,14 @@ async def delete_student_evaluation_results(
             "success": True,
             "message": "Student evaluation deleted successfully"
         }
-        from student_answer_sheet.db_operation import StudentAnswerService
+        
         service = StudentAnswerService()
         
-        # Get all evaluations for this student and template
         student_evaluations = service.get_student_evaluations(
             evaluation.template_id, 
             student_reg_no
         )
         
-        # Delete each evaluation record
         deleted_count = 0
         for eval_record in student_evaluations:
             service.db.delete(eval_record)
@@ -1156,9 +1081,64 @@ async def delete_student_evaluation_results(
         raise
     except Exception as e:
         print(f"Error deleting student evaluation results: {e}")
-        import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/evaluation/{evaluation_id}")
+async def delete_evaluation_schema(
+    evaluation_id: int,
+    current_teacher: Teacher = Depends(get_current_teacher),
+    db_service: DBServiceForServer = Depends(get_db_service)
+):
+    """
+    Delete an entire evaluation schema and all associated student progress and evaluations
+    """
+    try:
+        
+
+        evaluation = db_service.db.query(EvaluationSchema).filter(
+            EvaluationSchema.id == evaluation_id
+        ).first()
+        
+        if not evaluation:
+            raise HTTPException(status_code=404, detail="Evaluation not found")
+
+        if evaluation.teacher_id != current_teacher.id:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        print(f"Deleting evaluation schema {evaluation_id}...")
+        
+        progress_records = db_service.db.query(StudentEvaluationProgress).filter(
+            StudentEvaluationProgress.schema_id == evaluation_id
+        ).all()
+        
+        for progress in progress_records:
+            db_service.db.query(StudentAnswerEvaluation).filter(
+                StudentAnswerEvaluation.progress_id == progress.id
+            ).delete()
+        
+        db_service.db.query(StudentEvaluationProgress).filter(
+            StudentEvaluationProgress.schema_id == evaluation_id
+        ).delete()
+        
+        db_service.db.delete(evaluation)
+        db_service.db.commit()
+        
+        print(f"Deleted evaluation schema {evaluation_id} and all associated data")
+        
+        return {
+            "success": True,
+            "message": "Evaluation deleted successfully"
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f" Error deleting evaluation schema: {e}")
+        traceback.print_exc()
+        db_service.db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete evaluation: {str(e)}")
 
 
 @app.post("/api/evaluation/start-evaluation/{progress_id}")
@@ -1173,72 +1153,58 @@ async def start_evaluation(
     """
     try:
         print("=" * 60)
-        print(f"🚀 Starting evaluation for progress_id: {progress_id}")
+        print(f"Starting evaluation for progress_id: {progress_id}")
         print("=" * 60)
         
-        # Get progress record
         progress = db_service.get_student_progress_by_id(progress_id)
         if not progress:
             raise HTTPException(status_code=404, detail="Progress record not found")
         
-        # Verify teacher access
         if progress.teacher_id != current_teacher.id:
             raise HTTPException(status_code=403, detail="Access denied")
         
-        # Get evaluation schema to get answer key PDF
         evaluation_schema = db_service.get_evaluation_schema_by_id(progress.schema_id)
         if not evaluation_schema:
             raise HTTPException(status_code=404, detail="Evaluation schema not found")
         
-        print(f"📄 Answer Key PDF: {evaluation_schema.pdf_path}")
-        print(f"📄 Student PDF: {progress.student_pdf_path}")
-        print(f"👤 Student: {progress.student_reg_no}")
+        print(f"Answer Key PDF: {evaluation_schema.pdf_path}")
+        print(f"Student PDF: {progress.student_pdf_path}")
+        print(f"Student: {progress.student_reg_no}")
         
-        # Download PDFs to temp files
-        import requests
-        from datetime import datetime
+
         
         temp_dir = Path(tempfile.gettempdir()) / "evaluation_pdfs"
         temp_dir.mkdir(parents=True, exist_ok=True)
         
-        # Download answer key PDF
         answer_key_path = temp_dir / f"answer_key_{progress.schema_id}.pdf"
         if evaluation_schema.pdf_path.startswith("http"):
-            # Download from S3
             response = requests.get(evaluation_schema.pdf_path)
             with open(answer_key_path, "wb") as f:
                 f.write(response.content)
         else:
-            # Copy from local path
-            import shutil
+            
             shutil.copy(evaluation_schema.pdf_path, answer_key_path)
         
-        print(f"✅ Downloaded answer key to: {answer_key_path}")
-        
-        # Download student PDF
+        print(f"Downloaded answer key to: {answer_key_path}")
+    
         student_pdf_path = temp_dir / f"student_{progress_id}.pdf"
         if progress.student_pdf_path.startswith("http"):
-            # Download from S3
             response = requests.get(progress.student_pdf_path)
             with open(student_pdf_path, "wb") as f:
                 f.write(response.content)
         else:
-            # Copy from local path
-            import shutil
             shutil.copy(progress.student_pdf_path, student_pdf_path)
         
-        print(f"✅ Downloaded student PDF to: {student_pdf_path}")
+        print(f"Downloaded student PDF to: {student_pdf_path}")
         
-        # Run evaluation
-        print("\n🤖 Running Gemini evaluation...")
+        print("\nRunning Gemini evaluation...")
         raw_evaluation = evaluate_pdf(str(answer_key_path), str(student_pdf_path))
         
-        print("\n📊 Raw evaluation received, structuring with Groq...")
+        print("\nRaw evaluation received, structuring with Groq...")
         structured_result = groq_structure(raw_evaluation)
         
-        print(f"\n✅ Structured {len(structured_result.results)} question evaluations")
-        
-        # Prepare evaluation data for database
+        print(f"\nStructured {len(structured_result.results)} question evaluations")
+
         timestamp = datetime.now().isoformat()
         evaluations_data = []
         
@@ -1255,30 +1221,27 @@ async def start_evaluation(
             }
             evaluations_data.append(eval_data)
         
-        # Save to database
-        print(f"\n💾 Saving {len(evaluations_data)} evaluations to database...")
+        print(f"\nSaving {len(evaluations_data)} evaluations to database...")
         success = db_service.create_student_answer_evaluations(evaluations_data)
         
         if not success:
             raise HTTPException(status_code=500, detail="Failed to save evaluations to database")
-        
-        # Clean up temp files
+
         try:
             os.remove(answer_key_path)
             os.remove(student_pdf_path)
-            print("✅ Cleaned up temporary files")
+            print("Cleaned up temporary files")
         except Exception as e:
-            print(f"⚠ Failed to clean up temp files: {e}")
+            print(f"Failed to clean up temp files: {e}")
         
-        # Calculate total marks
         total_marks_obtained = sum(e['mark_score'] for e in evaluations_data)
         total_marks_possible = sum(e['total_mark'] for e in evaluations_data)
         
         print("\n" + "=" * 60)
-        print("✅ EVALUATION COMPLETED SUCCESSFULLY")
-        print(f"📊 Total Questions: {len(evaluations_data)}")
-        print(f"📊 Marks: {total_marks_obtained}/{total_marks_possible}")
-        print(f"📊 Percentage: {(total_marks_obtained/total_marks_possible)*100:.2f}%")
+        print("EVALUATION COMPLETED SUCCESSFULLY")
+        print(f"Total Questions: {len(evaluations_data)}")
+        print(f"Marks: {total_marks_obtained}/{total_marks_possible}")
+        print(f"Percentage: {(total_marks_obtained/total_marks_possible)*100:.2f}%")
         print("=" * 60)
         
         return {
@@ -1307,8 +1270,7 @@ async def start_evaluation(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"\n❌ Evaluation error: {str(e)}")
-        import traceback
+        print(f"\nEvaluation error: {str(e)}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Evaluation failed: {str(e)}")
 

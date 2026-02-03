@@ -45,9 +45,45 @@ def evaluate_pdf(answer_key_path, student_answer_path):
     model = genai.GenerativeModel("gemini-3-flash-preview")
     
     prompt = """
-    You are an academic examiner evaluating student answers in a university-level examination. Your task is to evaluate the answer in a MODERATE and FAIR manner. EVALUATION RULES: 1. Compare the student's answer strictly with the given answer key and marking scheme. 2. Award marks based on: - Conceptual correctness - Coverage of required points - Clarity of explanation - Correct use of technical terms - Diagrams or examples (if applicable) 3. Award partial marks wherever applicable. 4. Minor grammatical or spelling errors should NOT reduce marks. 5. If the answer is incomplete, partially wrong, or missing points, deduct marks proportionally. 6. If the question is not attempted or completely wrong, award 0 marks. MARKING STYLE: - Follow moderate university-level valuation. - Use decimal values if required. - Do not be overly strict or overly lenient.
-    """
-    
+            You are an academic examiner evaluating student answers in a university-level examination.
+
+            Your task is to FIRST correctly identify:
+            1. The question being answered
+            2. The corresponding answer key and marking scheme
+            3. The student’s response related to that question
+
+            Then evaluate the answer in a MODERATE and FAIR manner.
+
+            ────────────────────────────
+            EVALUATION RULES
+            ────────────────────────────
+            1. Strictly compare the student’s answer with the given answer key.
+            2. Evaluate only what is written by the student — do NOT assume, infer, or add missing content.
+            3. Award marks based on:
+            - Conceptual correctness
+            - Coverage of required points
+            - Logical clarity and explanation quality
+            - Correct usage of technical terms
+            - Relevant diagrams or examples (if applicable)
+            4. Award partial marks wherever applicable.
+            5. Minor grammatical or spelling errors MUST NOT reduce marks.
+            6. If the answer is:
+            - Not attempted  
+            - Left blank  
+            - Completely irrelevant or incorrect  
+
+            → **Award 0 marks strictly.**
+            7. Deduct marks proportionally for missing, vague, or incorrect points.
+
+            ────────────────────────────
+            MARKING STYLE
+            ────────────────────────────
+            - Follow moderate university-level evaluation standards.
+            - Be fair, consistent, and unbiased.
+            - Use decimal marks if required.
+            - Do NOT be overly strict or overly lenient.
+            - Do NOT generate content beyond what the student has written.
+            """
     print("Generating evaluation...")
     response = model.generate_content([
         prompt,
