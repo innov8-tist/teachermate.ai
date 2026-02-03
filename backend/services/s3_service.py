@@ -95,19 +95,13 @@ class S3Service:
         try:
             file_key = f"teacher-pfp/{uuid.uuid4()}{file_extension}"
             
-            # Upload with public-read ACL for profile pictures
-            put_object_kwargs = {
-                'Bucket': self.bucket_name,
-                'Key': file_key,
-                'Body': file_content,
-                'ContentType': self._get_content_type(file_extension)
-            }
-            
-            # Only add ACL for AWS S3, not LocalStack
-            if not USE_LOCALSTACK:
-                put_object_kwargs['ACL'] = 'public-read'
-            
-            self.s3_client.put_object(**put_object_kwargs)
+            # Upload without ACL (bucket should be configured for public access if needed)
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=file_key,
+                Body=file_content,
+                ContentType=self._get_content_type(file_extension)
+            )
             
             # Generate URL using the appropriate method
             url = self._generate_url(file_key)
@@ -353,6 +347,48 @@ class S3Service:
             print(f"Error deleting file from S3: {e}")
             return False
     
+    def configure_bucket_for_public_access(self) -> bool:
+        """
+        Configure bucket policy to allow public read access to all objects.
+        This is useful for MVP where all images should be publicly accessible.
+        """
+        if not self.is_available:
+            print("S3 service not available")
+            return False
+            
+        if USE_LOCALSTACK:
+            print("LocalStack doesn't require bucket policy configuration")
+            return True
+            
+        try:
+            # Bucket policy to allow public read access
+            bucket_policy = {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Sid": "PublicReadGetObject",
+                        "Effect": "Allow",
+                        "Principal": "*",
+                        "Action": "s3:GetObject",
+                        "Resource": f"arn:aws:s3:::{self.bucket_name}/*"
+                    }
+                ]
+            }
+            
+            import json
+            self.s3_client.put_bucket_policy(
+                Bucket=self.bucket_name,
+                Policy=json.dumps(bucket_policy)
+            )
+            
+            print(f"✓ Configured bucket '{self.bucket_name}' for public read access")
+            return True
+            
+        except ClientError as e:
+            print(f"Error configuring bucket policy: {e}")
+            print("You may need to manually configure bucket permissions in AWS Console")
+            return False
+
     def test_connection(self) -> bool:
         """Test S3 connection and return status"""
         try:
