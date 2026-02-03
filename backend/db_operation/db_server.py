@@ -400,89 +400,59 @@ class DBServiceForServer:
         ).order_by(StudentEvaluationProgress.updated_at.desc()).limit(limit).all()
 
     def search_students_with_progress(self, schema_id: int, teacher_id: int, query: str):
-        """Search students by registration number and return with progress info"""
-
+        """Search students by registration number and return with progress info - OPTIMIZED"""
+        from sqlalchemy import or_
+        from db_service.db_schema import StudentEvaluationProgress, STUDENTINFO
         
-        student_list = []
+        # Normalize query for better matching
+        query = query.strip().upper()
         
-        students_query = self.db.query(STUDENTINFO).filter(
+        if len(query) < 2:
+            return []
+        
+        print(f"🔍 Searching for: '{query}' in schema {schema_id}")
+        
+        # Single optimized query using LEFT JOIN
+        # This gets all students matching the query AND their progress in one go
+        results = self.db.query(
+            STUDENTINFO.reg_no,
+            STUDENTINFO.name,
+            StudentEvaluationProgress.id.label('progress_id'),
+            StudentEvaluationProgress.total_questions,
+            StudentEvaluationProgress.upload_method,
+            StudentEvaluationProgress.student_pdf_path,
+            StudentEvaluationProgress.updated_at
+        ).outerjoin(
+            StudentEvaluationProgress,
+            (STUDENTINFO.reg_no == StudentEvaluationProgress.student_reg_no) &
+            (StudentEvaluationProgress.schema_id == schema_id) &
+            (StudentEvaluationProgress.teacher_id == teacher_id)
+        ).filter(
             or_(
                 STUDENTINFO.reg_no.ilike(f"%{query}%"),
                 STUDENTINFO.name.ilike(f"%{query}%")
             )
-        ).limit(20)  
+        ).limit(20).all()
         
-        students = students_query.all()
-        processed_reg_nos = set()
-        
-        for student in students:
-            processed_reg_nos.add(student.reg_no)
-            progress = self.db.query(StudentEvaluationProgress).filter(
-                StudentEvaluationProgress.schema_id == schema_id,
-                StudentEvaluationProgress.student_reg_no == student.reg_no,
-                StudentEvaluationProgress.teacher_id == teacher_id
-            ).first()
-            
-            print(f" Checking progress for {student.reg_no}: {'FOUND' if progress else 'NOT FOUND'}")
-            if progress:
-                print(f" Progress ID: {progress.id}, Method: {progress.upload_method}")
-            
-            if progress:
-                student_data = {
-                    "student_reg_no": student.reg_no,
-                    "student_name": student.name,
-                    "total_questions": progress.total_questions,
-                    "upload_method": progress.upload_method,
-                    "student_pdf_path": progress.student_pdf_path,
-                    "updated_at": progress.updated_at,
-                    "progress_id": progress.id 
-                }
-            else:
-                student_data = {
-                    "student_reg_no": student.reg_no,
-                    "student_name": student.name,
-                    "total_questions": 0,
-                    "upload_method": "",
-                    "student_pdf_path": None,
-                    "updated_at": "",
-                    "progress_id": None  
-                }
-            
+        student_list = []
+        for row in results:
+            student_data = {
+                "student_reg_no": row.reg_no,
+                "student_name": row.name,
+                "total_questions": row.total_questions or 0,
+                "upload_method": row.upload_method or "",
+                "student_pdf_path": row.student_pdf_path,
+                "updated_at": row.updated_at or "",
+                "progress_id": row.progress_id
+            }
             student_list.append(student_data)
+            
+            if row.progress_id:
+                print(f"  ✅ {row.reg_no}: HAS PROGRESS (ID: {row.progress_id})")
+            else:
+                print(f"  ⚪ {row.reg_no}: NO PROGRESS")
         
-        progress_query = self.db.query(StudentEvaluationProgress).filter(
-            StudentEvaluationProgress.schema_id == schema_id,
-            StudentEvaluationProgress.teacher_id == teacher_id,
-            StudentEvaluationProgress.student_reg_no.ilike(f"%{query}%")
-        ).limit(20)
-        
-        progress_students = progress_query.all()
-        print(f"  🔍 Found {len(progress_students)} students in progress table matching query")
-        
-        for progress in progress_students:
-            print(f"  🔍 Progress student: {progress.student_reg_no}, already processed: {progress.student_reg_no in processed_reg_nos}")
-            if progress.student_reg_no not in processed_reg_nos:
-                student_info = self.db.query(STUDENTINFO).filter(
-                    STUDENTINFO.reg_no == progress.student_reg_no
-                ).first()
-                
-                student_name = student_info.name if student_info else progress.student_reg_no
-                
-                print(f" Adding progress student: {progress.student_reg_no} (ID: {progress.id})")
-                
-                student_data = {
-                    "student_reg_no": progress.student_reg_no,
-                    "student_name": student_name,
-                    "total_questions": progress.total_questions,
-                    "upload_method": progress.upload_method,
-                    "student_pdf_path": progress.student_pdf_path,
-                    "updated_at": progress.updated_at,
-                    "progress_id": progress.id  
-                }
-                
-                student_list.append(student_data)
-                processed_reg_nos.add(progress.student_reg_no)
-        
+        print(f"🔍 Returning {len(student_list)} students")
         return student_list
 
     def get_evaluation_questions(self, schema_id: int):

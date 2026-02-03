@@ -74,7 +74,7 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
     }
   }, [visible, evaluationId]);
 
-  // Debounced search
+  // Debounced search - reduced delay for faster response
   useEffect(() => {
     console.log(`🔍 Frontend: useEffect triggered with rollNumber: "${rollNumber}", skipSearch: ${skipSearch}`);
 
@@ -93,7 +93,7 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
         setSearchResults([]);
         setShowSearchResults(false);
       }
-    }, 300);
+    }, 150); // Reduced from 300ms to 150ms for faster response
 
     return () => clearTimeout(timeoutId);
   }, [rollNumber]);

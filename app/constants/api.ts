@@ -8,8 +8,9 @@
 //Server hosted 
 // const BASE_URL = 'http://20.40.47.177:8000';
 
-// For expo go 
-const BASE_URL = 'http://192.168.1.8:8000';
+// For expo go - UPDATE THIS WITH YOUR CURRENT IP
+// Run 'ipconfig' (Windows) or 'ifconfig' (Mac/Linux) to find your IP
+const BASE_URL = 'http://192.168.0.109:8000';  // Updated to your current IP from logs
 export const API_BASE_URL = BASE_URL;
 
 export const API_ENDPOINTS = {
