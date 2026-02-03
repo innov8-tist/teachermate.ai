@@ -24,7 +24,7 @@ from comapping.answer_sheet_processing.cutting import ImageProcess
 from comapping.answer_sheet_processing.extraction_pipeline import ExtractionPipeline
 from datetime import datetime
 from db_service import COTemplate
-from db_service.db_schema import  StudentAnswerEvaluation, STUDENTINFO
+from db_service.db_schema import StudentAnswerEvaluation, STUDENTINFO, StudentAnswerMark
 from db_service.db_schema import EvaluationSchema, StudentEvaluationProgress
 from direct_evalution import evaluate_pdf,groq_structure
 import requests
@@ -200,7 +200,6 @@ def download_co_excel(subject_id: int, db_service: DBServiceForServer = Depends(
         ws = wb.active
         ws.title = "CO Mapping"
 
-
         border = Border(
             left=Side(style='thin'),
             right=Side(style='thin'),
@@ -208,71 +207,100 @@ def download_co_excel(subject_id: int, db_service: DBServiceForServer = Depends(
             bottom=Side(style='thin')
         )
         
-        total_cols = 1  
+        # Calculate total columns needed
+        total_cols = 2  # Registration Number + Name columns
         for co, questions in data['co_structure'].items():
-            total_cols += len(questions) + 1  
+            total_cols += len(questions) + 1  # questions + total column
         
-        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=total_cols)
+        # ROW 1: Title row (merged across all columns)
+        # Set value BEFORE merging
         title_cell = ws.cell(row=1, column=1)
         title_cell.value = f"{subject_info['name']} - {subject_info['ia']} - CO Mapping"
         title_cell.font = Font(bold=True, size=14)
         title_cell.alignment = Alignment(horizontal='center', vertical='center')
+        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=total_cols)
         
-        col_idx = 1
-        cell = ws.cell(row=2, column=col_idx)
+        # ROW 2 & 3: Headers
+        # Column A: Registration Number (merged rows 2-3)
+        cell = ws.cell(row=2, column=1)
         cell.value = "Register Number"
         cell.font = Font(bold=True, size=11)
         cell.alignment = Alignment(horizontal='center', vertical='center')
         cell.border = border
-        ws.merge_cells(start_row=2, start_column=col_idx, end_row=3, end_column=col_idx)
-        col_idx += 1
+        ws.merge_cells(start_row=2, start_column=1, end_row=3, end_column=1)
         
- 
+        # Column B: Student Name (merged rows 2-3)
+        cell = ws.cell(row=2, column=2)
+        cell.value = "Student Name"
+        cell.font = Font(bold=True, size=11)
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = border
+        ws.merge_cells(start_row=2, start_column=2, end_row=3, end_column=2)
+        
+        # CO Headers (row 2) and Question numbers (row 3)
+        col_idx = 3  # Start after Name column
+        
         for co, questions in data['co_structure'].items():
             start_col = col_idx
-            end_col = col_idx + len(questions)  
+            end_col = col_idx + len(questions)  # Include total column
             
-            ws.merge_cells(start_row=2, start_column=start_col, end_row=2, end_column=end_col)
+            # Set CO name BEFORE merging
             cell = ws.cell(row=2, column=start_col)
             cell.value = co
             cell.font = Font(bold=True, size=10)
             cell.alignment = Alignment(horizontal='center', vertical='center')
             cell.border = border
+            ws.merge_cells(start_row=2, start_column=start_col, end_row=2, end_column=end_col)
             
-            col_idx = end_col + 1
-        
-        col_idx = 2  
-        
-        for co, questions in data['co_structure'].items():
+            # Add borders to merged cells in row 2
+            for c in range(start_col, end_col + 1):
+                ws.cell(row=2, column=c).border = border
+            
+            # Question numbers in row 3
             for question in questions:
                 cell = ws.cell(row=3, column=col_idx)
                 cell.value = question
                 cell.font = Font(bold=True, size=9)
                 cell.alignment = Alignment(horizontal='center', vertical='center')
                 cell.border = border
-                ws.column_dimensions[chr(64 + col_idx)].width = 8
+                # Set column width
+                col_letter = ws.cell(row=3, column=col_idx).column_letter
+                ws.column_dimensions[col_letter].width = 8
                 col_idx += 1
             
+            # Total column for this CO
             cell = ws.cell(row=3, column=col_idx)
             cell.value = f"Total {co}"
             cell.font = Font(bold=True, size=9)
             cell.alignment = Alignment(horizontal='center', vertical='center')
             cell.border = border
-            ws.column_dimensions[chr(64 + col_idx)].width = 10
+            col_letter = ws.cell(row=3, column=col_idx).column_letter
+            ws.column_dimensions[col_letter].width = 10
             col_idx += 1
         
+        # Data rows with student information
         for row_idx, student in enumerate(data['students'], start=4):
             col_idx = 1
             
+            # Registration number
             cell = ws.cell(row=row_idx, column=col_idx)
             cell.value = student['regno']
             cell.border = border
             cell.alignment = Alignment(horizontal='center', vertical='center')
             col_idx += 1
             
+            # Student name
+            cell = ws.cell(row=row_idx, column=col_idx)
+            cell.value = student.get('name', '')
+            cell.border = border
+            cell.alignment = Alignment(horizontal='left', vertical='center')
+            col_idx += 1
+            
+            # Marks for each CO
             for co, questions in data['co_structure'].items():
                 student_co_marks = student['marks'].get(co, {})
                 
+                # Individual question marks
                 for question in questions:
                     cell = ws.cell(row=row_idx, column=col_idx)
                     cell.value = student_co_marks.get(question, 0)
@@ -280,14 +308,17 @@ def download_co_excel(subject_id: int, db_service: DBServiceForServer = Depends(
                     cell.alignment = Alignment(horizontal='center', vertical='center')
                     col_idx += 1
                 
+                # Total for this CO
                 cell = ws.cell(row=row_idx, column=col_idx)
                 cell.value = student_co_marks.get('total', 0)
                 cell.border = border
                 cell.alignment = Alignment(horizontal='center', vertical='center')
                 cell.font = Font(bold=True)
                 col_idx += 1
-  
-        ws.column_dimensions['A'].width = 18
+        
+        # Adjust column widths
+        ws.column_dimensions['A'].width = 18  # Registration Number
+        ws.column_dimensions['B'].width = 25  # Student Name
         
         excel_file = BytesIO()
         wb.save(excel_file)
@@ -302,7 +333,6 @@ def download_co_excel(subject_id: int, db_service: DBServiceForServer = Depends(
         )
     except Exception as e:
         print(f"Error generating Excel: {str(e)}")
-        
         traceback.print_exc()
         return {"status": "error", "message": f"Failed to generate Excel: {str(e)}"}
 
@@ -619,11 +649,21 @@ def get_student_marks(subject_id: int, regno: str, db_service: DBServiceForServe
 
 @app.delete("/student_marks/{subject_id}/{regno}")
 def delete_student_marks(subject_id: int, regno: str, db_service: DBServiceForServer = Depends(get_db_service)):
+    """
+    Delete student marks from CO Mapper
+    Also removes corresponding evaluation records
+    """
     success = db_service.delete_student_marks(subject_id, regno)
     if success:
-        return {"status": "success", "message": "Student marks deleted successfully"}
+        return {
+            "status": "success", 
+            "message": "Student marks and evaluation records deleted successfully"
+        }
     else:
-        return {"status": "error", "message": "Student marks not found"}
+        return {
+            "status": "error", 
+            "message": "Student marks not found"
+        }
 
 @app.post("/student_sheet_upload")
 async def student_sheet_upload(
@@ -713,6 +753,20 @@ async def student_sheet_upload(
         print("Data saved to database!")
         print("=" * 50)
         
+        # Reverse sync to Evaluation system
+        print("\n" + "=" * 50)
+        print("ATTEMPTING REVERSE SYNC TO EVALUATION...")
+        print("=" * 50)
+        reverse_sync_success = db_service.sync_co_mapper_to_evaluation(
+            template_id=subject_id,
+            student_reg_no=extracted_data['regno'],
+            ia_number=ia_number
+        )
+        if reverse_sync_success:
+            print("✅ Successfully synced CO Mapper data to Evaluation system")
+        else:
+            print("⚠️ Reverse sync skipped (evaluation schema not found or already exists)")
+        
         try:
             if temp_path.exists():
                 os.remove(temp_path)
@@ -727,6 +781,7 @@ async def student_sheet_upload(
         return {
             "status": "success",
             "message": "Student answer sheet uploaded, processed, extracted, and saved to database successfully",
+            "evaluation_synced": reverse_sync_success,
             "data": {
                 "subject_id": subject_id,
                 "ia_number": ia_number,
@@ -1025,6 +1080,7 @@ async def delete_student_evaluation_results(
 ):
     """
     Delete all evaluation results for a specific student
+    Also removes corresponding CO mapper entries
     """
     try:
         evaluation = db_service.get_evaluation_schema_by_id(evaluation_id)
@@ -1035,8 +1091,7 @@ async def delete_student_evaluation_results(
         if evaluation.teacher_id != current_teacher.id:
             raise HTTPException(status_code=403, detail="Access denied")
         
-        
-        
+        # Find student progress record
         progress = db_service.db.query(StudentEvaluationProgress).filter(
             StudentEvaluationProgress.schema_id == evaluation_id,
             StudentEvaluationProgress.student_reg_no == student_reg_no,
@@ -1046,17 +1101,74 @@ async def delete_student_evaluation_results(
         if not progress:
             raise HTTPException(status_code=404, detail="Student evaluation not found")
         
-        db_service.db.query(StudentAnswerEvaluation).filter(
+        print(f"\n{'='*60}")
+        print(f"DELETING STUDENT EVALUATION")
+        print(f"Student: {student_reg_no}")
+        print(f"Evaluation ID: {evaluation_id}")
+        print(f"Template ID: {evaluation.template_id}")
+        print(f"{'='*60}\n")
+        
+        # Delete evaluation records
+        deleted_evaluations = db_service.db.query(StudentAnswerEvaluation).filter(
             StudentAnswerEvaluation.progress_id == progress.id
         ).delete()
         
+        print(f"✓ Deleted {deleted_evaluations} evaluation records")
+        
+        # Delete progress record
         db_service.db.delete(progress)
+        print(f"✓ Deleted progress record")
+        
+        # Initialize deleted_co_marks
+        deleted_co_marks = 0
+        
+        # Also delete from CO Mapper (StudentAnswerMark table)
+        # Get template info to find IA number
+        template = db_service.db.query(COTemplate).filter(
+            COTemplate.id == evaluation.template_id
+        ).first()
+        
+        if template:
+            ia_number = int(template.ia.replace("IA", ""))
+            
+            deleted_co_marks = db_service.db.query(StudentAnswerMark).filter(
+                StudentAnswerMark.template_id == evaluation.template_id,
+                StudentAnswerMark.regno == student_reg_no,
+                StudentAnswerMark.ia_id == ia_number
+            ).delete()
+            
+            print(f"✓ Deleted {deleted_co_marks} CO mapper entries")
+            print(f"\n{'='*60}")
+            print(f"✅ DELETION COMPLETE")
+            print(f"Evaluation records: {deleted_evaluations}")
+            print(f"CO mapper entries: {deleted_co_marks}")
+            print(f"{'='*60}\n")
+        else:
+            print(f"⚠️ Warning: Template not found, CO mapper entries not deleted")
+            print(f"\n{'='*60}")
+            print(f"✅ DELETION COMPLETE (Evaluation only)")
+            print(f"Evaluation records: {deleted_evaluations}")
+            print(f"CO mapper entries: 0 (template not found)")
+            print(f"{'='*60}\n")
+        
         db_service.db.commit()
         
         return {
             "success": True,
-            "message": "Student evaluation deleted successfully"
+            "message": "Student evaluation and CO mapper entries deleted successfully",
+            "deleted": {
+                "evaluation_records": deleted_evaluations,
+                "co_mapper_entries": deleted_co_marks
+            }
         }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error deleting student evaluation results: {e}")
+        traceback.print_exc()
+        db_service.db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
         
         service = StudentAnswerService()
         
@@ -1227,6 +1339,16 @@ async def start_evaluation(
         if not success:
             raise HTTPException(status_code=500, detail="Failed to save evaluations to database")
 
+        # Automatically sync evaluation results to CO Mapper
+        print("\n" + "=" * 60)
+        print("SYNCING EVALUATION TO CO MAPPER...")
+        print("=" * 60)
+        sync_success = db_service.sync_evaluation_to_co_mapper(progress_id)
+        if sync_success:
+            print("✅ Successfully synced evaluation results to CO Mapper")
+        else:
+            print("⚠️ Warning: Failed to sync to CO Mapper (evaluation still saved)")
+
         try:
             os.remove(answer_key_path)
             os.remove(student_pdf_path)
@@ -1242,11 +1364,13 @@ async def start_evaluation(
         print(f"Total Questions: {len(evaluations_data)}")
         print(f"Marks: {total_marks_obtained}/{total_marks_possible}")
         print(f"Percentage: {(total_marks_obtained/total_marks_possible)*100:.2f}%")
+        print(f"CO Mapper: {'✅ Synced' if sync_success else '⚠️ Not synced'}")
         print("=" * 60)
         
         return {
             "status": "success",
             "message": "Evaluation completed successfully",
+            "co_mapper_synced": sync_success,
             "data": {
                 "progress_id": progress_id,
                 "student_reg_no": progress.student_reg_no,
@@ -1273,6 +1397,93 @@ async def start_evaluation(
         print(f"\nEvaluation error: {str(e)}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Evaluation failed: {str(e)}")
+
+
+@app.post("/api/evaluation/sync-to-co-mapper/{progress_id}")
+async def sync_evaluation_to_co_mapper(
+    progress_id: int,
+    current_teacher: Teacher = Depends(get_current_teacher),
+    db_service: DBServiceForServer = Depends(get_db_service)
+):
+    """
+    Manually sync evaluation results to CO Mapper
+    Useful for re-syncing or syncing evaluations that failed to sync automatically
+    """
+    try:
+        # Verify progress belongs to current teacher
+        progress = db_service.get_student_progress_by_id(progress_id)
+        if not progress:
+            raise HTTPException(status_code=404, detail="Progress record not found")
+        
+        if progress.teacher_id != current_teacher.id:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Perform sync
+        success = db_service.sync_evaluation_to_co_mapper(progress_id)
+        
+        if success:
+            return {
+                "status": "success",
+                "message": "Evaluation results synced to CO Mapper successfully"
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to sync to CO Mapper")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Sync error: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
+
+
+@app.post("/api/co-mapper/sync-to-evaluation/{template_id}/{student_reg_no}")
+async def sync_co_mapper_to_evaluation_manual(
+    template_id: int,
+    student_reg_no: str,
+    current_teacher: Teacher = Depends(get_current_teacher),
+    db_service: DBServiceForServer = Depends(get_db_service)
+):
+    """
+    Manually sync CO Mapper data to Evaluation
+    Use this to sync existing CO Mapper students to Evaluation
+    """
+    try:
+        # Verify template belongs to current teacher
+        template = db_service.db.query(COTemplate).filter(
+            COTemplate.id == template_id,
+            COTemplate.teacher_id == current_teacher.id
+        ).first()
+        
+        if not template:
+            raise HTTPException(status_code=404, detail="Template not found or access denied")
+        
+        ia_number = int(template.ia.replace("IA", ""))
+        
+        # Perform reverse sync
+        success = db_service.sync_co_mapper_to_evaluation(
+            template_id=template_id,
+            student_reg_no=student_reg_no,
+            ia_number=ia_number
+        )
+        
+        if success:
+            return {
+                "status": "success",
+                "message": f"Student {student_reg_no} synced to Evaluation successfully"
+            }
+        else:
+            return {
+                "status": "skipped",
+                "message": "Sync skipped (no evaluation schema or already exists)"
+            }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Reverse sync error: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
 
 
 if __name__ == "__main__":
