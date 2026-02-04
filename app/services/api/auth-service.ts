@@ -29,6 +29,24 @@ export interface AuthResponse {
   };
 }
 
+export interface UpdateProfileRequest {
+  teacher_name?: string;
+  institution?: string;
+  pfp?: {
+    uri: string;
+    name: string;
+    type: string;
+  };
+}
+
+export interface UpdateProfileResponse {
+  id: number;
+  teacher_name: string;
+  email: string;
+  institution?: string;
+  pfp_url?: string;
+}
+
 export const authService = {
   async login(data: LoginRequest): Promise<AuthResponse> {
     console.log('🔐 Attempting login for:', data.email);
@@ -70,6 +88,39 @@ export const authService = {
     } catch (error: any) {
       console.error('❌ Signup failed:', error.message);
       throw new Error(error.message || 'Signup failed');
+    }
+  },
+
+  async updateProfile(token: string, data: UpdateProfileRequest): Promise<UpdateProfileResponse> {
+    console.log('✏️ Updating profile');
+    
+    const formData = new FormData();
+    if (data.teacher_name) {
+      formData.append('teacher_name', data.teacher_name);
+    }
+    if (data.institution !== undefined) {
+      formData.append('institution', data.institution);
+    }
+    if (data.pfp) {
+      formData.append('pfp', data.pfp as any);
+    }
+
+    try {
+      const response = await networkService.put(
+        `${API_BASE_URL}/auth/me`, 
+        formData,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+          timeout: 30000,
+          retries: 1,
+        }
+      );
+      return response.json();
+    } catch (error: any) {
+      console.error('❌ Profile update failed:', error.message);
+      throw new Error(error.message || 'Profile update failed');
     }
   },
 };
