@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert, Modal, ActivityIndicator, Image, Pressable } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, ActivityIndicator, Pressable } from 'react-native';
 import { coService, CODetail } from '@/services/api/co-service';
 import { Feather } from '@expo/vector-icons';
 import { useImagePicker } from '@/hooks/use-image-picker';
 import { API_BASE_URL } from '@/constants/api';
+import { Alert } from '@/utils/alert';
 
 interface CODetailsScreenProps {
   coId: number;
@@ -33,7 +34,7 @@ export const CODetailsScreen: React.FC<CODetailsScreenProps> = ({ coId, onBack, 
   const [processingStep, setProcessingStep] = useState<string>('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showImagePicker, setShowImagePicker] = useState(false);
-  
+
   const { pickFromCamera, pickFromGallery } = useImagePicker();
 
   useEffect(() => {
@@ -227,7 +228,7 @@ export const CODetailsScreen: React.FC<CODetailsScreenProps> = ({ coId, onBack, 
                 <Feather name="x" size={24} color="#666" />
               </Pressable>
             </View>
-            
+
             <View style={styles.pickerOptions}>
               <Pressable style={styles.pickerOption} onPress={handlePickFromCamera}>
                 <View style={styles.pickerIcon}>

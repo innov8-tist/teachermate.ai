@@ -9,9 +9,8 @@ import {
   ScrollView,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import * as DocumentPicker from '@/utils/document-picker';
 import { useAuth } from '../../contexts/auth-context';
-import { API_ENDPOINTS, BASE_URL } from '../../constants/api';
+import { API_ENDPOINTS } from '../../constants/api';
 import { Alert } from '@/utils/alert';
 
 interface COSubject {
@@ -36,7 +35,8 @@ export const UploadAnswerKeyModal: React.FC<UploadAnswerKeyModalProps> = ({
   const { token, teacher } = useAuth();
   const [coSubjects, setCoSubjects] = useState<COSubject[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<COSubject | null>(null);
-  const [pdfFile, setPdfFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfFileName, setPdfFileName] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [fetchingSubjects, setFetchingSubjects] = useState(false);
 
@@ -69,20 +69,20 @@ export const UploadAnswerKeyModal: React.FC<UploadAnswerKeyModalProps> = ({
     }
   };
 
-  const handlePickPDF = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: 'application/pdf',
-        copyToCacheDirectory: true,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        setPdfFile(result.assets[0]);
+  const handlePickPDF = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/pdf';
+    
+    input.onchange = (e: any) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        setPdfFile(file);
+        setPdfFileName(file.name);
       }
-    } catch (error) {
-      console.error('Error picking PDF:', error);
-      Alert.alert('Error', 'Failed to pick PDF file');
-    }
+    };
+    
+    input.click();
   };
 
   const handleUpload = async () => {
@@ -101,11 +101,7 @@ export const UploadAnswerKeyModal: React.FC<UploadAnswerKeyModalProps> = ({
     try {
       const formData = new FormData();
       formData.append('template_id', selectedSubject.id.toString());
-      formData.append('answer_key_pdf', {
-        uri: pdfFile.uri,
-        type: 'application/pdf',
-        name: pdfFile.name || 'answer_key.pdf',
-      } as any);
+      formData.append('answer_key_pdf', pdfFile, pdfFile.name);
 
       const response = await fetch(API_ENDPOINTS.UPLOAD_EVALUATION_PDF, {
         method: 'POST',
@@ -141,6 +137,7 @@ export const UploadAnswerKeyModal: React.FC<UploadAnswerKeyModalProps> = ({
   const handleClose = () => {
     setSelectedSubject(null);
     setPdfFile(null);
+    setPdfFileName('');
     onClose();
   };
 
@@ -200,8 +197,11 @@ export const UploadAnswerKeyModal: React.FC<UploadAnswerKeyModalProps> = ({
                 {pdfFile ? (
                   <View style={styles.fileInfo}>
                     <Feather name="file-text" size={24} color="#000" />
-                    <Text style={styles.fileName}>{pdfFile.name}</Text>
-                    <TouchableOpacity onPress={() => setPdfFile(null)}>
+                    <Text style={styles.fileName}>{pdfFileName}</Text>
+                    <TouchableOpacity onPress={() => {
+                      setPdfFile(null);
+                      setPdfFileName('');
+                    }}>
                       <Feather name="x-circle" size={20} color="#999" />
                     </TouchableOpacity>
                   </View>
@@ -265,7 +265,8 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     padding: 4,
-  },
+    cursor: 'pointer',
+  } as any,
   content: {
     padding: 20,
   },
@@ -290,7 +291,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 2,
     borderColor: 'transparent',
-  },
+    cursor: 'pointer',
+  } as any,
   subjectCardSelected: {
     backgroundColor: '#F0F0F0',
     borderColor: '#000',
@@ -317,7 +319,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 120,
-  },
+    cursor: 'pointer',
+  } as any,
   uploadPrompt: {
     alignItems: 'center',
     gap: 8,
@@ -357,10 +360,12 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     gap: 8,
-  },
+    cursor: 'pointer',
+  } as any,
   uploadButtonDisabled: {
     opacity: 0.5,
-  },
+    cursor: 'not-allowed',
+  } as any,
   uploadButtonText: {
     fontSize: 16,
     fontWeight: '800',

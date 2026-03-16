@@ -53,6 +53,16 @@ export default function HomeScreenRefactored() {
         }
     };
 
+    const handleNavigateToCOMapper = (studentRegNo: string) => {
+        console.log('🗺️ Navigating to CO Mapper for student:', studentRegNo);
+        // Switch to CO Mapper tab
+        setActiveTab('co');
+        // Navigate to completed students view
+        // Note: You'll need to pass the student info to CO Mapper to show their details
+        // For now, just navigate to the main CO Mapper screen
+        setCoSubScreen('myCOs');
+    };
+
     const handleViewEvaluationResults = (evaluationId: number, subjectName: string, studentRegNo?: string) => {
         console.log('📊 Viewing results for evaluation:', evaluationId, 'Subject:', subjectName, 'Student:', studentRegNo);
         setSelectedEvaluationId(evaluationId);
@@ -83,6 +93,7 @@ export default function HomeScreenRefactored() {
                             {evaluationSubScreen === 'list' && (
                                 <EvaluationScreen
                                     onViewResults={handleViewEvaluationResults}
+                                    onNavigateToCOMapper={handleNavigateToCOMapper}
                                     refreshTrigger={evaluationRefreshTrigger}
                                 />
                             )}

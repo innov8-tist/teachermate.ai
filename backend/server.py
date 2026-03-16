@@ -979,9 +979,11 @@ async def get_evaluation_results(
             raise HTTPException(status_code=403, detail="Access denied")
         
 
+        # Get progress records, excluding CO Mapper students
         progress_records = db_service.db.query(StudentEvaluationProgress).filter(
             StudentEvaluationProgress.schema_id == evaluation_id,
-            StudentEvaluationProgress.teacher_id == current_teacher.id
+            StudentEvaluationProgress.teacher_id == current_teacher.id,
+            StudentEvaluationProgress.upload_method != 'co_mapper'  # Exclude CO Mapper students
         ).all()
         
         students = []

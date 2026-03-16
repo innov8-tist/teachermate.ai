@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Image, StyleSheet, ScrollView, Pressable, Modal, ActivityIndicator, Platform } from 'react-native';
-import { useImagePicker } from '@/hooks/use-image-picker';
+import { View, Text, Image, StyleSheet, ScrollView, Pressable, Modal, ActivityIndicator } from 'react-native';
 import { useAuth } from '@/contexts/auth-context';
 import { Feather } from '@expo/vector-icons';
 import { coService, CO } from '@/services/api/co-service';
@@ -12,15 +11,17 @@ interface StudentSheetScreenProps {
 }
 
 export const StudentSheetScreen: React.FC<StudentSheetScreenProps> = ({ onViewCompletedStudents }) => {
-  console.log('📱 Using MOBILE version of StudentSheetScreen - v2.0');
+  console.log('🌐 Using WEB version of StudentSheetScreen');
+  console.log('🌐 WEB VERSION LOADED SUCCESSFULLY!');
+  alert('WEB VERSION IS LOADED!'); // This will show a popup
   const { teacher } = useAuth();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [myCOs, setMyCOs] = useState<CO[]>([]);
   const [selectedCO, setSelectedCO] = useState<CO | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [processingStep, setProcessingStep] = useState<string>('');
-  const { pickFromCamera, pickFromGallery } = useImagePicker();
 
   useEffect(() => {
     if (teacher) {
@@ -40,18 +41,34 @@ export const StudentSheetScreen: React.FC<StudentSheetScreenProps> = ({ onViewCo
     }
   };
 
-  const handlePickFromCamera = async () => {
-    const uri = await pickFromCamera();
-    if (uri) setSelectedImage(uri);
+  const handlePickImage = (useCamera: boolean = false) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    if (useCamera) {
+      input.capture = 'environment';
+    }
+    
+    input.onchange = (e: any) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        setSelectedImageFile(file);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setSelectedImage(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+    
+    input.click();
   };
 
-  const handlePickFromGallery = async () => {
-    const uri = await pickFromGallery();
-    if (uri) setSelectedImage(uri);
-  };
+  const handlePickFromCamera = () => handlePickImage(true);
+  const handlePickFromGallery = () => handlePickImage(false);
 
   const handleSubmit = async () => {
-    if (!selectedImage) {
+    if (!selectedImageFile) {
       Alert.alert('Missing Information', 'Please select or capture an answer sheet image');
       return;
     }
@@ -64,113 +81,30 @@ export const StudentSheetScreen: React.FC<StudentSheetScreenProps> = ({ onViewCo
     setProcessingStep('Uploading image...');
 
     try {
-      console.log('📤 Student Sheet Upload - Platform:', Platform.OS);
-      console.log('📤 Subject ID:', selectedCO.id);
-      console.log('📤 Selected Image (first 100 chars):', selectedImage.substring(0, 100));
+      const formData = new FormData();
+      formData.append('subject_id', selectedCO.id.toString());
+      formData.append('student_image', selectedImageFile, selectedImageFile.name);
 
-      if (Platform.OS === 'web') {
-        console.log('🌐 Web platform - converting data URL to File');
-        
-        const formData = new FormData();
-        formData.append('subject_id', selectedCO.id.toString());
-        
-        // Convert data URL to File for web
-        const fetchResponse = await fetch(selectedImage);
-        const blob = await fetchResponse.blob();
-        const file = new File([blob], 'student_sheet.jpg', { type: blob.type });
-        console.log('📤 File created:', {
-          name: file.name,
-          type: file.type,
-          size: file.size
-        });
-        formData.append('student_image', file);
+      setProcessingStep('Processing image...');
 
-        // Log FormData contents
-        console.log('📤 FormData contents:');
-        for (const [key, value] of formData.entries()) {
-          if (value instanceof File) {
-            console.log(`  ${key}:`, {
-              name: value.name,
-              type: value.type,
-              size: value.size
-            });
-          } else {
-            console.log(`  ${key}:`, value);
-          }
-        }
+      const response = await fetch(`${API_BASE_URL}/student_sheet_upload`, {
+        method: 'POST',
+        body: formData,
+      });
 
-        setProcessingStep('Processing image...');
+      setProcessingStep('Extracting data...');
+      const result = await response.json();
 
-        console.log('📤 Sending request to:', `${API_BASE_URL}/student_sheet_upload`);
-
-        const response = await fetch(`${API_BASE_URL}/student_sheet_upload`, {
-          method: 'POST',
-          body: formData,
-        });
-
-        console.log('📥 Response status:', response.status);
-        console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
-
-        setProcessingStep('Extracting data...');
-        
-        const responseText = await response.text();
-        console.log('📥 Response text:', responseText);
-        
-        let result;
-        try {
-          result = JSON.parse(responseText);
-        } catch (e) {
-          console.error('Failed to parse response:', responseText);
-          throw new Error('Invalid response from server');
-        }
-
-        if (result.status === 'success') {
-          setProcessingStep('Saving to database...');
-          setTimeout(() => {
-            Alert.alert('Success', 'Answer sheet analyzed and CO mappings saved successfully!');
-            setSelectedImage(null);
-            setSelectedCO(null);
-            setProcessingStep('');
-          }, 500);
-        } else {
-          Alert.alert('Error', result.message || 'Failed to analyze answer sheet');
-        }
+      if (result.status === 'success') {
+        setProcessingStep('Saving to database...');
+        setTimeout(() => {
+          Alert.alert('Success', 'Answer sheet analyzed and CO mappings saved successfully!');
+          setSelectedImage(null);
+          setSelectedImageFile(null);
+          setSelectedCO(null);
+          setProcessingStep('');
+        }, 500);
       } else {
-        // Mobile platform
-        const formData = new FormData();
-        formData.append('subject_id', selectedCO.id.toString());
-        
-        const uriParts = selectedImage.split('.');
-        const fileType = uriParts[uriParts.length - 1];
-
-        formData.append('student_image', {
-          uri: selectedImage,
-          name: `student_sheet.${fileType}`,
-          type: `image/${fileType}`,
-        } as any);
-
-        setProcessingStep('Processing image...');
-
-        const response = await fetch(`${API_BASE_URL}/student_sheet_upload`, {
-          method: 'POST',
-          body: formData,
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        });
-
-        setProcessingStep('Extracting data...');
-        const result = await response.json();
-
-        if (result.status === 'success') {
-          setProcessingStep('Saving to database...');
-          setTimeout(() => {
-            Alert.alert('Success', 'Answer sheet analyzed and CO mappings saved successfully!');
-            setSelectedImage(null);
-            setSelectedCO(null);
-            setProcessingStep('');
-          }, 500);
-        } else {
         Alert.alert('Error', result.message || 'Failed to analyze answer sheet');
       }
     } catch (error) {
@@ -270,7 +204,10 @@ export const StudentSheetScreen: React.FC<StudentSheetScreenProps> = ({ onViewCo
               <View style={styles.previewHeader}>
                 <Text style={styles.previewTitle}>Selected Image</Text>
                 <Pressable
-                  onPress={() => setSelectedImage(null)}
+                  onPress={() => {
+                    setSelectedImage(null);
+                    setSelectedImageFile(null);
+                  }}
                   style={styles.removeBtn}
                 >
                   <Feather name="x" size={18} color="#999" />
@@ -386,7 +323,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#f0f0f0',
-  },
+    cursor: 'pointer',
+  } as any,
   actionIcon: {
     width: 56,
     height: 56,
@@ -424,7 +362,8 @@ const styles = StyleSheet.create({
   },
   removeBtn: {
     padding: 6,
-  },
+    cursor: 'pointer',
+  } as any,
   previewBox: {
     height: 280,
     backgroundColor: '#f9f9f9',
@@ -455,10 +394,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-  },
+    cursor: 'pointer',
+  } as any,
   submitBtnDisabled: {
     backgroundColor: '#d0d0d0',
-  },
+    cursor: 'not-allowed',
+  } as any,
   submitText: {
     color: '#fff',
     fontSize: 15,
@@ -485,7 +426,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 14,
     paddingHorizontal: 16,
-  },
+    cursor: 'pointer',
+  } as any,
   dropdownButtonSelected: {
     borderColor: '#000',
     backgroundColor: '#fff',
@@ -515,7 +457,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#f5f5f5',
-  },
+    cursor: 'pointer',
+  } as any,
   dropdownItemContent: {
     flex: 1,
   },
@@ -604,7 +547,8 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     borderWidth: 1,
     borderColor: '#e0e0e0',
-  },
+    cursor: 'pointer',
+  } as any,
   viewStudentsText: {
     fontSize: 14,
     fontWeight: '600',

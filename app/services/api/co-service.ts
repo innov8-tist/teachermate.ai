@@ -182,18 +182,37 @@ export const coService = {
         retries: 2,
       });
       
-      console.log('📥 Excel download response received');
+      console.log('📥 Excel download response received, status:', response.status);
+      console.log('📥 Response headers:', response.headers);
+      
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+      }
       
       // Convert response to blob and then to base64
       const blob = await response.blob();
+      console.log('📥 Blob created, size:', blob.size, 'type:', blob.type);
+      
+      if (blob.size === 0) {
+        throw new Error('Received empty file from server');
+      }
+      
       const reader = new FileReader();
       
       return new Promise((resolve, reject) => {
         reader.onloadend = () => {
           const base64data = reader.result as string;
+          if (!base64data) {
+            reject(new Error('Failed to read file data'));
+            return;
+          }
           // Remove the data URL prefix to get just the base64 string
           const base64 = base64data.split(',')[1];
-          console.log('✅ Excel converted to base64');
+          console.log('✅ Excel converted to base64, length:', base64?.length || 0);
+          if (!base64 || base64.length === 0) {
+            reject(new Error('Base64 conversion resulted in empty data'));
+            return;
+          }
           resolve(base64);
         };
         reader.onerror = (error) => {

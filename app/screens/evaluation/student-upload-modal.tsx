@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Modal, TextInput, Alert, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, TextInput, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { pickAndUploadPDF } from '../../utils/pdf-picker';
 import { useAuth } from '../../contexts/auth-context';
 import { API_BASE_URL } from '../../constants/api';
+import { Alert } from '@/utils/alert';
 
 export interface StudentUploadData {
   rollNumber: string;
@@ -38,7 +39,8 @@ interface StudentUploadModalProps {
   onClose: () => void;
   onConfirm: (data: StudentUploadData) => Promise<void>;
   evaluationId: number;
-  onViewResults?: (studentRegNo: string, progressId: number) => void; // New prop for viewing results
+  onViewResults?: (studentRegNo: string, progressId: number) => void; // For viewing evaluation results
+  onNavigateToCOMapper?: (studentRegNo: string) => void; // For navigating to CO Mapper
 }
 
 export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
@@ -46,7 +48,8 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
   onClose,
   onConfirm,
   evaluationId,
-  onViewResults
+  onViewResults,
+  onNavigateToCOMapper
 }) => {
   const { token } = useAuth();
   const [rollNumber, setRollNumber] = useState('');
@@ -160,7 +163,15 @@ export const StudentUploadModal: React.FC<StudentUploadModalProps> = ({
       student
     });
 
-    // Check if this student has evaluation data
+    // Check if this is a CO Mapper student
+    if (student.upload_method === 'co_mapper' && onNavigateToCOMapper) {
+      console.log('✅ Navigating to CO Mapper for student:', regNo);
+      handleClose();
+      onNavigateToCOMapper(regNo);
+      return;
+    }
+
+    // Check if this student has evaluation data (PDF method)
     // For RecentProgress: has 'id' field
     // For SearchResult: has 'progress_id' field
     const progressId = 'id' in student ? student.id : ('progress_id' in student ? student.progress_id : null);

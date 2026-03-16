@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, Alert, StyleSheet, ScrollView, Pressable, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Pressable, Modal, ActivityIndicator, Platform } from 'react-native';
 import { coService, CO, CODetail } from '@/services/api/co-service';
 import { useAuth } from '@/contexts/auth-context';
 import { Feather } from '@expo/vector-icons';
 import { useImagePicker } from '@/hooks/use-image-picker';
 import { API_BASE_URL } from '@/constants/api';
+import { Alert } from '@/utils/alert';
 
 interface MyCOsScreenProps {
   onCOClick: (coId: number) => void;
@@ -25,7 +26,7 @@ interface Student {
   regno: string;
 }
 
-export const MyCOsScreen: React.FC<MyCOsScreenProps> = ({ 
+export const MyCOsScreen: React.FC<MyCOsScreenProps> = ({
   onCOClick,
   onViewCompletedStudents
 }) => {
@@ -38,7 +39,7 @@ export const MyCOsScreen: React.FC<MyCOsScreenProps> = ({
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [showMappingModal, setShowMappingModal] = useState(false);
   const [selectedCOForMapping, setSelectedCOForMapping] = useState<COWithDetails | null>(null);
-  
+
   const { pickFromCamera, pickFromGallery } = useImagePicker();
 
   useEffect(() => {
@@ -50,9 +51,9 @@ export const MyCOsScreen: React.FC<MyCOsScreenProps> = ({
   const fetchCOs = async () => {
     setIsLoading(true);
     if (!teacher) return;
-    
+
     const data = await coService.fetchMyCOs(teacher.id);
-    
+
     // Fetch additional details for each CO
     const cosWithDetails = await Promise.all(
       data.map(async (co) => {
@@ -60,18 +61,18 @@ export const MyCOsScreen: React.FC<MyCOsScreenProps> = ({
           // Fetch CO details (questions and COs)
           const details = await coService.fetchCODetails(co.id);
           const uniqueCOs = [...new Set(details.map((d: CODetail) => d.co_no))].length;
-          
+
           // Fetch completed students
           const studentsResponse = await fetch(`${API_BASE_URL}/students_by_subject/${co.id}`);
           const students: Student[] = await studentsResponse.json();
-          
+
           // Fetch total students
           const infoResponse = await fetch(`${API_BASE_URL}/co_subject_info/${co.id}`);
           const info = await infoResponse.json();
-          
+
           console.log(`CO ${co.id} (${co.name}) info:`, info);
           console.log(`Student count for ${co.name}:`, info.student_count);
-          
+
           return {
             ...co,
             questionCount: details.length,
@@ -93,18 +94,20 @@ export const MyCOsScreen: React.FC<MyCOsScreenProps> = ({
         }
       })
     );
-    
+
     setMyCOs(cosWithDetails);
     setIsLoading(false);
   };
 
   const handleDelete = (coId: number, coName: string) => {
+    console.log('Delete button clicked for CO:', coId, coName);
     Alert.alert('Delete CO', `Are you sure you want to delete ${coName}?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
+          console.log('Delete confirmed for CO:', coId);
           const result = await coService.deleteCO(coId);
           if (result.status === 'success') {
             Alert.alert('Success', 'CO deleted successfully');
@@ -143,26 +146,35 @@ export const MyCOsScreen: React.FC<MyCOsScreenProps> = ({
     setProcessingStep('Uploading image...');
 
     try {
+      console.log('📤 MY-COS Upload - Platform:', Platform.OS);
+      
       const formData = new FormData();
       formData.append('subject_id', coId.toString());
 
-      const uriParts = imageUri.split('.');
-      const fileType = uriParts[uriParts.length - 1];
+      if (Platform.OS === 'web') {
+        console.log('🌐 Web - converting to File');
+        // Convert data URL to File for web
+        const fetchResponse = await fetch(imageUri);
+        const blob = await fetchResponse.blob();
+        const file = new File([blob], 'student_sheet.jpg', { type: blob.type });
+        formData.append('student_image', file);
+      } else {
+        // Mobile
+        const uriParts = imageUri.split('.');
+        const fileType = uriParts[uriParts.length - 1];
 
-      formData.append('student_image', {
-        uri: imageUri,
-        name: `student_sheet.${fileType}`,
-        type: `image/${fileType}`,
-      } as any);
+        formData.append('student_image', {
+          uri: imageUri,
+          name: `student_sheet.${fileType}`,
+          type: `image/${fileType}`,
+        } as any);
+      }
 
       setProcessingStep('Processing image...');
 
       const response = await fetch(`${API_BASE_URL}/student_sheet_upload`, {
         method: 'POST',
         body: formData,
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
       });
 
       setProcessingStep('Extracting data...');
@@ -224,8 +236,8 @@ export const MyCOsScreen: React.FC<MyCOsScreenProps> = ({
           ) : (
             <View style={styles.coList}>
               {myCOs.map((co) => {
-                const progressPercentage = co.totalStudents && co.totalStudents > 0 
-                  ? (co.completedStudents! / co.totalStudents) * 100 
+                const progressPercentage = co.totalStudents && co.totalStudents > 0
+                  ? (co.completedStudents! / co.totalStudents) * 100
                   : 0;
 
                 return (
@@ -239,19 +251,20 @@ export const MyCOsScreen: React.FC<MyCOsScreenProps> = ({
                         </View>
                         <Text style={styles.metaText}>Semester {co.sem}</Text>
                       </View>
-                      <Pressable
+                      <TouchableOpacity
                         style={styles.deleteBtn}
                         onPress={() => handleDelete(co.id, co.name)}
+                        activeOpacity={0.7}
                       >
                         <Feather name="trash-2" size={18} color="#999" />
-                      </Pressable>
+                      </TouchableOpacity>
                     </View>
 
                     {/* Mapping Stats */}
                     <View style={styles.statsSection}>
                       <View style={styles.statsSectionHeader}>
                         <Text style={styles.sectionTitle}>MAPPING STATS</Text>
-                        <Pressable 
+                        <Pressable
                           style={styles.infoButton}
                           onPress={() => handleShowMapping(co)}
                         >
@@ -323,7 +336,7 @@ export const MyCOsScreen: React.FC<MyCOsScreenProps> = ({
                 <Feather name="x" size={24} color="#666" />
               </Pressable>
             </View>
-            
+
             <View style={styles.pickerOptions}>
               <Pressable style={styles.pickerOption} onPress={handlePickFromCamera}>
                 <View style={styles.pickerIcon}>
@@ -400,7 +413,7 @@ export const MyCOsScreen: React.FC<MyCOsScreenProps> = ({
                 <Feather name="x" size={24} color="#666" />
               </Pressable>
             </View>
-            
+
             <ScrollView style={styles.mappingModalScroll} showsVerticalScrollIndicator={false}>
               {selectedCOForMapping?.coDetails && selectedCOForMapping.coDetails.length > 0 ? (
                 <View style={styles.mappingList}>
@@ -504,7 +517,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#E5E5E5',
-  },
+    cursor: 'pointer',
+  } as any,
   statsSection: {
     marginBottom: 16,
   },

@@ -1,17 +1,20 @@
 'use client';
 
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Image, Alert, StyleSheet, ScrollView, Pressable, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, Image, StyleSheet, ScrollView, Pressable, TextInput, Platform } from 'react-native';
 import { useImagePicker } from '@/hooks/use-image-picker';
 import { useAuth } from '@/contexts/auth-context';
 import { coService, Subject } from '@/services/api/co-service';
 import { Feather } from '@expo/vector-icons';
+import { Alert } from '@/utils/alert';
+import { API_ENDPOINTS } from '@/constants/api';
 
 interface COCreationScreenProps {
   onSuccess?: () => void;
 }
 
 export const COCreationScreen: React.FC<COCreationScreenProps> = ({ onSuccess }) => {
+  console.log('📱 Using MOBILE version of COCreationScreen');
   const { token } = useAuth();
   const [selectedSemester, setSelectedSemester] = useState<string>('');
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -52,6 +55,7 @@ export const COCreationScreen: React.FC<COCreationScreenProps> = ({ onSuccess })
     }
 
     console.log('=== CO Creation Debug ===');
+    console.log('Platform:', Platform.OS);
     console.log('Token (first 50 chars):', token.substring(0, 50));
     console.log('Token length:', token.length);
     console.log('Student Count (string):', studentCount);
@@ -61,40 +65,96 @@ export const COCreationScreen: React.FC<COCreationScreenProps> = ({ onSuccess })
     setIsSubmitting(true);
 
     try {
-      const uriParts = uploadedImage.split('.');
-      const fileType = uriParts[uriParts.length - 1];
+      // On web, uploadedImage might be a data URL, we need to convert it to a File
+      if (Platform.OS === 'web') {
+        console.log('🌐 Web platform detected - using direct fetch');
+        
+        // For web, we need to get the File object from the image picker
+        // The uploadedImage is a data URL, we need the actual File
+        // This is a workaround - ideally we'd store the File object separately
+        
+        const formData = new FormData();
+        formData.append('subject_name', subjectName);
+        formData.append('sem', selectedSemester);
+        formData.append('ia_number', selectedOption);
+        formData.append('student_count', studentCountNum.toString());
+        
+        // Convert data URL to Blob then to File
+        const response = await fetch(uploadedImage);
+        const blob = await response.blob();
+        const file = new File([blob], 'co_table.jpg', { type: blob.type });
+        formData.append('co_image', file);
 
-      const result = await coService.createCO({
-        subject_name: subjectName,
-        sem: selectedSemester,
-        ia_number: selectedOption,
-        student_count: studentCountNum,
-        co_image: {
-          uri: uploadedImage,
-          name: `co_table.${fileType}`,
-          type: `image/${fileType}`,
-        },
-      }, token);
+        console.log('📤 Sending FormData to:', API_ENDPOINTS.CO_CREATION);
 
-      if (result.status === 'success') {
-        Alert.alert('Success', 'CO created successfully!', [
-          {
-            text: 'OK',
-            onPress: () => {
-              // Reset form
-              setSelectedSemester('');
-              setSubjectName('');
-              setSelectedOption(null);
-              setStudentCount('');
-              setUploadedImage(null);
-              setSubjects([]);
-              // Navigate back to My CO's
-              onSuccess?.();
+        const apiResponse = await fetch(API_ENDPOINTS.CO_CREATION, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+          body: formData,
+        });
+
+        const result = await apiResponse.json();
+        console.log('📥 Response:', result);
+
+        if (apiResponse.ok && result.status === 'success') {
+          Alert.alert('Success', 'CO created successfully!', [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Reset form
+                setSelectedSemester('');
+                setSubjectName('');
+                setSelectedOption(null);
+                setStudentCount('');
+                setUploadedImage(null);
+                setSubjects([]);
+                // Navigate back to My CO's
+                onSuccess?.();
+              }
             }
-          }
-        ]);
+          ]);
+        } else {
+          Alert.alert('Error', result.message || 'Failed to create CO');
+        }
       } else {
-        Alert.alert('Error', result.message || 'Failed to create CO');
+        // Mobile platform - use the service
+        const uriParts = uploadedImage.split('.');
+        const fileType = uriParts[uriParts.length - 1];
+
+        const result = await coService.createCO({
+          subject_name: subjectName,
+          sem: selectedSemester,
+          ia_number: selectedOption,
+          student_count: studentCountNum,
+          co_image: {
+            uri: uploadedImage,
+            name: `co_table.${fileType}`,
+            type: `image/${fileType}`,
+          },
+        }, token);
+
+        if (result.status === 'success') {
+          Alert.alert('Success', 'CO created successfully!', [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Reset form
+                setSelectedSemester('');
+                setSubjectName('');
+                setSelectedOption(null);
+                setStudentCount('');
+                setUploadedImage(null);
+                setSubjects([]);
+                // Navigate back to My CO's
+                onSuccess?.();
+              }
+            }
+          ]);
+        } else {
+          Alert.alert('Error', result.message || 'Failed to create CO');
+        }
       }
     } catch (error: any) {
       console.error('CO Creation Error:', error);

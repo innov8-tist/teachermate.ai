@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Image, TextInput, ActivityIndicator, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '@/contexts/auth-context';
 import { authService } from '@/services/api/auth-service';
 import { Alert } from '@/utils/alert';
@@ -14,32 +13,26 @@ export function EditProfileScreen() {
   const [fullName, setFullName] = useState(teacher?.teacher_name || '');
   const [institution, setInstitution] = useState(teacher?.institution || '');
   const [profileImage, setProfileImage] = useState<string | undefined>(teacher?.pfp_url);
-  const [newImageFile, setNewImageFile] = useState<any>(null);
+  const [newImageFile, setNewImageFile] = useState<File | null>(null);
 
   const pickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
     
-    if (status !== 'granted') {
-      Alert.alert('Permission Required', 'Please grant camera roll permissions to change your profile picture.');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      setProfileImage(asset.uri);
-      setNewImageFile({
-        uri: asset.uri,
-        name: asset.fileName || 'profile.jpg',
-        type: asset.mimeType || 'image/jpeg',
-      });
-    }
+    input.onchange = (e: any) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        setNewImageFile(file);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setProfileImage(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+    
+    input.click();
   };
 
   const handleSave = async () => {
@@ -280,7 +273,8 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: '#000',
-  },
+    outlineStyle: 'none',
+  } as any,
   disabledInput: {
     backgroundColor: '#f5f5f5',
   },

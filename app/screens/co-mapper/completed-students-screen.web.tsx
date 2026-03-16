@@ -5,8 +5,6 @@ import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { API_BASE_URL } from '@/constants/api';
 import { coService } from '@/services/api/co-service';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
 import { Alert } from '@/utils/alert';
 
 interface CompletedStudentsScreenProps {
@@ -98,9 +96,7 @@ export const CompletedStudentsScreen: React.FC<CompletedStudentsScreenProps> = (
 
               if (result.status === 'success') {
                 Alert.alert('Success', 'Student marks deleted successfully');
-                // Refresh the students list
                 fetchStudents();
-                // If we're viewing this student's marks, go back to list
                 if (selectedStudent === regno) {
                   setSelectedStudent(null);
                   setStudentMarks([]);
@@ -126,38 +122,66 @@ export const CompletedStudentsScreen: React.FC<CompletedStudentsScreenProps> = (
 
     setIsDownloading(true);
     try {
-      console.log('Starting Excel download for subject:', subjectId);
+      console.log('🌐 WEB: Starting Excel download for subject:', subjectId);
 
-      // Call API to generate Excel file
-      const base64Data = await coService.downloadCOExcel(subjectId);
-      console.log('Received base64 data, length:', base64Data.length);
+      const downloadUrl = `${API_BASE_URL}/co_download_excel/${subjectId}`;
+      console.log('🌐 Download URL:', downloadUrl);
 
-      // Create file name and path
-      const fileName = `CO_Results_${subjectName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`;
-      const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+      // Fetch the file first to check for errors
+      const response = await fetch(downloadUrl);
+      console.log('📥 Response status:', response.status);
+      console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
 
-      console.log('Writing file to:', fileUri);
-
-      // Write base64 data to file
-      await FileSystem.writeAsStringAsync(fileUri, base64Data, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-
-      console.log('File saved successfully');
-
-      // Use share dialog - works reliably on all devices
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          dialogTitle: 'Save Excel File',
-        });
-        console.log('Share dialog opened');
-      } else {
-        Alert.alert('File Ready', `File saved to: ${fileUri}`);
+      if (!response.ok) {
+        // Try to parse error message
+        const text = await response.text();
+        console.error('❌ Server error response:', text);
+        try {
+          const errorData = JSON.parse(text);
+          throw new Error(errorData.message || `Server error: ${response.status}`);
+        } catch {
+          throw new Error(`Server error: ${response.status} - ${text.substring(0, 100)}`);
+        }
       }
+
+      // Check content type
+      const contentType = response.headers.get('content-type');
+      console.log('📥 Content-Type:', contentType);
+
+      if (contentType && contentType.includes('application/json')) {
+        // Backend returned JSON error
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to generate Excel file');
+      }
+
+      // Get the blob
+      const blob = await response.blob();
+      console.log('📥 Blob size:', blob.size, 'type:', blob.type);
+
+      if (blob.size === 0) {
+        throw new Error('Received empty file from server');
+      }
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `CO_Results_${subjectName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      
+      // Append to body, click, and remove
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Clean up the URL object
+      window.URL.revokeObjectURL(url);
+
+      console.log('✅ Download initiated successfully');
+      
+      Alert.alert('Success', 'Excel file downloaded successfully!');
+
     } catch (error: any) {
-      console.error('Download error:', error);
+      console.error('❌ Download error:', error);
       const errorMessage = error.message || 'Failed to download Excel file';
       Alert.alert('Download Error', errorMessage);
     } finally {

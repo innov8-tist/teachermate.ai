@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet, Alert, Pressable } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet, Pressable } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { BASE_URL } from '../../constants/api';
 import { useAuth } from '../../contexts/auth-context';
 import { StudentUploadModal, StudentUploadData } from './student-upload-modal';
 import { UploadAnswerKeyModal } from './upload-answer-key-modal';
+import { Alert } from '@/utils/alert';
 
 interface EvaluationRecord {
   evaluation_id: number;
@@ -23,10 +24,11 @@ interface EvaluationRecord {
 
 interface EvaluationScreenProps {
   onViewResults: (evaluationId: number, subjectName: string, studentRegNo?: string) => void;
+  onNavigateToCOMapper?: (studentRegNo: string) => void; // Navigate to CO Mapper
   refreshTrigger?: number; // Increment this to trigger refresh
 }
 
-export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewResults, refreshTrigger }) => {
+export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewResults, onNavigateToCOMapper, refreshTrigger }) => {
   const { token, teacher } = useAuth();
   const [evaluations, setEvaluations] = useState<EvaluationRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -321,6 +323,7 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewResult
         onConfirm={handleUploadModalConfirm}
         evaluationId={selectedEvaluationId || 0}
         onViewResults={handleViewStudentResults}
+        onNavigateToCOMapper={onNavigateToCOMapper}
       />
 
       {/* Upload Answer Key Modal */}

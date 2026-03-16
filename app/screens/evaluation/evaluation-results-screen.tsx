@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { BASE_URL } from '../../constants/api';
 import { useAuth } from '../../contexts/auth-context';
+import { Alert } from '@/utils/alert';
 
 interface EvaluationResultsScreenProps {
   evaluationId: number;
@@ -53,11 +54,11 @@ export const EvaluationResultsScreen: React.FC<EvaluationResultsScreenProps> = (
 
   const fetchStudentResults = async () => {
     if (!token) return;
-    
+
     setIsLoading(true);
     try {
       console.log('📊 Fetching evaluation results for evaluation:', evaluationId);
-      
+
       const response = await fetch(`${BASE_URL}/api/evaluation/${evaluationId}/results`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -70,8 +71,17 @@ export const EvaluationResultsScreen: React.FC<EvaluationResultsScreenProps> = (
 
       const data = await response.json();
       console.log('✅ Evaluation results fetched:', data);
-      
-      setStudents(data.students || []);
+
+      // Filter out students that were added via CO Mapper (upload_method='co_mapper')
+      const filteredStudents = (data.students || []).filter((student: any) => {
+        // Only show students who were evaluated through the Evaluation system
+        // Exclude students with upload_method='co_mapper'
+        return student.upload_method !== 'co_mapper';
+      });
+
+      console.log(`📊 Filtered ${data.students?.length || 0} students to ${filteredStudents.length} (excluded CO Mapper students)`);
+
+      setStudents(filteredStudents);
     } catch (error) {
       console.error('❌ Error fetching evaluation results:', error);
       Alert.alert('Error', 'Failed to load evaluation results. Please try again.');
@@ -82,11 +92,11 @@ export const EvaluationResultsScreen: React.FC<EvaluationResultsScreenProps> = (
 
   const fetchStudentDetails = async (studentRegNo: string) => {
     if (!token) return;
-    
+
     setIsLoadingDetails(true);
     try {
       console.log('📋 Fetching detailed results for student:', studentRegNo);
-      
+
       const response = await fetch(`${BASE_URL}/api/evaluation/${evaluationId}/student/${studentRegNo}/details`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -99,7 +109,7 @@ export const EvaluationResultsScreen: React.FC<EvaluationResultsScreenProps> = (
 
       const data = await response.json();
       console.log('✅ Student details fetched:', data);
-      
+
       setStudentDetails(data.results || []);
       setSelectedStudent(studentRegNo);
       setExpandedFeedback(new Set()); // Reset expanded state for new student
@@ -174,7 +184,7 @@ export const EvaluationResultsScreen: React.FC<EvaluationResultsScreenProps> = (
   // Detailed view for selected student
   if (selectedStudent) {
     const student = students.find(s => s.student_reg_no === selectedStudent);
-    
+
     return (
       <View style={styles.container}>
         {/* Header */}
@@ -213,7 +223,7 @@ export const EvaluationResultsScreen: React.FC<EvaluationResultsScreenProps> = (
                 {studentDetails.map((result, index) => {
                   const hasFeedback = result.mark_score < result.total_mark && result.feedback && result.feedback.length > 0;
                   const isExpanded = expandedFeedback.has(result.question_no);
-                  
+
                   return (
                     <View key={index}>
                       <View style={styles.tableRow}>
@@ -232,10 +242,10 @@ export const EvaluationResultsScreen: React.FC<EvaluationResultsScreenProps> = (
                               style={styles.feedbackToggle}
                               onPress={() => toggleFeedback(result.question_no)}
                             >
-                              <Feather 
-                                name="info" 
-                                size={16} 
-                                color={isExpanded ? "#e74c3c" : "#666"} 
+                              <Feather
+                                name="info"
+                                size={16}
+                                color={isExpanded ? "#e74c3c" : "#666"}
                               />
                             </Pressable>
                           ) : (

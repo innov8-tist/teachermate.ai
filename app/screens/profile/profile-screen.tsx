@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Image, Alert, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Image, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/auth-context';
+import { Alert } from '@/utils/alert';
 
 export function ProfileScreen() {
   const { teacher, logout } = useAuth();
