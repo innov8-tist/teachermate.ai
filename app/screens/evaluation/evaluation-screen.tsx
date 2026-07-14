@@ -4,6 +4,7 @@ import { Feather } from '@expo/vector-icons';
 import { BASE_URL } from '../../constants/api';
 import { useAuth } from '../../contexts/auth-context';
 import { StudentUploadModal, StudentUploadData } from './student-upload-modal';
+import { UploadAnswerKeyModal } from './upload-answer-key-modal';
 
 interface EvaluationRecord {
   evaluation_id: number;
@@ -21,21 +22,21 @@ interface EvaluationRecord {
 }
 
 interface EvaluationScreenProps {
-  onViewDetails: (evaluationId: number) => void;
-  onStartStudentUpload: (evaluationId: number, studentData: StudentUploadData) => void;
-  onViewResults: (evaluationId: number, subjectName: string) => void;
+  onViewResults: (evaluationId: number, subjectName: string, studentRegNo?: string) => void;
+  refreshTrigger?: number; // Increment this to trigger refresh
 }
 
-export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetails, onStartStudentUpload, onViewResults }) => {
+export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewResults, refreshTrigger }) => {
   const { token, teacher } = useAuth();
   const [evaluations, setEvaluations] = useState<EvaluationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showAnswerKeyModal, setShowAnswerKeyModal] = useState(false);
   const [selectedEvaluationId, setSelectedEvaluationId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchEvaluations();
-  }, []);
+  }, [refreshTrigger]); // Re-fetch when refreshTrigger changes
 
   const fetchEvaluations = async () => {
     if (!token || !teacher) {
@@ -44,18 +45,34 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
     }
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
       const response = await fetch(`${BASE_URL}/evaluations/${teacher.id}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (response.ok) {
         const data = await response.json();
         setEvaluations(data.evaluations || []);
+      } else {
+        console.error('Failed to fetch evaluations:', response.status);
+        Alert.alert('Error', 'Failed to load evaluations. Please try again.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching evaluations:', error);
+      if (error.name === 'AbortError') {
+        Alert.alert('Timeout', 'Request took too long. Please check your connection and try again.');
+      } else if (error.message?.includes('Network')) {
+        Alert.alert('Network Error', 'Please check your internet connection and try again.');
+      } else {
+        Alert.alert('Error', 'Failed to load evaluations. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -100,17 +117,86 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
     setShowUploadModal(true);
   };
 
-  const handleUploadModalConfirm = (studentData: StudentUploadData) => {
-    if (selectedEvaluationId) {
+  const handleUploadModalConfirm = async (studentData: StudentUploadData) => {
+    if (selectedEvaluationId && studentData.progressId) {
+      // DON'T close modal yet - let it show loading state
+
+      // Call the start evaluation endpoint
+      try {
+        console.log('🚀 Starting evaluation for progress_id:', studentData.progressId);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout for evaluation
+
+        const response = await fetch(`${BASE_URL}/api/evaluation/start-evaluation/${studentData.progressId}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log('✅ Evaluation completed:', result);
+
+          // NOW close the modal after success
+          setShowUploadModal(false);
+          setSelectedEvaluationId(null);
+
+          Alert.alert('Success', `Evaluation completed! Score: ${result.data.total_marks_obtained}/${result.data.total_marks_possible}`);
+          fetchEvaluations(); // Refresh the list
+        } else {
+          const errorText = await response.text();
+          console.error('❌ Evaluation failed:', errorText);
+
+          // Close modal on error too
+          setShowUploadModal(false);
+          setSelectedEvaluationId(null);
+
+          Alert.alert('Error', 'Evaluation failed. Please try again.');
+        }
+      } catch (error: any) {
+        console.error('❌ Error starting evaluation:', error);
+
+        // Close modal on error
+        setShowUploadModal(false);
+        setSelectedEvaluationId(null);
+
+        if (error.name === 'AbortError') {
+          Alert.alert('Timeout', 'Evaluation took too long. The file might be too large or the server is busy. Please try again.');
+        } else if (error.message?.includes('Network')) {
+          Alert.alert('Network Error', 'Please check your internet connection and try again.');
+        } else {
+          Alert.alert('Error', 'Failed to start evaluation. Please try again.');
+        }
+      }
+    } else {
+      // No progress ID - this shouldn't happen with the new flow
+      console.error('❌ No progress ID found after evaluation');
       setShowUploadModal(false);
-      onStartStudentUpload(selectedEvaluationId, studentData);
       setSelectedEvaluationId(null);
+      Alert.alert('Error', 'Failed to complete evaluation');
     }
   };
 
   const handleUploadModalClose = () => {
     setShowUploadModal(false);
     setSelectedEvaluationId(null);
+  };
+
+  const handleViewStudentResults = (studentRegNo: string, progressId: number) => {
+    // Navigate to results view for this specific student
+    console.log(`📊 Viewing results for student ${studentRegNo}, progress ID: ${progressId}`);
+    if (selectedEvaluationId) {
+      const evaluation = evaluations.find(e => e.evaluation_id === selectedEvaluationId);
+      if (evaluation) {
+        // Pass the student reg no as the third parameter to filter results
+        onViewResults(selectedEvaluationId, evaluation.subject_name, studentRegNo);
+      }
+    }
   };
 
   const getProgressPercentage = (completed: number, total: number) => {
@@ -125,14 +211,6 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
       </View>
     );
   }
-
-  // Separate completed and in-progress evaluations
-  const completedEvaluations = evaluations.filter(
-    e => e.completed_questions === e.total_questions && e.total_questions > 0
-  );
-  const inProgressEvaluations = evaluations.filter(
-    e => e.completed_questions < e.total_questions || e.total_questions === 0
-  );
 
   return (
     <View style={styles.container}>
@@ -155,9 +233,9 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
             </View>
           ) : (
             <View style={styles.evaluationList}>
-              {/* Show completed evaluations in card format */}
-              {completedEvaluations.map((evaluation) => {
-                const studentProgressPercentage = evaluation.total_students > 0 
+              {/* Show all evaluations in card format */}
+              {evaluations.map((evaluation) => {
+                const studentProgressPercentage = evaluation.total_students > 0
                   ? Math.round((evaluation.completed_students / evaluation.total_students) * 100)
                   : 0;
 
@@ -180,14 +258,9 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
                       </Pressable>
                     </View>
 
-                    {/* Mapping Stats */}
+                    {/* Evaluation Stats */}
                     <View style={styles.statsSection}>
-                      <View style={styles.statsSectionHeader}>
-                        <Text style={styles.sectionTitle}>MAPPING STATS</Text>
-                        <Pressable style={styles.infoButton}>
-                          <Feather name="info" size={16} color="#666" />
-                        </Pressable>
-                      </View>
+                      <Text style={styles.sectionTitle}>EVALUATION STATS</Text>
                       <View style={styles.statsRow}>
                         <Text style={styles.statText}>
                           Total questions:{' '}
@@ -214,7 +287,7 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
 
                     {/* Action Buttons */}
                     <View style={styles.actionsRow}>
-                      <TouchableOpacity 
+                      <TouchableOpacity
                         style={styles.uploadButton}
                         onPress={() => handleUploadClick(evaluation.evaluation_id)}
                       >
@@ -236,96 +309,6 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
                   </View>
                 );
               })}
-
-              {/* Show in-progress evaluations in old format */}
-              {inProgressEvaluations.map((evaluation) => {
-                const progress = getProgressPercentage(
-                  evaluation.completed_questions,
-                  evaluation.total_questions
-                );
-
-                return (
-                  <TouchableOpacity
-                    key={evaluation.evaluation_id}
-                    style={styles.oldCard}
-                    activeOpacity={0.7}
-                    onPress={() => onViewDetails(evaluation.evaluation_id)}
-                  >
-                    {/* Header */}
-                    <View style={styles.oldCardHeader}>
-                      <Text style={styles.oldSubjectName}>{evaluation.subject_name}</Text>
-                      <View style={[styles.statusBadge, { backgroundColor: '#f5f5f5' }]}>
-                        <Text style={[styles.statusText, { color: '#000' }]}>
-                          In Progress
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.oldMetaRow}>
-                      <Text style={styles.oldMetaText}>{evaluation.subject_code}</Text>
-                      <Text style={styles.metaDot}>•</Text>
-                      <Text style={styles.oldMetaText}>Semester {evaluation.semester}</Text>
-                      <Text style={styles.metaDot}>•</Text>
-                      <Text style={styles.oldMetaText}>{evaluation.ia}</Text>
-                    </View>
-
-                    {/* Progress */}
-                    <View style={styles.oldProgressSection}>
-                      <Text style={styles.sectionTitle}>PROGRESS</Text>
-                      <View style={styles.oldProgressBar}>
-                        <View
-                          style={[
-                            styles.oldProgressFill,
-                            { width: `${progress}%`, backgroundColor: '#000' }
-                          ]}
-                        />
-                      </View>
-                      <View style={styles.progressInfo}>
-                        <Text style={styles.progressText}>
-                          {evaluation.completed_questions}/{evaluation.total_questions} questions
-                        </Text>
-                        <Text style={styles.progressPercent}>{progress}% done</Text>
-                      </View>
-                    </View>
-
-                    {/* Questions Grid */}
-                    <View style={styles.questionsSection}>
-                      <Text style={styles.sectionTitle}>QUESTIONS</Text>
-                      <View style={styles.questionsGrid}>
-                        {Array.from({ length: evaluation.total_questions }, (_, i) => {
-                          const questionNum = i + 1;
-                          const isCompleted = questionNum <= evaluation.completed_questions;
-
-                          return (
-                            <View
-                              key={i}
-                              style={[
-                                styles.questionBox,
-                                { backgroundColor: isCompleted ? '#000' : '#f3f4f6' }
-                              ]}
-                            >
-                              {isCompleted ? (
-                                <Feather name="check" size={16} color="#fff" strokeWidth={3} />
-                              ) : (
-                                <Text style={styles.questionNumber}>{questionNum}</Text>
-                              )}
-                            </View>
-                          );
-                        })}
-                      </View>
-                    </View>
-
-                    {/* Footer */}
-                    <View style={styles.cardFooter}>
-                      <Text style={styles.footerText}>ID: {evaluation.created_at}</Text>
-                      <View style={styles.viewDetails}>
-                        <Text style={styles.viewDetailsText}>View Details</Text>
-                        <Feather name="arrow-right" size={16} color="#000" />
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
             </View>
           )}
         </View>
@@ -337,6 +320,16 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ onViewDetail
         onClose={handleUploadModalClose}
         onConfirm={handleUploadModalConfirm}
         evaluationId={selectedEvaluationId || 0}
+        onViewResults={handleViewStudentResults}
+      />
+
+      {/* Upload Answer Key Modal */}
+      <UploadAnswerKeyModal
+        visible={showAnswerKeyModal}
+        onClose={() => setShowAnswerKeyModal(false)}
+        onSuccess={() => {
+          fetchEvaluations();
+        }}
       />
     </View>
   );
@@ -424,27 +417,13 @@ const styles = StyleSheet.create({
   statsSection: {
     marginBottom: 16,
   },
-  statsSectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
   sectionTitle: {
     fontSize: 10,
     fontWeight: '800',
     color: '#999999',
     letterSpacing: 1.5,
     textTransform: 'uppercase',
-  },
-  infoButton: {
-    padding: 4,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 12,
-    width: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginBottom: 12,
   },
   statsRow: {
     flexDirection: 'row',
@@ -468,7 +447,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F0F0',
     borderRadius: 3,
     overflow: 'hidden',
-    marginTop: 12,
+    marginTop: 0,
     marginBottom: 8,
   },
   progressFill: {

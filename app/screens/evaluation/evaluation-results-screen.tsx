@@ -8,6 +8,7 @@ interface EvaluationResultsScreenProps {
   evaluationId: number;
   subjectName: string;
   onBack: () => void;
+  studentRegNo?: string; // Optional: if provided, show only this student's results
 }
 
 interface StudentResult {
@@ -29,10 +30,11 @@ export const EvaluationResultsScreen: React.FC<EvaluationResultsScreenProps> = (
   evaluationId,
   subjectName,
   onBack,
+  studentRegNo,
 }) => {
   const { token } = useAuth();
   const [students, setStudents] = useState<StudentResult[]>([]);
-  const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<string | null>(studentRegNo || null);
   const [studentDetails, setStudentDetails] = useState<StudentDetailedResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
@@ -41,6 +43,13 @@ export const EvaluationResultsScreen: React.FC<EvaluationResultsScreenProps> = (
   useEffect(() => {
     fetchStudentResults();
   }, [evaluationId]);
+
+  // Auto-load student details if studentRegNo is provided
+  useEffect(() => {
+    if (studentRegNo && students.length > 0) {
+      fetchStudentDetails(studentRegNo);
+    }
+  }, [studentRegNo, students]);
 
   const fetchStudentResults = async () => {
     if (!token) return;
