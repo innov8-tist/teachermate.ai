@@ -1,41 +1,64 @@
 services:
   db:
     image: postgres:16-alpine
+    container_name: teachermate-db
+    env_file:
+      - ./backend/.env
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: teacher_automation
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
     restart: unless-stopped
 
-  localstack:
-    image: localstack/localstack:latest
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: teachermate-migrate
+    env_file:
+      - ./backend/.env
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -lc "cd /app &&
+      uv run python -m alembic -c alembic.ini upgrade head"
+    restart: "no"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: teachermate-backend
+    env_file:
+      - ./backend/.env
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     ports:
-      - "4566:4566"
-    environment:
-      - SERVICES=s3
-      - DEBUG=1
-      - DATA_DIR=/var/lib/localstack/data
-      - AWS_ACCESS_KEY_ID=test
-      - AWS_SECRET_ACCESS_KEY=test
-      - AWS_DEFAULT_REGION=us-east-1
+      - "8082:8000"
+    command: >
+      sh -lc "cd /app &&
+      uv run python -m uvicorn server:app --host 0.0.0.0 --port 8000"
     volumes:
-      - localstack_data:/var/lib/localstack
-      - /var/run/docker.sock:/var/run/docker.sock
+      - backend_public:/app/public
     healthcheck:
-      test: ["CMD", "awslocal", "s3", "ls"]
-      interval: 10s
-      timeout: 5s
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
       retries: 5
+      start_period: 40s
+    restart: unless-stopped
 
 volumes:
   postgres_data:
-  localstack_data:
+  backend_public:
