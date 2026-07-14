@@ -6,5 +6,7 @@ until pg_isready -h "${POSTGRES_HOST:-db}" -p "${POSTGRES_PORT:-5432}" -U "${POS
   sleep 2
 done
 
+cd /app
+
 echo "Applying Alembic migrations..."
-uv run alembic upgrade head
+uv run python -m alembic -c alembic.ini upgrade head
