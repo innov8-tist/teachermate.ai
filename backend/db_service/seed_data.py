@@ -1,4 +1,4 @@
-from db_service.db import SessionLocal, engine, Base
+from db_service.db import SessionLocal
 from db_service.db_schema import Subject, STUDENTINFO
 
 def seed_subjects(silent=False):
@@ -212,11 +212,7 @@ def seed_all():
     print("=" * 50)
     print("SEEDING DATABASE")
     print("=" * 50)
-    
-    # Create tables if they don't exist
-    Base.metadata.create_all(bind=engine)
-    print("✓ Tables created/verified")
-    
+
     # Seed data
     seed_subjects()
     seed_students()

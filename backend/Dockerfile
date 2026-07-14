@@ -1,10 +1,8 @@
-# Use Python 3.11 slim image
-FROM python:3.11-slim
+# Use Python 3.12 slim image to match the project requirement
+FROM python:3.12-slim
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies including PostgreSQL dev libraries and OpenCV dependencies
 RUN apt-get update && apt-get install -y \
     curl \
     gcc \
@@ -22,20 +20,15 @@ RUN apt-get update && apt-get install -y \
     libxext6 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Copy project files
 COPY . .
 
-# Install Python dependencies using uv
-RUN uv sync
+RUN uv sync --frozen --no-dev
 
-# Create public directory for file uploads
 RUN mkdir -p /app/public/evaluation_pdfs /app/public/student_pdfs /app/public/co_images
+RUN chmod +x /app/scripts/*.sh
 
-# Expose port
 EXPOSE 8000
 
-# Run the server
-CMD ["uv", "run", "uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["/app/scripts/start.sh"]
