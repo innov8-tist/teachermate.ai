@@ -33,11 +33,21 @@ export function ProfileScreen() {
     );
   }
 
+  const handleEditProfile = () => {
+    router.push('/edit-profile');
+  };
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.content}>
         {/* Profile Header */}
         <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.editButton}
+            onPress={handleEditProfile}
+          >
+            <Feather name="edit-2" size={20} color="#000" />
+          </TouchableOpacity>
           <View style={styles.avatarContainer}>
             {teacher.pfp_url ? (
               <Image 
@@ -129,6 +139,16 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: 32,
+    position: 'relative',
+  },
+  editButton: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    padding: 8,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 20,
+    zIndex: 1,
   },
   avatarContainer: {
     width: 112,

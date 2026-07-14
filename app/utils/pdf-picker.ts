@@ -7,12 +7,21 @@ export interface PDFUploadResult {
   pdfId: string;
   fileName: string;
   fileSize: number;
+  progressId?: number;
 }
 
-export const pickAndUploadPDF = async (token: string): Promise<PDFUploadResult | null> => {
+export interface PDFUploadOptions {
+  evaluationId?: number;
+  studentRegNo?: string;
+}
+
+export const pickAndUploadPDF = async (
+  token: string,
+  options?: PDFUploadOptions
+): Promise<PDFUploadResult | null> => {
   try {
     console.log('📁 Opening PDF picker...');
-    
+
     // Pick PDF file
     const result = await DocumentPicker.getDocumentAsync({
       type: 'application/pdf',
@@ -25,7 +34,7 @@ export const pickAndUploadPDF = async (token: string): Promise<PDFUploadResult |
     }
 
     const file = result.assets[0];
-    
+
     if (!file) {
       Alert.alert('Error', 'No file selected');
       return null;
@@ -58,7 +67,23 @@ export const pickAndUploadPDF = async (token: string): Promise<PDFUploadResult |
       name: file.name,
     } as any);
 
+    // Add optional parameters if provided
+    console.log('📤 Upload options received:', JSON.stringify(options));
+    if (options?.evaluationId) {
+      console.log('📤 Adding evaluation_id:', options.evaluationId);
+      formData.append('evaluation_id', options.evaluationId.toString());
+    } else {
+      console.log('⚠️ No evaluation_id provided');
+    }
+    if (options?.studentRegNo) {
+      console.log('📤 Adding student_reg_no:', options.studentRegNo);
+      formData.append('student_reg_no', options.studentRegNo);
+    } else {
+      console.log('⚠️ No student_reg_no provided');
+    }
+
     console.log('📤 Uploading PDF to backend...');
+
     const uploadResult = await networkService.submitForm<any>(`${BASE_URL}/api/evaluation/upload-pdf`, formData, {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -67,18 +92,19 @@ export const pickAndUploadPDF = async (token: string): Promise<PDFUploadResult |
       retries: 2,
       showRetryLogs: true,
     });
-    
+
     console.log('✅ PDF uploaded successfully:', uploadResult);
-    
+
     return {
       pdfId: uploadResult.pdf_id,
       fileName: file.name,
       fileSize: file.size || 0,
+      progressId: uploadResult.progress_id,
     };
 
   } catch (error: any) {
     console.error('❌ Error picking/uploading PDF:', error.message);
-    
+
     // Provide better error messages
     let errorMessage = 'Failed to upload PDF';
     if (error.isNetworkError) {
@@ -90,7 +116,7 @@ export const pickAndUploadPDF = async (token: string): Promise<PDFUploadResult |
     } else if (error.message) {
       errorMessage = error.message;
     }
-    
+
     Alert.alert('Upload Failed', errorMessage);
     return null;
   }

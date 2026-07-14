@@ -22,6 +22,7 @@ class NetworkService {
   private defaultTimeout = 30000; // 30 seconds
   private defaultRetries = 2;
   private defaultRetryDelay = 1000; // 1 second
+  private activeRequests = new Map<string, AbortController>();
 
   private async checkNetworkConnection(): Promise<boolean> {
     // For now, always return true since NetInfo is causing issues
@@ -97,6 +98,16 @@ class NetworkService {
       showRetryLogs = true
     } = options;
 
+    // Create a unique key for this request
+    const requestKey = `${method}:${url}`;
+
+    // Cancel any existing request to the same endpoint
+    if (this.activeRequests.has(requestKey)) {
+      console.log(`⚠️ Cancelling previous request to ${requestKey}`);
+      this.activeRequests.get(requestKey)?.abort();
+      this.activeRequests.delete(requestKey);
+    }
+
     // Validate FormData if present
     if (body instanceof FormData) {
       this.validateFormData(body);
@@ -121,8 +132,10 @@ class NetworkService {
           console.log(`📡 Network request: ${method} ${url}`);
         }
 
-        // Create AbortController for timeout
+        // Create AbortController for timeout and cancellation
         const controller = new AbortController();
+        this.activeRequests.set(requestKey, controller);
+        
         const timeoutId = setTimeout(() => controller.abort(), timeout);
 
         const response = await fetch(url, {
@@ -133,6 +146,7 @@ class NetworkService {
         });
 
         clearTimeout(timeoutId);
+        this.activeRequests.delete(requestKey);
 
         // Log response details
         console.log(`📥 Response: ${response.status} ${response.statusText}`);
@@ -163,6 +177,7 @@ class NetworkService {
         return response;
 
       } catch (error: any) {
+        this.activeRequests.delete(requestKey);
         lastError = error;
         
         // Handle different error types
@@ -207,6 +222,23 @@ class NetworkService {
 
     // If we get here, all retries failed
     throw lastError || this.createNetworkError('All retry attempts failed');
+  }
+
+  // Cancel all active requests
+  cancelAllRequests(): void {
+    console.log(`🚫 Cancelling ${this.activeRequests.size} active requests`);
+    this.activeRequests.forEach((controller) => controller.abort());
+    this.activeRequests.clear();
+  }
+
+  // Cancel specific request
+  cancelRequest(method: string, url: string): void {
+    const requestKey = `${method}:${url}`;
+    if (this.activeRequests.has(requestKey)) {
+      console.log(`🚫 Cancelling request to ${requestKey}`);
+      this.activeRequests.get(requestKey)?.abort();
+      this.activeRequests.delete(requestKey);
+    }
   }
 
   // Convenience methods

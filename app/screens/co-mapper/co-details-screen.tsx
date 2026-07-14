@@ -281,7 +281,7 @@ export const CODetailsScreen: React.FC<CODetailsScreenProps> = ({ coId, onBack, 
                 <Text style={styles.stepText}>Save</Text>
               </View>
             </View>
-            <Text style={styles.processingNote}>This may take 30-60 seconds</Text>
+            <Text style={styles.processingNote}>This may take 5-10 seconds</Text>
           </View>
         </View>
       </Modal>
