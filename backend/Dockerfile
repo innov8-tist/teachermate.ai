@@ -24,7 +24,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 COPY . .
 
-RUN uv sync --frozen --no-dev
+RUN uv sync --no-dev
 
 RUN mkdir -p /app/public/evaluation_pdfs /app/public/student_pdfs /app/public/co_images
 RUN chmod +x /app/scripts/*.sh
