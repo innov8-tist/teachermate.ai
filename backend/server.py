@@ -92,7 +92,7 @@ def health_check():
             "message": "Service is running",
             "environment": environment,
             "timestamp": datetime.now().isoformat(),
-            "version": "1.0.1",
+            "version": "1.0.2",
             "services": {
                 "database": {
                     "status": db_status,
