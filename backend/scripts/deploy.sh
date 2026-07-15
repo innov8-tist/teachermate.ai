@@ -10,26 +10,30 @@ git pull origin main
 # Navigate to backend
 cd "$(dirname "$0")/.."
 
-# Rebuild and restart backend
+# Rebuild backend
 echo "🔨 Rebuilding backend..."
 docker compose build backend
 
-echo "🔄 Restarting backend..."
-docker compose up -d --force-recreate backend
+# Clean up and restart
+echo "🧹 Cleaning up old containers..."
+docker compose down --remove-orphans
+
+echo "🚀 Starting services..."
+docker compose up -d
 
 # Wait for health check
 echo "⏳ Waiting for backend to be healthy..."
-timeout 60 sh -c 'until docker inspect --format="{{.State.Health.Status}}" teachermate-backend | grep -q "healthy"; do sleep 2; done' || {
+timeout 60 sh -c 'until docker compose ps backend | grep -q "healthy"; do sleep 2; done' || {
   echo "❌ Backend failed to become healthy"
-  docker logs teachermate-backend --tail 50
+  docker compose logs backend --tail 50
   exit 1
 }
 
 echo "✅ Deployment successful!"
 echo ""
 echo "Current status:"
-docker ps --filter name=teachermate
+docker compose ps
 
 echo ""
 echo "Recent logs:"
-docker logs teachermate-backend --tail 20
+docker compose logs backend --tail 20

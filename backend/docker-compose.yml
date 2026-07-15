@@ -6,7 +6,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: teachermate-migrate
     env_file:
       - .env
     depends_on:
@@ -21,7 +20,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: teachermate-backend
     env_file:
       - .env
     depends_on:

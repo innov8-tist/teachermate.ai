@@ -46,18 +46,21 @@ jobs:
             cd backend
             docker compose build backend
             
-            echo "🔄 Recreating backend container..."
-            docker compose up -d --force-recreate backend
+            echo "🧹 Cleaning up old containers..."
+            docker compose down --remove-orphans
+            
+            echo "🚀 Starting services..."
+            docker compose up -d
             
             echo "⏳ Waiting for backend to be healthy..."
-            timeout 60 sh -c 'until docker inspect --format="{{.State.Health.Status}}" teachermate-backend | grep -q "healthy"; do sleep 2; done' || {
+            timeout 60 sh -c 'until docker compose ps backend | grep -q "healthy"; do sleep 2; done' || {
               echo "❌ Backend failed to become healthy"
-              docker logs teachermate-backend --tail 50
+              docker compose logs backend --tail 50
               exit 1
             }
             
             echo "✅ Backend deployed successfully!"
-            docker ps --filter name=teachermate
+            docker compose ps
           ENDSSH
 
       - name: Cleanup
