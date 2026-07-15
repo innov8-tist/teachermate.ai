@@ -1,5 +1,13 @@
 # GitHub Actions Deployment Setup
 
+## Architecture
+
+The deployment workflow builds Docker images **on the EC2 server** (not in GitHub Actions) to:
+- ✅ Use local Docker layer cache (much faster rebuilds)
+- ✅ Avoid slow network transfers
+- ✅ Handle large dependencies efficiently
+- ✅ Reduce GitHub Actions runtime
+
 ## Required GitHub Secrets
 
 Go to your repository → Settings → Environments → PROD → Add secret

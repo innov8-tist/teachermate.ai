@@ -4,33 +4,47 @@ __pycache__/
 *$py.class
 *.so
 .Python
-*.egg-info/
-dist/
-build/
-
-# Virtual environments
 .venv/
+env/
 venv/
 ENV/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Temporary files
-*.log
-*.tmp
-temp/
-
-# Public uploads (will be created at runtime)
-public/
+*~
 
 # Git
 .git/
 .gitignore
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Documentation
+*.md
+!README.md
+
+# Temporary files
+*.log
+*.tmp
+.DS_Store
+
+# Local data
+public/
+*.db
+*.sqlite
+
+# Environment
+.env
+.env.local
