@@ -14,12 +14,20 @@ Your private SSH key content (the `.pem` file)
 cat ~/servers/nirthaacc.pem
 ```
 
-Paste the entire content including:
+**IMPORTANT**: Paste the **entire** content including the header and footer:
 ```
 -----BEGIN RSA PRIVATE KEY-----
+MIIEpAIBAAKCAQEA...
+(all the lines in between)
 ...
 -----END RSA PRIVATE KEY-----
 ```
+
+**Common issues:**
+- ❌ Don't add extra spaces or newlines at the beginning/end
+- ❌ Don't modify the key content
+- ✅ Copy exactly as-is from the file
+- ✅ Include both `-----BEGIN` and `-----END` lines
 
 ### 2. `EC2_HOST`
 Your EC2 public IP or hostname
