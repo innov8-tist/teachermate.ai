@@ -75,7 +75,8 @@ def health_check():
         db_service = DBServiceForServer()
         try:
             # Simple query to test DB connection
-            db_service.db.execute("SELECT 1")
+            from sqlalchemy import text
+            db_service.db.execute(text("SELECT 1"))
             db_status = "healthy"
             db_message = "Database connection successful"
         except Exception as e:
