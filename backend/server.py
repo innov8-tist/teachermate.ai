@@ -61,6 +61,57 @@ def get_db_service():
 def read_root():
     return {"message": "Hello, FastAPI!"}
 
+@app.get("/health")
+def health_check():
+    """
+    Health check endpoint for monitoring and load balancers
+    Returns service status, environment info, and database connectivity
+    """
+    try:
+        # Get environment
+        environment = os.getenv("ENVIRONMENT", "development")
+
+        # Check database connectivity
+        db_service = DBServiceForServer()
+        try:
+            # Simple query to test DB connection
+            db_service.db.execute("SELECT 1")
+            db_status = "healthy"
+            db_message = "Database connection successful"
+        except Exception as e:
+            db_status = "unhealthy"
+            db_message = f"Database error: {str(e)}"
+        finally:
+            db_service.close()
+
+        # Check S3 availability
+        s3_status = "available" if s3_service.is_available else "unavailable"
+
+        return {
+            "status": "healthy" if db_status == "healthy" else "degraded",
+            "message": "Service is running",
+            "environment": environment,
+            "timestamp": datetime.now().isoformat(),
+            "version": "1.0.0",
+            "services": {
+                "database": {
+                    "status": db_status,
+                    "message": db_message
+                },
+                "s3": {
+                    "status": s3_status
+                }
+            }
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "message": f"Health check failed: {str(e)}",
+            "environment": os.getenv("ENVIRONMENT", "unknown"),
+            "timestamp": datetime.now().isoformat()
+        }
+
+
 @app.get("/subject_fetch/{semester}")
 def fetching_all_subject(semester: int, db_service: DBServiceForServer = Depends(get_db_service)):
     subjects = db_service.getting_all_subject(semester)

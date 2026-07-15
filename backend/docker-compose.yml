@@ -1,31 +1,16 @@
-services:
-  db:
-    image: postgres:16-alpine
-    container_name: teachermate-db
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: change-me
-      POSTGRES_DB: teachermate
-    ports:
-      - "5434:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d teachermate"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    restart: unless-stopped
+include:
+  - postgres/docker-compose.yml
 
+services:
   migrate:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
     container_name: teachermate-migrate
     env_file:
-      - ./backend/.env
+      - .env
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
     command: >
       sh -lc "cd /app &&
@@ -34,13 +19,13 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
     container_name: teachermate-backend
     env_file:
-      - ./backend/.env
+      - .env
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
@@ -52,7 +37,7 @@ services:
     volumes:
       - backend_public:/app/public
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -60,5 +45,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  postgres_data:
   backend_public:

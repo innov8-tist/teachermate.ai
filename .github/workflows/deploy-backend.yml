@@ -1,0 +1,64 @@
+name: Deploy Backend to EC2
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    environment: PROD
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
+          SSH_HOST: ${{ secrets.EC2_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H $SSH_HOST >> ~/.ssh/known_hosts
+
+      - name: Deploy to EC2
+        env:
+          SSH_HOST: ${{ secrets.EC2_HOST }}
+          SSH_USER: ${{ secrets.EC2_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key $SSH_USER@$SSH_HOST << 'ENDSSH'
+            set -e
+            
+            echo "📦 Pulling latest changes..."
+            cd ~/teachermate.ai
+            git pull origin main
+            
+            echo "🔨 Rebuilding backend image..."
+            cd backend
+            docker compose build backend
+            
+            echo "🔄 Recreating backend container..."
+            docker compose up -d --force-recreate backend
+            
+            echo "⏳ Waiting for backend to be healthy..."
+            timeout 60 sh -c 'until docker inspect --format="{{.State.Health.Status}}" teachermate-backend | grep -q "healthy"; do sleep 2; done' || {
+              echo "❌ Backend failed to become healthy"
+              docker logs teachermate-backend --tail 50
+              exit 1
+            }
+            
+            echo "✅ Backend deployed successfully!"
+            docker ps --filter name=teachermate
+          ENDSSH
+
+      - name: Cleanup
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
