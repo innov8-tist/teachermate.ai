@@ -1,40 +1,25 @@
 #!/bin/bash
-# Cleanup script to fix container conflicts and start fresh
+# Cleanup script to fix container conflicts
 
 set -e
 
-echo "🧹 Cleaning up Docker containers and images..."
+echo "🧹 Cleaning up backend containers..."
 
 cd "$(dirname "$0")/.."
 
-# Stop and remove all containers
-echo "Stopping all containers..."
-docker compose down --remove-orphans
+# Remove backend containers (keep database!)
+echo "Stopping backend containers..."
+docker rm -f teachermate-backend 2>/dev/null || true
+docker rm -f teachermate-migrate 2>/dev/null || true
 
-# Remove old container by name if it exists
-if docker ps -a | grep -q teachermate-postgres; then
-  echo "Removing old teachermate-postgres container..."
-  docker rm -f teachermate-postgres || true
-fi
-
-if docker ps -a | grep -q teachermate-backend; then
-  echo "Removing old teachermate-backend container..."
-  docker rm -f teachermate-backend || true
-fi
-
-if docker ps -a | grep -q teachermate-migrate; then
-  echo "Removing old teachermate-migrate container..."
-  docker rm -f teachermate-migrate || true
-fi
+# Remove auto-generated containers if they exist
+docker rm -f backend-backend-1 2>/dev/null || true
+docker rm -f backend-migrate-1 2>/dev/null || true
 
 # Remove old images
-echo "Removing old images..."
+echo "Removing old backend images..."
 docker rmi backend-backend:latest 2>/dev/null || true
 docker rmi backend-migrate:latest 2>/dev/null || true
-docker rmi teachermate-backend:latest 2>/dev/null || true
-docker rmi teachermate-migrate:latest 2>/dev/null || true
-docker rmi teachermateai-backend:latest 2>/dev/null || true
-docker rmi teachermateai-migrate:latest 2>/dev/null || true
 
 # Prune dangling images
 echo "Pruning dangling images..."
@@ -42,5 +27,8 @@ docker image prune -f
 
 echo ""
 echo "✅ Cleanup complete!"
+echo ""
+echo "Database container status:"
+docker ps --filter name=teachermate-db
 echo ""
 echo "Now run: docker compose up -d"
