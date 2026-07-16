@@ -43,6 +43,14 @@ jobs:
             cd ~/teachermate.ai
             git pull origin main
             
+            echo "📝 Ensuring production env file exists..."
+            cd backend
+            if [ ! -f .env.production ]; then
+              echo "❌ Error: .env.production not found!"
+              echo "Please create .env.production on the server"
+              exit 1
+            fi
+            
             echo "🔄 Stopping backend container..."
             cd backend
             docker rm -f teachermate-backend 2>/dev/null || true

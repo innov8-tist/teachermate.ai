@@ -4,7 +4,7 @@ __pycache__/
 *.so
 .venv/
 venv/
-.env
+
 
 # uv
 .python-version
@@ -22,3 +22,7 @@ Thumbs.db
 *.log
 public
 node_modules
+
+.env
+.env.development
+.env.production
