@@ -4,8 +4,7 @@ set -eu
 # Determine the script's directory
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BACKEND_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-
-# Load .env file from backend directory
+ # Load .env file from backend directory
 if [ -f "$BACKEND_DIR/.env" ]; then
   echo "Loading environment from $BACKEND_DIR/.env"
   export $(cat "$BACKEND_DIR/.env" | grep -v '^#' | xargs)
