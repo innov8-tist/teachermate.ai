@@ -44,15 +44,14 @@ jobs:
             git pull origin main
             
             echo "📝 Checking .env file..."
-            cd backend
-            if [ ! -f .env ]; then
+            if [ ! -f backend/.env ]; then
               echo "❌ Error: backend/.env not found on server!"
               echo "Please SSH into server and create it manually"
               echo "See: backend/PRODUCTION_SETUP.md"
               exit 1
             fi
             
-            echo "� Stopping backend container..."f
+            echo "🔄 Stopping backend container..."
             cd backend
             docker rm -f teachermate-backend 2>/dev/null || true
             docker rm -f teachermate-migrate 2>/dev/null || true
