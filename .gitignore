@@ -20,7 +20,6 @@ Thumbs.db
 
 # Logs
 *.log
-public
 node_modules
 
 .env
