@@ -27,6 +27,8 @@ from db_service import COTemplate
 from db_service.db_schema import StudentAnswerEvaluation, STUDENTINFO, StudentAnswerMark
 from db_service.db_schema import EvaluationSchema, StudentEvaluationProgress
 from direct_evalution import evaluate_pdf,groq_structure
+from llm_gateway.lite_llm_config import LiteLLMConfig
+from llm_gateway.schemas_prompts import GEMINI_PROMPT,GROQ_PROMPT
 import requests
 import sys
 import traceback
@@ -1361,11 +1363,16 @@ async def start_evaluation(
         
         print(f"Downloaded student PDF to: {student_pdf_path}")
         
+        print("LiteLLM OBJ Creation....")
+        
+        obj=LiteLLMConfig(GEMINI_PROMPT=GEMINI_PROMPT,GROQ_PROMPT=GROQ_PROMPT)
+        
         print("\nRunning Gemini evaluation...")
-        raw_evaluation = evaluate_pdf(str(answer_key_path), str(student_pdf_path))
+        
+        raw_evaluation = obj.gemini(str(answer_key_path), str(student_pdf_path))
         
         print("\nRaw evaluation received, structuring with Groq...")
-        structured_result = groq_structure(raw_evaluation)
+        structured_result = obj.groq(raw_evaluation)
         
         print(f"\nStructured {len(structured_result.results)} question evaluations")
 
