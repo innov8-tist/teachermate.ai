@@ -7,10 +7,10 @@ from db_service.db_schema import (
     StudentAnswerEvaluation, 
     StudentEvaluationProgress,
     COQuestionMapping,
-    COTemplate,
-    Teacher
+    COTemplate
 )
-from auth.dependencies import get_current_teacher
+from modules.auth.models import Teacher
+from modules.auth.dependencies import get_current_teacher
 from typing import Dict, List, Optional
 from collections import defaultdict
 

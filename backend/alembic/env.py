@@ -7,6 +7,7 @@ from alembic import context
 
 from db_service.db import Base
 from db_service import db_schema
+from modules.auth import models as auth_models
 
 import os
 from dotenv import load_dotenv

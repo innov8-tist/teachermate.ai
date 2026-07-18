@@ -2,17 +2,6 @@ from sqlalchemy import Column,Integer,Boolean,String,ForeignKey,Text,JSON,Float
 from .db import Base
 
 
-class Teacher(Base):
-    """Teacher/Faculty accounts"""
-    __tablename__ = "teachers"
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False)
-    email = Column(String, unique=True, nullable=False, index=True)
-    institution = Column(String, nullable=True)
-    pfp_url = Column(String, nullable=True)
-    password_hash = Column(String, nullable=False)
-
-
 class COTemplate(Base):
     """CO mapping templates created by teachers (formerly Subject)"""
     __tablename__ = "co_templates"

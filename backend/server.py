@@ -15,10 +15,10 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from models.pydanticmodel import CoCreationModel
 from db_operation.db_server import DBServiceForServer
 from comapping.teacher_co_processing.extracting import main_func
-from routes.auth import router as auth_router
+from modules.auth import router as auth_router
+from modules.auth.dependencies import get_current_teacher
+from modules.auth.models import Teacher
 from routes.analytics import router as analytics_router
-from auth.dependencies import get_current_teacher
-from db_service.db_schema import Teacher
 from services.s3_service import s3_service
 from comapping.answer_sheet_processing.cutting import ImageProcess
 from comapping.answer_sheet_processing.extraction_pipeline import ExtractionPipeline
