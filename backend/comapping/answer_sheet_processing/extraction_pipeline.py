@@ -1,6 +1,6 @@
 import base64
 import os
-from langchain_google_genai import ChatGoogleGenerativeAI
+from llm_gateway import LiteLLMConfig
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional
@@ -94,13 +94,9 @@ class MarksProcessor:
         return final_result
 
 
-class ExtractionPipeline:
+class ExtractionPipeline(LiteLLMConfig):
     def __init__(self):
-        self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
-            google_api_key=os.getenv("GOOGLE_GEMINI_API_KEY"),
-            temperature=0
-        )
+        super().__init__()
         self.marks_processor = MarksProcessor()
 
     def image_to_base64(self, image_path: str) -> str:
@@ -109,7 +105,8 @@ class ExtractionPipeline:
 
     def extract_regno_from_bottom(self, bottom_image_path: str) -> str:
         """Extract registration number from bottom image"""
-        llm_struct = self.llm.with_structured_output(QuestionMarkScheme)
+        
+        llm_struct = self.gemini_lanchain.with_structured_output(QuestionMarkScheme)
         prompt = ChatPromptTemplate.from_messages([
             ("human", [
                 {"type": "text", "text": "Extract student details from this image."},
@@ -125,7 +122,7 @@ class ExtractionPipeline:
 
     def extract_marks_from_top(self, top_image_path: str) -> dict:
         """Extract marks from top image"""
-        llm_struct = self.llm.with_structured_output(MarksTableOutput)
+        llm_struct = self.gemini_lanchain.with_structured_output(MarksTableOutput)
         prompt = ChatPromptTemplate.from_messages([
             ("human", [
                 {"type": "text", "text": "Extract Student mark from this image"},

@@ -1,6 +1,7 @@
 import re
 from langchain_community.document_loaders import PyMuPDFLoader
-from langchain_google_genai import ChatGoogleGenerativeAI
+from llm_gateway import LiteLLMConfig
+from llm_gateway.schemas_prompts import GEMINI_PROMPT,GROQ_PROMPT
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import HumanMessage
@@ -26,18 +27,10 @@ class COTEACHERPROCESSING(BaseModel):
 class ListCO(BaseModel):
     items:List[COTEACHERPROCESSING]
 
+obj=LiteLLMConfig(GEMINI_PROMPT=GEMINI_PROMPT,GROQ_PROMPT=GROQ_PROMPT)
+llm = obj.gemini_lanchain
+groq_llm = obj.groq_llm
 
-llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
-            google_api_key=os.getenv("GOOGLE_GEMINI_API_KEY"),
-            temperature=0
-            )
-
-groq_llm = ChatGroq(
-    model="openai/gpt-oss-120b",
-    api_key=os.getenv("GROQ_API_KEY"),
-    temperature=0
-)
 llm_struct=llm.with_structured_output(ListCO)
 prompt = ChatPromptTemplate.from_messages(
     [

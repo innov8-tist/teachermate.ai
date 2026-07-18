@@ -45,6 +45,7 @@ app.add_middleware(
 )
 app.include_router(auth_router)
 app.include_router(analytics_router)
+os.makedirs("public", exist_ok=True)
 app.mount("/public", StaticFiles(directory="public"), name="public")
 
 TEMP_FOLDER = Path(tempfile.gettempdir()) / "co_images"

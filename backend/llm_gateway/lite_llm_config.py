@@ -38,6 +38,7 @@ class LiteLLMConfig(LiteLLMData):
                 }
             ]
         )
+        
         cost = completion_cost(completion_response=response)
         deployment = response._hidden_params.get("model_id", "?")
         print("#"*100)
@@ -64,7 +65,6 @@ class LiteLLMConfig(LiteLLMData):
         print(response)
         print("#"*100)
         return response
-    
 async def main():
     obj = LiteLLMConfig(
         GEMINI_PROMPT=GEMINI_PROMPT,
