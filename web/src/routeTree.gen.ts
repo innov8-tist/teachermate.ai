@@ -9,13 +9,36 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RegisterRouteImport } from './routes/register'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as FeaturesRouteImport } from './routes/features'
+import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
+import { Route as DashboardProfileRouteImport } from './routes/dashboard/profile'
+import { Route as DashboardEvaluationRouteImport } from './routes/dashboard/evaluation'
+import { Route as DashboardCoMapperRouteImport } from './routes/dashboard/co-mapper'
+import { Route as DashboardEvaluationEvaluationIdResultsRouteImport } from './routes/dashboard/evaluation/$evaluationId/results'
 
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FeaturesRoute = FeaturesRouteImport.update({
   id: '/features',
   path: '/features',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AboutRoute = AboutRouteImport.update({
@@ -28,44 +51,150 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DashboardIndexRoute = DashboardIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardProfileRoute = DashboardProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardEvaluationRoute = DashboardEvaluationRouteImport.update({
+  id: '/evaluation',
+  path: '/evaluation',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardCoMapperRoute = DashboardCoMapperRouteImport.update({
+  id: '/co-mapper',
+  path: '/co-mapper',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardEvaluationEvaluationIdResultsRoute =
+  DashboardEvaluationEvaluationIdResultsRouteImport.update({
+    id: '/$evaluationId/results',
+    path: '/$evaluationId/results',
+    getParentRoute: () => DashboardEvaluationRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/dashboard': typeof DashboardRouteWithChildren
   '/features': typeof FeaturesRoute
+  '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
+  '/dashboard/co-mapper': typeof DashboardCoMapperRoute
+  '/dashboard/evaluation': typeof DashboardEvaluationRouteWithChildren
+  '/dashboard/profile': typeof DashboardProfileRoute
+  '/dashboard/': typeof DashboardIndexRoute
+  '/dashboard/evaluation/$evaluationId/results': typeof DashboardEvaluationEvaluationIdResultsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/features': typeof FeaturesRoute
+  '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
+  '/dashboard/co-mapper': typeof DashboardCoMapperRoute
+  '/dashboard/evaluation': typeof DashboardEvaluationRouteWithChildren
+  '/dashboard/profile': typeof DashboardProfileRoute
+  '/dashboard': typeof DashboardIndexRoute
+  '/dashboard/evaluation/$evaluationId/results': typeof DashboardEvaluationEvaluationIdResultsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/dashboard': typeof DashboardRouteWithChildren
   '/features': typeof FeaturesRoute
+  '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
+  '/dashboard/co-mapper': typeof DashboardCoMapperRoute
+  '/dashboard/evaluation': typeof DashboardEvaluationRouteWithChildren
+  '/dashboard/profile': typeof DashboardProfileRoute
+  '/dashboard/': typeof DashboardIndexRoute
+  '/dashboard/evaluation/$evaluationId/results': typeof DashboardEvaluationEvaluationIdResultsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/about' | '/features'
+  fullPaths:
+    | '/'
+    | '/about'
+    | '/dashboard'
+    | '/features'
+    | '/login'
+    | '/register'
+    | '/dashboard/co-mapper'
+    | '/dashboard/evaluation'
+    | '/dashboard/profile'
+    | '/dashboard/'
+    | '/dashboard/evaluation/$evaluationId/results'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/about' | '/features'
-  id: '__root__' | '/' | '/about' | '/features'
+  to:
+    | '/'
+    | '/about'
+    | '/features'
+    | '/login'
+    | '/register'
+    | '/dashboard/co-mapper'
+    | '/dashboard/evaluation'
+    | '/dashboard/profile'
+    | '/dashboard'
+    | '/dashboard/evaluation/$evaluationId/results'
+  id:
+    | '__root__'
+    | '/'
+    | '/about'
+    | '/dashboard'
+    | '/features'
+    | '/login'
+    | '/register'
+    | '/dashboard/co-mapper'
+    | '/dashboard/evaluation'
+    | '/dashboard/profile'
+    | '/dashboard/'
+    | '/dashboard/evaluation/$evaluationId/results'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
+  DashboardRoute: typeof DashboardRouteWithChildren
   FeaturesRoute: typeof FeaturesRoute
+  LoginRoute: typeof LoginRoute
+  RegisterRoute: typeof RegisterRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/features': {
       id: '/features'
       path: '/features'
       fullPath: '/features'
       preLoaderRoute: typeof FeaturesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/about': {
@@ -82,13 +211,81 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dashboard/': {
+      id: '/dashboard/'
+      path: '/'
+      fullPath: '/dashboard/'
+      preLoaderRoute: typeof DashboardIndexRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/profile': {
+      id: '/dashboard/profile'
+      path: '/profile'
+      fullPath: '/dashboard/profile'
+      preLoaderRoute: typeof DashboardProfileRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/evaluation': {
+      id: '/dashboard/evaluation'
+      path: '/evaluation'
+      fullPath: '/dashboard/evaluation'
+      preLoaderRoute: typeof DashboardEvaluationRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/co-mapper': {
+      id: '/dashboard/co-mapper'
+      path: '/co-mapper'
+      fullPath: '/dashboard/co-mapper'
+      preLoaderRoute: typeof DashboardCoMapperRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/evaluation/$evaluationId/results': {
+      id: '/dashboard/evaluation/$evaluationId/results'
+      path: '/$evaluationId/results'
+      fullPath: '/dashboard/evaluation/$evaluationId/results'
+      preLoaderRoute: typeof DashboardEvaluationEvaluationIdResultsRouteImport
+      parentRoute: typeof DashboardEvaluationRoute
+    }
   }
 }
+
+interface DashboardEvaluationRouteChildren {
+  DashboardEvaluationEvaluationIdResultsRoute: typeof DashboardEvaluationEvaluationIdResultsRoute
+}
+
+const DashboardEvaluationRouteChildren: DashboardEvaluationRouteChildren = {
+  DashboardEvaluationEvaluationIdResultsRoute:
+    DashboardEvaluationEvaluationIdResultsRoute,
+}
+
+const DashboardEvaluationRouteWithChildren =
+  DashboardEvaluationRoute._addFileChildren(DashboardEvaluationRouteChildren)
+
+interface DashboardRouteChildren {
+  DashboardCoMapperRoute: typeof DashboardCoMapperRoute
+  DashboardEvaluationRoute: typeof DashboardEvaluationRouteWithChildren
+  DashboardProfileRoute: typeof DashboardProfileRoute
+  DashboardIndexRoute: typeof DashboardIndexRoute
+}
+
+const DashboardRouteChildren: DashboardRouteChildren = {
+  DashboardCoMapperRoute: DashboardCoMapperRoute,
+  DashboardEvaluationRoute: DashboardEvaluationRouteWithChildren,
+  DashboardProfileRoute: DashboardProfileRoute,
+  DashboardIndexRoute: DashboardIndexRoute,
+}
+
+const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
+  DashboardRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
+  DashboardRoute: DashboardRouteWithChildren,
   FeaturesRoute: FeaturesRoute,
+  LoginRoute: LoginRoute,
+  RegisterRoute: RegisterRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
