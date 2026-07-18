@@ -420,26 +420,27 @@ async def upload_evaluation_pdf(
         
         file_content = await answer_key_pdf.read()
         
-
-        pdf_s3_url = None
-        if s3_service.is_available:
-            pdf_s3_url = s3_service.upload_evaluation_pdf(
-                file_content=file_content,
-                template_id=template_id,
-                teacher_id=current_teacher.id,
-                filename=answer_key_pdf.filename
+        # S3 is required for evaluation
+        if not s3_service.is_available:
+            raise HTTPException(
+                status_code=503, 
+                detail="S3 storage is required for PDF evaluation but is not available. Please check S3 configuration."
             )
-            print(f"Uploaded answer key PDF to S3: {pdf_s3_url}")
-        else:
 
-            local_dir = Path("public/evaluation_pdfs")
-            local_dir.mkdir(parents=True, exist_ok=True)
-            pdf_filename = f"{template_id}_{uuid.uuid4()}.pdf"
-            pdf_path = local_dir / pdf_filename
-            with open(pdf_path, "wb") as f:
-                f.write(file_content)
-            pdf_s3_url = f"/public/evaluation_pdfs/{pdf_filename}"
-            print(f"S3 not available, saved locally: {pdf_s3_url}")
+        pdf_s3_url = s3_service.upload_evaluation_pdf(
+            file_content=file_content,
+            template_id=template_id,
+            teacher_id=current_teacher.id,
+            filename=answer_key_pdf.filename
+        )
+        
+        if not pdf_s3_url:
+            raise HTTPException(
+                status_code=500, 
+                detail="Failed to upload PDF to S3. Please try again."
+            )
+        
+        print(f"Uploaded answer key PDF to S3: {pdf_s3_url}")
         
         
         timestamp = datetime.now().isoformat()
@@ -593,30 +594,27 @@ async def upload_student_pdf_for_evaluation(
         
         unique_id = str(uuid.uuid4())
         
-   
-        s3_url = None
-        if s3_service.is_available:
-            s3_url = s3_service.upload_student_pdf(
-                file_content=content,
-                teacher_id=current_teacher.id,
-                filename=pdf_file.filename,
-                unique_id=unique_id
+        # S3 is required for evaluation
+        if not s3_service.is_available:
+            raise HTTPException(
+                status_code=503, 
+                detail="S3 storage is required for PDF evaluation but is not available. Please check S3 configuration."
             )
-            print(f"Student PDF uploaded to S3: {s3_url}")
-        else:
-           
-            local_dir = Path("public/student_pdfs")
-            local_dir.mkdir(parents=True, exist_ok=True)
-            pdf_filename = f"{unique_id}.pdf"
-            pdf_path = local_dir / pdf_filename
-            with open(pdf_path, "wb") as f:
-                f.write(content)
-            s3_url = f"/public/student_pdfs/{pdf_filename}"
-            print(f"S3 not available, saved locally: {s3_url}")
+   
+        s3_url = s3_service.upload_student_pdf(
+            file_content=content,
+            teacher_id=current_teacher.id,
+            filename=pdf_file.filename,
+            unique_id=unique_id
+        )
         
         if not s3_url:
-            raise HTTPException(status_code=500, detail="Failed to upload PDF")
+            raise HTTPException(
+                status_code=500, 
+                detail="Failed to upload student PDF to S3. Please try again."
+            )
         
+        print(f"Student PDF uploaded to S3: {s3_url}")
         
         with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
             tmp_file.write(content)
@@ -1337,42 +1335,36 @@ async def start_evaluation(
         print(f"Student PDF: {progress.student_pdf_path}")
         print(f"Student: {progress.student_reg_no}")
         
-
+        # Validate that both PDFs are S3 URLs (start with http/https)
+        if not evaluation_schema.pdf_path.startswith("http"):
+            raise HTTPException(
+                status_code=400, 
+                detail="Answer key PDF must be uploaded to S3. Local paths are not supported for evaluation."
+            )
         
-        temp_dir = Path(tempfile.gettempdir()) / "evaluation_pdfs"
-        temp_dir.mkdir(parents=True, exist_ok=True)
+        if not progress.student_pdf_path.startswith("http"):
+            raise HTTPException(
+                status_code=400, 
+                detail="Student PDF must be uploaded to S3. Local paths are not supported for evaluation."
+            )
         
-        answer_key_path = temp_dir / f"answer_key_{progress.schema_id}.pdf"
-        if evaluation_schema.pdf_path.startswith("http"):
-            response = requests.get(evaluation_schema.pdf_path)
-            with open(answer_key_path, "wb") as f:
-                f.write(response.content)
-        else:
-            
-            shutil.copy(evaluation_schema.pdf_path, answer_key_path)
+        answer_key_url = evaluation_schema.pdf_path
+        student_pdf_url = progress.student_pdf_path
         
-        print(f"Downloaded answer key to: {answer_key_path}")
-    
-        student_pdf_path = temp_dir / f"student_{progress_id}.pdf"
-        if progress.student_pdf_path.startswith("http"):
-            response = requests.get(progress.student_pdf_path)
-            with open(student_pdf_path, "wb") as f:
-                f.write(response.content)
-        else:
-            shutil.copy(progress.student_pdf_path, student_pdf_path)
+        print(f"Using S3 URLs directly:")
+        print(f"  Answer Key: {answer_key_url}")
+        print(f"  Student PDF: {student_pdf_url}")
         
-        print(f"Downloaded student PDF to: {student_pdf_path}")
+        print("\nLiteLLM OBJ Creation....")
         
-        print("LiteLLM OBJ Creation....")
+        obj = LiteLLMConfig(GEMINI_PROMPT=GEMINI_PROMPT, GROQ_PROMPT=GROQ_PROMPT)
         
-        obj=LiteLLMConfig(GEMINI_PROMPT=GEMINI_PROMPT,GROQ_PROMPT=GROQ_PROMPT)
+        print("\nRunning Gemini evaluation with S3 URLs...")
         
-        print("\nRunning Gemini evaluation...")
-        
-        raw_evaluation = obj.gemini(str(answer_key_path), str(student_pdf_path))
+        raw_evaluation = await obj.gemini(answer_key_url, student_pdf_url)
         
         print("\nRaw evaluation received, structuring with Groq...")
-        structured_result = obj.groq(raw_evaluation)
+        structured_result = await obj.groq(raw_evaluation)
         
         print(f"\nStructured {len(structured_result.results)} question evaluations")
 
@@ -1407,13 +1399,6 @@ async def start_evaluation(
             print("✅ Successfully synced evaluation results to CO Mapper")
         else:
             print("⚠️ Warning: Failed to sync to CO Mapper (evaluation still saved)")
-
-        try:
-            os.remove(answer_key_path)
-            os.remove(student_pdf_path)
-            print("Cleaned up temporary files")
-        except Exception as e:
-            print(f"Failed to clean up temp files: {e}")
         
         total_marks_obtained = sum(e['mark_score'] for e in evaluations_data)
         total_marks_possible = sum(e['total_mark'] for e in evaluations_data)

@@ -1,7 +1,7 @@
 from langchain_litellm import ChatLiteLLMRouter
 from litellm import Router
-from schemas_prompts import EvaluationResults,QuestionAnswerEvaluation
-from settings import Settings
+from .schemas_prompts import EvaluationResults, QuestionAnswerEvaluation
+from .settings import Settings
 from dotenv import load_dotenv
 import os
 import asyncio

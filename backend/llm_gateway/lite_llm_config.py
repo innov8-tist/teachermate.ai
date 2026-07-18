@@ -1,7 +1,7 @@
 from langchain_litellm import ChatLiteLLMRouter
 from langchain_core.prompts import ChatPromptTemplate
-from lite_lllm_data import LiteLLMData
-from schemas_prompts import GEMINI_PROMPT,GROQ_PROMPT
+from .lite_lllm_data import LiteLLMData
+from .schemas_prompts import GEMINI_PROMPT, GROQ_PROMPT
 from litellm import completion_cost
 from dotenv import load_dotenv
 import os
