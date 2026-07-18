@@ -26,7 +26,6 @@ from datetime import datetime
 from db_service import COTemplate
 from db_service.db_schema import StudentAnswerEvaluation, STUDENTINFO, StudentAnswerMark
 from db_service.db_schema import EvaluationSchema, StudentEvaluationProgress
-from direct_evalution import evaluate_pdf,groq_structure
 from llm_gateway.lite_llm_config import LiteLLMConfig
 from llm_gateway.schemas_prompts import GEMINI_PROMPT,GROQ_PROMPT
 import requests
@@ -1441,94 +1440,6 @@ async def start_evaluation(
         print(f"\nEvaluation error: {str(e)}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Evaluation failed: {str(e)}")
-
-
-@app.post("/api/evaluation/sync-to-co-mapper/{progress_id}")
-async def sync_evaluation_to_co_mapper(
-    progress_id: int,
-    current_teacher: Teacher = Depends(get_current_teacher),
-    db_service: DBServiceForServer = Depends(get_db_service)
-):
-    """
-    Manually sync evaluation results to CO Mapper
-    Useful for re-syncing or syncing evaluations that failed to sync automatically
-    """
-    try:
-        # Verify progress belongs to current teacher
-        progress = db_service.get_student_progress_by_id(progress_id)
-        if not progress:
-            raise HTTPException(status_code=404, detail="Progress record not found")
-        
-        if progress.teacher_id != current_teacher.id:
-            raise HTTPException(status_code=403, detail="Access denied")
-        
-        # Perform sync
-        success = db_service.sync_evaluation_to_co_mapper(progress_id)
-        
-        if success:
-            return {
-                "status": "success",
-                "message": "Evaluation results synced to CO Mapper successfully"
-            }
-        else:
-            raise HTTPException(status_code=500, detail="Failed to sync to CO Mapper")
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Sync error: {str(e)}")
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
-
-
-@app.post("/api/co-mapper/sync-to-evaluation/{template_id}/{student_reg_no}")
-async def sync_co_mapper_to_evaluation_manual(
-    template_id: int,
-    student_reg_no: str,
-    current_teacher: Teacher = Depends(get_current_teacher),
-    db_service: DBServiceForServer = Depends(get_db_service)
-):
-    """
-    Manually sync CO Mapper data to Evaluation
-    Use this to sync existing CO Mapper students to Evaluation
-    """
-    try:
-        # Verify template belongs to current teacher
-        template = db_service.db.query(COTemplate).filter(
-            COTemplate.id == template_id,
-            COTemplate.teacher_id == current_teacher.id
-        ).first()
-        
-        if not template:
-            raise HTTPException(status_code=404, detail="Template not found or access denied")
-        
-        ia_number = int(template.ia.replace("IA", ""))
-        
-        # Perform reverse sync
-        success = db_service.sync_co_mapper_to_evaluation(
-            template_id=template_id,
-            student_reg_no=student_reg_no,
-            ia_number=ia_number
-        )
-        
-        if success:
-            return {
-                "status": "success",
-                "message": f"Student {student_reg_no} synced to Evaluation successfully"
-            }
-        else:
-            return {
-                "status": "skipped",
-                "message": "Sync skipped (no evaluation schema or already exists)"
-            }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Reverse sync error: {str(e)}")
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
-
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
