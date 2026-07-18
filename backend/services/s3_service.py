@@ -8,11 +8,8 @@ from botocore.exceptions import ClientError
 load_dotenv()
 
 # Configuration
-USE_LOCALSTACK = os.getenv("USE_LOCALSTACK", "false").lower() == "true"
-AWS_ENDPOINT_URL = os.getenv("AWS_ENDPOINT_URL")
-PUBLIC_ENDPOINT_URL = os.getenv("PUBLIC_ENDPOINT_URL", "http://10.0.2.2:4566")
-AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "test")
-AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "test")
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "teacher-pfp-bucket")
 
@@ -26,23 +23,15 @@ class S3Service:
             "aws_secret_access_key": AWS_SECRET_ACCESS_KEY,
         }
 
-        if USE_LOCALSTACK:
-            client_kwargs.update({
-                "endpoint_url": AWS_ENDPOINT_URL,
-            })
-
         self.s3_client = boto3.client(**client_kwargs)
         self.bucket_name = S3_BUCKET_NAME
         self.is_available = False
         self._ensure_bucket_exists()
     
     def _generate_url(self, file_key: str) -> str:
-        """Generate the appropriate URL based on LocalStack or AWS"""
-        if USE_LOCALSTACK:
-            return f"{PUBLIC_ENDPOINT_URL}/{self.bucket_name}/{file_key}"
-        else:
-            # AWS S3 URL format - use virtual-hosted-style URLs
-            return f"https://{self.bucket_name}.s3.{AWS_REGION}.amazonaws.com/{file_key}"
+        """Generate AWS S3 URL for the file"""
+        # AWS S3 URL format - use virtual-hosted-style URLs
+        return f"https://{self.bucket_name}.s3.{AWS_REGION}.amazonaws.com/{file_key}"
     
     def _ensure_bucket_exists(self):
         """Create bucket if it doesn't exist"""
@@ -55,20 +44,16 @@ class S3Service:
             if error_code == '404':
                 # Bucket doesn't exist, try to create it
                 try:
-                    if USE_LOCALSTACK:
-                        # LocalStack doesn't need location constraint
+                    # AWS S3 bucket creation
+                    if AWS_REGION == 'us-east-1':
+                        # us-east-1 doesn't need LocationConstraint
                         self.s3_client.create_bucket(Bucket=self.bucket_name)
                     else:
-                        # AWS S3 bucket creation
-                        if AWS_REGION == 'us-east-1':
-                            # us-east-1 doesn't need LocationConstraint
-                            self.s3_client.create_bucket(Bucket=self.bucket_name)
-                        else:
-                            # Other regions need LocationConstraint
-                            self.s3_client.create_bucket(
-                                Bucket=self.bucket_name,
-                                CreateBucketConfiguration={'LocationConstraint': AWS_REGION}
-                            )
+                        # Other regions need LocationConstraint
+                        self.s3_client.create_bucket(
+                            Bucket=self.bucket_name,
+                            CreateBucketConfiguration={'LocationConstraint': AWS_REGION}
+                        )
                     
                     self.is_available = True
                     print(f"✓ Created S3 bucket: {self.bucket_name}")
@@ -356,10 +341,6 @@ class S3Service:
             print("S3 service not available")
             return False
             
-        if USE_LOCALSTACK:
-            print("LocalStack doesn't require bucket policy configuration")
-            return True
-            
         try:
             # Bucket policy to allow public read access
             bucket_policy = {
@@ -403,8 +384,7 @@ class S3Service:
         return {
             "bucket_name": self.bucket_name,
             "region": AWS_REGION,
-            "use_localstack": USE_LOCALSTACK,
-            "endpoint_url": AWS_ENDPOINT_URL if USE_LOCALSTACK else f"https://s3.{AWS_REGION}.amazonaws.com",
+            "endpoint_url": f"https://s3.{AWS_REGION}.amazonaws.com",
             "is_available": self.is_available
         }
 
