@@ -790,8 +790,8 @@ async def student_sheet_upload(
         
         extraction_pipeline = ExtractionPipeline()
         extracted_data = extraction_pipeline.process_student_sheet(
-            top_image_path=processed_images['top_image_path'],
-            bottom_image_path=processed_images['bot_image_path'],
+            top_image_path=top_s3_url,
+            bottom_image_path=bot_s3_url,
             subject_id=subject_id,
             ia_id=ia_number,
             save_to_db=True
