@@ -21,12 +21,19 @@ class Settings:
             os.getenv("GEMINI_API_KEY1"),
             os.getenv("GEMINI_API_KEY2"),
             os.getenv("GEMINI_API_KEY3"),
+            os.getenv("GEMINI_API_KEY4"),
+            os.getenv("GEMINI_API_KEY5"),
+            os.getenv("GEMINI_API_KEY6"),
+            os.getenv("GEMINI_API_KEY7"),
+            os.getenv("GEMINI_API_KEY8")
         ]
 
         self.GROQ_KEYS = [
             os.getenv("GROQ_API_KEY1"),
             os.getenv("GROQ_API_KEY2"),
             os.getenv("GROQ_API_KEY3"),
+            os.getenv("GROQ_API_KEY4"),
+            os.getenv("GROQ_API_KEY5")
         ]
 
         self.gemini_template = {
@@ -74,10 +81,10 @@ class Settings:
         for i, key in enumerate(api_keys, start=1):
             if not key:
                 continue
-
+            key,provider_person=key.split(" ")
             model = copy.deepcopy(template)
             model["litellm_params"]["api_key"] = key
-            model["model_info"]["id"] = f"{self._next_color()} {provider} {i}"
+            model["model_info"]["id"] = f"{self._next_color()} {provider_person} {i}"
 
             models.append(model)
 

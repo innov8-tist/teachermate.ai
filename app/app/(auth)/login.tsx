@@ -25,7 +25,13 @@ export default function LoginScreen() {
       await login(response.access_token, response.teacher);
       router.replace('/(tabs)');
     } catch (err: any) {
-      setError(err.message || 'Login failed');
+      console.error('Login error:', err);
+      
+      if (err?.response?.status === 401) {
+        setError('Invalid email or password');
+      } else {
+        setError(err.message || 'Login failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

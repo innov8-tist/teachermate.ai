@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { setAuthClearCallback } from '@/services/api/axios-instance';
 
 interface Teacher {
   id: number;
@@ -16,6 +17,7 @@ interface AuthContextType {
   login: (token: string, teacher: Teacher) => Promise<void>;
   logout: () => Promise<void>;
   updateTeacher: (teacher: Teacher) => void;
+  clearAuth: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,6 +29,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [teacher, setTeacher] = useState<Teacher | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  const logout = async () => {
+    try {
+      console.log('🚪 Logging out...');
+      await Promise.all([
+        AsyncStorage.removeItem(TOKEN_KEY),
+        AsyncStorage.removeItem(TEACHER_KEY),
+      ]);
+      setToken(null);
+      setTeacher(null);
+      console.log('✅ Logout successful');
+    } catch (error) {
+      console.error('Failed to clear auth data:', error);
+      throw error;
+    }
+  };
+
+  const clearAuth = async () => {
+    console.log('🧹 Clearing expired auth...');
+    await logout();
+  };
+
+  // Register the clearAuth callback with axios interceptor
+  useEffect(() => {
+    setAuthClearCallback(clearAuth);
+  }, []);
 
   useEffect(() => {
     loadStoredAuth();
@@ -80,27 +108,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const logout = async () => {
-    try {
-      await Promise.all([
-        AsyncStorage.removeItem(TOKEN_KEY),
-        AsyncStorage.removeItem(TEACHER_KEY),
-      ]);
-      setToken(null);
-      setTeacher(null);
-    } catch (error) {
-      console.error('Failed to clear auth data:', error);
-      throw error;
-    }
-  };
-
   const updateTeacher = (updatedTeacher: Teacher) => {
     setTeacher(updatedTeacher);
     AsyncStorage.setItem(TEACHER_KEY, JSON.stringify(updatedTeacher));
   };
 
   return (
-    <AuthContext.Provider value={{ teacher, token, isLoading, login, logout, updateTeacher }}>
+    <AuthContext.Provider value={{ teacher, token, isLoading, login, logout, updateTeacher, clearAuth }}>
       {children}
     </AuthContext.Provider>
   );

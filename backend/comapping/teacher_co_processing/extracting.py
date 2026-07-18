@@ -29,7 +29,7 @@ class ListCO(BaseModel):
 
 obj=LiteLLMConfig(GEMINI_PROMPT=GEMINI_PROMPT,GROQ_PROMPT=GROQ_PROMPT)
 llm = obj.gemini_lanchain
-groq_llm = obj.groq_llm
+groq_llm = obj.groq_litellm
 
 llm_struct=llm.with_structured_output(ListCO)
 prompt = ChatPromptTemplate.from_messages(

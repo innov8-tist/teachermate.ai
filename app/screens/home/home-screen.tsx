@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 import { Card, CardContent } from '@/components/ui/card';
-import axios from 'axios';
-import { BASE_URL } from '@/constants/api';
+import axiosInstance from '@/services/api/axios-instance';
 import { useAuth } from '@/contexts/auth-context';
 
 interface HomeScreenProps {
@@ -100,7 +99,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = () => {
   const fetchContexts = async () => {
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const response = await axios.get(`${BASE_URL}/api/analytics/contexts`, { headers });
+      const response = await axiosInstance.get('/api/analytics/contexts', { headers });
       setContexts(response.data.contexts);
       
       if (response.data.contexts.length > 0) {
@@ -108,7 +107,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = () => {
       } else {
         setLoading(false);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching contexts:', error);
       setLoading(false);
     }
@@ -131,12 +130,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = () => {
         coRes,
         trendRes
       ] = await Promise.all([
-        axios.get(`${BASE_URL}/api/analytics/summary`, { headers, params }),
-        axios.get(`${BASE_URL}/api/analytics/performance-overview`, { headers, params }),
-        axios.get(`${BASE_URL}/api/analytics/score-distribution`, { headers, params }),
-        axios.get(`${BASE_URL}/api/analytics/question-insights`, { headers, params }),
-        axios.get(`${BASE_URL}/api/analytics/co-attainment`, { headers, params }),
-        axios.get(`${BASE_URL}/api/analytics/class-performance-trend`, { headers, params })
+        axiosInstance.get('/api/analytics/summary', { headers, params }),
+        axiosInstance.get('/api/analytics/performance-overview', { headers, params }),
+        axiosInstance.get('/api/analytics/score-distribution', { headers, params }),
+        axiosInstance.get('/api/analytics/question-insights', { headers, params }),
+        axiosInstance.get('/api/analytics/co-attainment', { headers, params }),
+        axiosInstance.get('/api/analytics/class-performance-trend', { headers, params })
       ]);
 
       setSummary(summaryRes.data);
@@ -145,7 +144,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = () => {
       setQuestionInsights(questionRes.data);
       setCoAttainment(coRes.data);
       setClassTrend(trendRes.data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching analytics:', error);
     } finally {
       setLoading(false);
