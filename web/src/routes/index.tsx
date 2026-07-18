@@ -1,129 +1,82 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useEffect } from 'react'
+import { authStorage } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
-import { Rocket, Zap, Code, Settings, BookOpen } from 'lucide-react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { LogIn, UserPlus } from 'lucide-react'
 
 export const Route = createFileRoute('/')({
-  component: () => (
-    <div className="from-background to-muted min-h-screen bg-gradient-to-br">
-      <div className="container mx-auto px-4 py-16">
-        <div className="mb-16 px-4 text-center">
-          <div className="mb-6 flex justify-center">
-            <div className="rounded-full bg-blue-100 p-3 dark:bg-blue-900/30">
-              <Rocket className="h-8 w-8 text-blue-600 sm:h-12 sm:w-12 dark:text-blue-400" />
-            </div>
-          </div>
-          <h1 className="text-foreground mb-4 text-3xl font-bold sm:text-4xl md:text-5xl">
-            React + Vite + TanStack
-          </h1>
-          <p className="text-muted-foreground mx-auto mb-8 max-w-2xl px-4 text-lg sm:text-xl">
-            A modern, production-ready starter template with TypeScript,
-            TailwindCSS, TanStack Router, and best practices built-in.
-          </p>
-          <div className="flex flex-col justify-center gap-4 sm:flex-row">
-            <Button size="lg">
-              <Rocket className="mr-2 h-4 w-4" />
-              Get Started
-            </Button>
-            <Button size="lg">
-              <BookOpen className="mr-2 h-4 w-4" />
-              Documentation
-            </Button>
-          </div>
-        </div>
+  component: HomePage,
+})
 
-        <div className="mb-16 grid gap-6 sm:grid-cols-2 md:grid-cols-3 md:gap-8">
-          <div className="bg-card rounded-lg p-6 text-center shadow-sm">
-            <div className="mx-auto mb-4 w-fit rounded-full bg-green-100 p-3 dark:bg-green-900/30">
-              <Zap className="h-8 w-8 text-green-600 dark:text-green-400" />
-            </div>
-            <h3 className="text-foreground mb-2 text-xl font-semibold">
-              Lightning Fast
-            </h3>
-            <p className="text-muted-foreground">
-              Powered by Vite for instant hot reload and blazing fast builds.
-            </p>
-          </div>
+function HomePage() {
+  const navigate = useNavigate()
 
-          <div className="bg-card rounded-lg p-6 text-center shadow-sm">
-            <div className="mx-auto mb-4 w-fit rounded-full bg-purple-100 p-3 dark:bg-purple-900/30">
-              <Code className="h-8 w-8 text-purple-600 dark:text-purple-400" />
-            </div>
-            <h3 className="text-foreground mb-2 text-xl font-semibold">
-              Type Safe
-            </h3>
-            <p className="text-muted-foreground">
-              Full TypeScript support with strict type checking and
-              IntelliSense.
-            </p>
-          </div>
+  useEffect(() => {
+    if (authStorage.isAuthenticated()) {
+      navigate({ to: '/dashboard' })
+    }
+  }, [navigate])
 
-          <div className="bg-card rounded-lg p-6 text-center shadow-sm">
-            <div className="mx-auto mb-4 w-fit rounded-full bg-orange-100 p-3 dark:bg-orange-900/30">
-              <Settings className="h-8 w-8 text-orange-600 dark:text-orange-400" />
-            </div>
-            <h3 className="text-foreground mb-2 text-xl font-semibold">
-              Ready to Use
-            </h3>
-            <p className="text-muted-foreground">
-              Pre-configured with routing, styling, and development tools.
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-blue-50 p-4">
+      <div className="max-w-4xl w-full space-y-8">
+        <div className="text-center space-y-6">
+          <div className="mx-auto w-32 h-32 flex items-center justify-center">
+            <img src="/logo.svg" alt="TeacherMate AI" className="w-full h-full" />
+          </div>
+          <div>
+            <h1 className="text-5xl font-bold text-gray-900 mb-3">
+              TeacherMate AI
+            </h1>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Smart Evaluation, Simplified
             </p>
           </div>
         </div>
 
-        <div className="bg-card rounded-lg p-8 shadow-sm">
-          <h2 className="text-foreground mb-6 text-center text-2xl font-bold">
-            What's Included
-          </h2>
-          <div className="grid gap-4 sm:grid-cols-2 md:gap-6">
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="bg-primary h-2 w-2 rounded-full"></div>
-                <span className="text-muted-foreground">
-                  React 19 with hooks
-                </span>
+        <div className="grid md:grid-cols-2 gap-6 mt-12">
+          <Card className="border-gray-200 hover:shadow-xl transition-shadow cursor-pointer" onClick={() => navigate({ to: '/login' })}>
+            <CardHeader>
+              <div className="w-14 h-14 bg-blue-50 rounded-xl flex items-center justify-center mb-4">
+                <LogIn className="w-8 h-8 text-blue-600" />
               </div>
-              <div className="flex items-center gap-3">
-                <div className="bg-primary h-2 w-2 rounded-full"></div>
-                <span className="text-muted-foreground">
-                  Vite for build tooling
-                </span>
+              <CardTitle className="text-2xl">Sign In</CardTitle>
+              <CardDescription className="text-base">
+                Access your existing account
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button
+                className="w-full h-12 text-base font-semibold bg-blue-600 hover:bg-blue-700"
+                onClick={() => navigate({ to: '/login' })}
+              >
+                Sign In
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="border-gray-200 hover:shadow-xl transition-shadow cursor-pointer" onClick={() => navigate({ to: '/register' })}>
+            <CardHeader>
+              <div className="w-14 h-14 bg-green-50 rounded-xl flex items-center justify-center mb-4">
+                <UserPlus className="w-8 h-8 text-green-600" />
               </div>
-              <div className="flex items-center gap-3">
-                <div className="bg-primary h-2 w-2 rounded-full"></div>
-                <span className="text-muted-foreground">TanStack Router</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="bg-primary h-2 w-2 rounded-full"></div>
-                <span className="text-muted-foreground">
-                  TypeScript configuration
-                </span>
-              </div>
-            </div>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="bg-primary h-2 w-2 rounded-full"></div>
-                <span className="text-muted-foreground">
-                  TailwindCSS + Shadcn/ui
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="bg-primary h-2 w-2 rounded-full"></div>
-                <span className="text-muted-foreground">ESLint + Prettier</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="bg-primary h-2 w-2 rounded-full"></div>
-                <span className="text-muted-foreground">
-                  Lucide React icons
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="bg-primary h-2 w-2 rounded-full"></div>
-                <span className="text-muted-foreground">Development tools</span>
-              </div>
-            </div>
-          </div>
+              <CardTitle className="text-2xl">Create Account</CardTitle>
+              <CardDescription className="text-base">
+                Join our teaching platform
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button
+                className="w-full h-12 text-base font-semibold bg-green-600 hover:bg-green-700"
+                onClick={() => navigate({ to: '/register' })}
+              >
+                Get Started
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
-  ),
-})
+  )
+}
