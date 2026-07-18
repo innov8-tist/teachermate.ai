@@ -18,7 +18,7 @@ from comapping.teacher_co_processing.extracting import main_func
 from modules.auth import router as auth_router
 from modules.auth.dependencies import get_current_teacher
 from modules.auth.models import Teacher
-from routes.analytics import router as analytics_router
+from modules.analytics import router as analytics_router
 from services.s3_service import s3_service
 from comapping.answer_sheet_processing.cutting import ImageProcess
 from comapping.answer_sheet_processing.extraction_pipeline import ExtractionPipeline

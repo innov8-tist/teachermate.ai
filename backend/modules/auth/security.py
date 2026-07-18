@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
+from db_service.db import get_db
 
 load_dotenv()
 
@@ -56,13 +57,9 @@ def decode_access_token(token: str) -> Optional[dict]:
 
 def get_current_teacher(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(None)
+    db: Session = Depends(get_db)
 ):
-    from db_service.db import get_db
     from .repository import AuthRepository
-    
-    if db is None:
-        db = next(get_db())
     
     token = credentials.credentials
     
