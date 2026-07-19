@@ -1,8 +1,9 @@
 from db_service import get_db
 from sqlalchemy.orm import Session
-from db_service import Subject, COTemplate, StudentAnswerMark, COMAPPEDQUESTION, StudentMark
-from db_service.db_schema import EvaluationSchema, StudentAnswerEvaluation  
-from db_service.db_schema import COQuestionMapping
+from modules.co_mapper.models import Subject, COTemplate, StudentAnswerMark, COQuestionMapping
+# Legacy aliases for backward compatibility
+from modules.co_mapper.models import COQuestionMapping as COMAPPEDQUESTION, StudentAnswerMark as StudentMark
+from db_service.db_schema import EvaluationSchema, StudentAnswerEvaluation
 from db_service.db_schema import StudentEvaluationProgress, STUDENTINFO
 from sqlalchemy import or_, distinct
 from datetime import datetime
