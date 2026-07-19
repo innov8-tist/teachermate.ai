@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Menu, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -7,10 +7,17 @@ import { useTheme } from '@/components/theme-provider'
 export function MobileNav() {
   const [isOpen, setIsOpen] = useState(false)
   const { theme } = useTheme()
-  const isDark =
-    theme === 'dark' ||
-    (theme === 'system' &&
-      window.matchMedia('(prefers-color-scheme: dark)').matches)
+  const [isDarkMode, setIsDarkMode] = useState(false)
+
+  useEffect(() => {
+    const isDark =
+      theme === 'dark' ||
+      (theme === 'system' &&
+        window.matchMedia('(prefers-color-scheme: dark)').matches)
+    setIsDarkMode(isDark)
+  }, [theme])
+
+  const isDark = isDarkMode
 
   return (
     <div className="sm:hidden">
