@@ -8,6 +8,12 @@ from alembic import context
 from db_service.db import Base
 from db_service import db_schema
 from modules.auth import models as auth_models
+from modules.co_mapper import models as co_mapper_models
+# Analytics and Evaluations do not have models.py files
+
+from sqlalchemy.exc import ProgrammingError
+import psycopg2.errors
+
 
 import os
 from dotenv import load_dotenv
@@ -65,9 +71,7 @@ def run_migrations_online() -> None:
 
         try:
             from db_service.seed_data import seed_subjects, seed_students
-            from sqlalchemy.exc import ProgrammingError
-            import psycopg2.errors
-
+            
             print("\n" + "=" * 50)
             print("AUTO-SEEDING DEFAULT DATA")
             print("=" * 50)
@@ -82,6 +86,7 @@ def run_migrations_online() -> None:
             print(f"⚠️  Seeding error: {e}")
             import traceback
             traceback.print_exc()
+
 
 
 if context.is_offline_mode():

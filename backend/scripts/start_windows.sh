@@ -34,5 +34,4 @@ fi
 echo "Running Alembic migrations..."
 uv run python -m alembic -c alembic.ini upgrade head
 
-echo "Starting server..."
-exec uv run python -m uvicorn server:app --host 0.0.0.0 --port "${PORT:-8000}"
+echo "Migrations and seeding complete. Exiting."

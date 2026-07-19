@@ -1,5 +1,6 @@
 from db_service.db import SessionLocal
-from db_service.db_schema import Subject, STUDENTINFO
+from modules.co_mapper.models import Subject
+from db_service.db_schema import STUDENTINFO
 
 def seed_subjects(silent=False):
     db = SessionLocal()
