@@ -3,7 +3,8 @@
 // For iOS simulator use localhost
 // For physical device, replace with your computer's IP (e.g., 192.168.1.5)
 
-const BASE_URL = 'http://192.168.1.2:8000';
+const BASE_URL = 'http://192.168.1.7:8000';
+
 
 //Server hosted 
 // const BASE_URL = 'http://20.40.47.177:8000';

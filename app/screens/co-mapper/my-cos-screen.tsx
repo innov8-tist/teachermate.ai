@@ -29,7 +29,7 @@ export const MyCOsScreen: React.FC<MyCOsScreenProps> = ({
   onCOClick,
   onViewCompletedStudents
 }) => {
-  const { teacher } = useAuth();
+  const { teacher, token } = useAuth();
   const [myCOs, setMyCOs] = useState<COWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -139,6 +139,7 @@ export const MyCOsScreen: React.FC<MyCOsScreenProps> = ({
   };
 
   const handleSubmit = async (imageUri: string, coId: number) => {
+    console.log("imageurl =",imageUri)
     setIsSubmitting(true);
     setProcessingStep('Uploading image...');
 
@@ -157,16 +158,24 @@ export const MyCOsScreen: React.FC<MyCOsScreenProps> = ({
 
       setProcessingStep('Processing image...');
 
+      console.log("Uploading front page ")
       const response = await fetch(`${API_BASE_URL}/student_sheet_upload`, {
         method: 'POST',
-        body: formData,
         headers: {
-          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${token}`,
         },
+        body: formData,
       });
-
+      
+      console.log("Upload response status:", response.status);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       setProcessingStep('Extracting data...');
       const result = await response.json();
+      console.log("Upload result:", result);
 
       if (result.status === 'success') {
         setProcessingStep('Saving to database...');
@@ -181,8 +190,8 @@ export const MyCOsScreen: React.FC<MyCOsScreenProps> = ({
         Alert.alert('Error', result.message || 'Failed to analyze answer sheet');
       }
     } catch (error) {
+      console.error('Upload error details:', error);
       Alert.alert('Error', 'Failed to analyze answer sheet');
-      console.error(error);
     } finally {
       setIsSubmitting(false);
       setProcessingStep('');

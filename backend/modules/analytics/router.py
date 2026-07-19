@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session
 from typing import Optional
 
 from db_service.db import get_db
-from db_service.db_schema import Teacher
-from auth.dependencies import get_current_teacher
+#from db_service.db_schema import Teacher
+from modules.auth.models import Teacher
+from modules.auth.dependencies import get_current_teacher
 
 from .service import AnalyticsService
 from .schemas import *

@@ -9,12 +9,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, distinct
 from collections import defaultdict
 
+from modules.co_mapper.models import COTemplate, COQuestionMapping
 from db_service.db_schema import (
-    COTemplate,
     EvaluationSchema,
     StudentEvaluationProgress,
-    StudentAnswerEvaluation,
-    COQuestionMapping
+    StudentAnswerEvaluation
 )
 
 

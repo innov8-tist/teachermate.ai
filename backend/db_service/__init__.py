@@ -1,5 +1,6 @@
 from db_service.db import get_db
-from db_service.db_schema import (
+from modules.auth.models import Teacher
+from modules.co_mapper.models import (
     COTemplate,
     COQuestionMapping,
     StudentAnswerMark,
