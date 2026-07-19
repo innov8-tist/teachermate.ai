@@ -13,19 +13,7 @@
     "format:check": "prettier --check .",
     "check": "bun run lint && bun run typecheck && bun run format:check",
     "verify": "bun run check && bun run test && bun run build",
-    "preview": "vite preview",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "prepare": "lefthook install || true"
-  },
-  "lint-staged": {
-    "*.{ts,tsx,js,jsx}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{json,css,md}": [
-      "prettier --write"
-    ]
+    "preview": "vite preview"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -60,8 +48,6 @@
     "eslint-plugin-react-refresh": "^0.5.3",
     "globals": "^17.7.0",
     "jsdom": "^29.1.1",
-    "lefthook": "^2.1.9",
-    "lint-staged": "^17.0.8",
     "postcss": "^8.5.15",
     "prettier": "^3.8.4",
     "prettier-plugin-tailwindcss": "^0.8.0",
