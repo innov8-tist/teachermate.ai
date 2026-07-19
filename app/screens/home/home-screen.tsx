@@ -102,9 +102,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = () => {
       const response = await axiosInstance.get('/api/analytics/contexts', { headers });
       setContexts(response.data.contexts);
       
-      if (response.data.contexts.length > 0) {
-        fetchAnalyticsForContext(response.data.contexts[0]);
-      } else {
+      // Don't call fetchAnalyticsForContext here - let the useEffect handle it
+      if (response.data.contexts.length === 0) {
         setLoading(false);
       }
     } catch (error: any) {
@@ -160,7 +159,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = () => {
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchContexts();
+    if (contexts.length > 0) {
+      fetchAnalyticsForContext(contexts[currentContextIndex]);
+    } else {
+      fetchContexts();
+    }
   };
 
   if (loading) {

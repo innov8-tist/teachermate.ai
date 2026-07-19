@@ -41,9 +41,8 @@ function AnalyticsDashboard() {
       const response = await analyticsAPI.getContexts(token);
       setContexts(response.contexts);
       
-      if (response.contexts.length > 0) {
-        fetchAnalyticsForContext(response.contexts[0]);
-      } else {
+      // Don't call fetchAnalyticsForContext here - let the useEffect handle it
+      if (response.contexts.length === 0) {
         setLoading(false);
       }
     } catch (error) {
@@ -107,7 +106,11 @@ function AnalyticsDashboard() {
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchContexts();
+    if (contexts.length > 0) {
+      fetchAnalyticsForContext(contexts[currentContextIndex]);
+    } else {
+      fetchContexts();
+    }
   };
 
   if (loading) {
