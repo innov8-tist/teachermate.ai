@@ -1,9 +1,8 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, Outlet, useMatches } from '@tanstack/react-router'
 import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { authStorage } from '@/lib/auth'
-import { evaluationAPI, EvaluationSchema } from '@/lib/evaluation-api'
 import { Plus, Trash2, Upload, BarChart3, FileSpreadsheet, Clock } from 'lucide-react'
 import { CreateEvaluationDialog } from '@/components/CreateEvaluationDialog'
 import { UploadStudentDialog } from '@/components/UploadStudentDialog'
@@ -12,14 +11,36 @@ export const Route = createFileRoute('/dashboard/evaluation')({
   component: EvaluationPage,
 })
 
+interface EvaluationSchema {
+  evaluation_id: number
+  subject_id: number
+  subject_name: string
+  subject_code: string
+  semester: string
+  branch: string
+  ia: string
+  total_questions: number
+  completed_questions: number
+  total_students: number
+  completed_students: number
+  status: string
+  updated_at: string
+}
+
 function EvaluationPage() {
   const navigate = useNavigate()
+  const matches = useMatches()
   const [evaluations, setEvaluations] = useState<EvaluationSchema[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
   const [selectedEvaluation, setSelectedEvaluation] = useState<EvaluationSchema | null>(null)
   const [error, setError] = useState('')
+
+  // Check if we're on a child route (results page)
+  const isOnChildRoute = matches.some(match => 
+    match.routeId.includes('/$evaluationId/results')
+  )
 
   const loadEvaluations = async () => {
     try {
@@ -33,8 +54,19 @@ function EvaluationPage() {
         return
       }
 
-      const data = await evaluationAPI.fetchEvaluationSchemas(user.id, token)
-      setEvaluations(data)
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/evaluations/${user.id}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch evaluations')
+      }
+
+      const data = await response.json()
+      setEvaluations(data.evaluations || [])
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load evaluations')
     } finally {
@@ -43,8 +75,10 @@ function EvaluationPage() {
   }
 
   useEffect(() => {
-    loadEvaluations()
-  }, [])
+    if (!isOnChildRoute) {
+      loadEvaluations()
+    }
+  }, [isOnChildRoute])
 
   const handleDelete = async (evaluationId: number) => {
     if (!confirm('Are you sure you want to delete this evaluation?')) {
@@ -53,7 +87,19 @@ function EvaluationPage() {
     try {
       const token = authStorage.getToken()
       if (!token) return
-      await evaluationAPI.deleteEvaluationSchema(evaluationId, token)
+
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/api/evaluation/${evaluationId}`,
+        {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error('Failed to delete evaluation')
+      }
+
       await loadEvaluations()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to delete evaluation')
@@ -67,6 +113,11 @@ function EvaluationPage() {
 
   const handleResults = (evaluationId: number) => {
     navigate({ to: `/dashboard/evaluation/${evaluationId}/results` })
+  }
+
+  // If on child route, just render the outlet
+  if (isOnChildRoute) {
+    return <Outlet />
   }
 
   return (
@@ -223,6 +274,7 @@ function EvaluationPage() {
           onOpenChange={setUploadDialogOpen}
           evaluation={{
             id: selectedEvaluation.evaluation_id,
+            subject_id: selectedEvaluation.subject_id,
             subject_name: selectedEvaluation.subject_name,
             ia: selectedEvaluation.ia,
             sem: parseInt(selectedEvaluation.semester),

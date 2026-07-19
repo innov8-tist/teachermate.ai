@@ -30,9 +30,9 @@ function DashboardLayout() {
   return (
     <div className="min-h-screen bg-white flex">
       {/* Left Sidebar - Professional */}
-      <aside className="w-80 bg-white border-r border-gray-200 flex flex-col">
+      <aside className="w-80 bg-white border-r border-gray-200 flex flex-col h-screen sticky top-0">
         {/* Logo/Header */}
-        <div className="px-8 py-8 border-b border-gray-100">
+        <div className="px-8 py-8 border-b border-gray-100 shrink-0">
           <div className="flex flex-col items-center text-center">
             <img 
               src="/logo.svg" 
@@ -45,8 +45,16 @@ function DashboardLayout() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-6 py-8">
+        <nav className="flex-1 px-6 py-8 overflow-y-auto">
           <ul className="space-y-2">
+            <li>
+              <Link
+                to="/dashboard/analytics"
+                className="flex items-center justify-center px-5 py-4 rounded-xl text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-all [&.active]:bg-blue-50 [&.active]:text-blue-600 [&.active]:font-semibold"
+              >
+                <span className="text-base">Dashboard</span>
+              </Link>
+            </li>
             <li>
               <Link
                 to="/dashboard/co-mapper"
@@ -75,7 +83,7 @@ function DashboardLayout() {
         </nav>
 
         {/* User Info & Logout */}
-        <div className="px-6 py-6 border-t border-gray-100 bg-gray-50">
+        <div className="px-6 py-6 border-t border-gray-100 bg-gray-50 shrink-0">
           <div className="mb-4 px-2">
             <p className="text-sm font-bold text-gray-900 truncate">{user.teacher_name}</p>
             <p className="text-xs text-gray-500 truncate mt-1">{user.email}</p>

@@ -19,7 +19,9 @@ import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as DashboardProfileRouteImport } from './routes/dashboard/profile'
 import { Route as DashboardEvaluationRouteImport } from './routes/dashboard/evaluation'
 import { Route as DashboardCoMapperRouteImport } from './routes/dashboard/co-mapper'
+import { Route as DashboardAnalyticsRouteImport } from './routes/dashboard/analytics'
 import { Route as DashboardEvaluationEvaluationIdResultsRouteImport } from './routes/dashboard/evaluation/$evaluationId/results'
+import { Route as DashboardCoMapperCoIdResultsRouteImport } from './routes/dashboard/co-mapper/$coId/results'
 
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
@@ -71,11 +73,22 @@ const DashboardCoMapperRoute = DashboardCoMapperRouteImport.update({
   path: '/co-mapper',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardAnalyticsRoute = DashboardAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardEvaluationEvaluationIdResultsRoute =
   DashboardEvaluationEvaluationIdResultsRouteImport.update({
     id: '/$evaluationId/results',
     path: '/$evaluationId/results',
     getParentRoute: () => DashboardEvaluationRoute,
+  } as any)
+const DashboardCoMapperCoIdResultsRoute =
+  DashboardCoMapperCoIdResultsRouteImport.update({
+    id: '/$coId/results',
+    path: '/$coId/results',
+    getParentRoute: () => DashboardCoMapperRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -85,10 +98,12 @@ export interface FileRoutesByFullPath {
   '/features': typeof FeaturesRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
-  '/dashboard/co-mapper': typeof DashboardCoMapperRoute
+  '/dashboard/analytics': typeof DashboardAnalyticsRoute
+  '/dashboard/co-mapper': typeof DashboardCoMapperRouteWithChildren
   '/dashboard/evaluation': typeof DashboardEvaluationRouteWithChildren
   '/dashboard/profile': typeof DashboardProfileRoute
   '/dashboard/': typeof DashboardIndexRoute
+  '/dashboard/co-mapper/$coId/results': typeof DashboardCoMapperCoIdResultsRoute
   '/dashboard/evaluation/$evaluationId/results': typeof DashboardEvaluationEvaluationIdResultsRoute
 }
 export interface FileRoutesByTo {
@@ -97,10 +112,12 @@ export interface FileRoutesByTo {
   '/features': typeof FeaturesRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
-  '/dashboard/co-mapper': typeof DashboardCoMapperRoute
+  '/dashboard/analytics': typeof DashboardAnalyticsRoute
+  '/dashboard/co-mapper': typeof DashboardCoMapperRouteWithChildren
   '/dashboard/evaluation': typeof DashboardEvaluationRouteWithChildren
   '/dashboard/profile': typeof DashboardProfileRoute
   '/dashboard': typeof DashboardIndexRoute
+  '/dashboard/co-mapper/$coId/results': typeof DashboardCoMapperCoIdResultsRoute
   '/dashboard/evaluation/$evaluationId/results': typeof DashboardEvaluationEvaluationIdResultsRoute
 }
 export interface FileRoutesById {
@@ -111,10 +128,12 @@ export interface FileRoutesById {
   '/features': typeof FeaturesRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
-  '/dashboard/co-mapper': typeof DashboardCoMapperRoute
+  '/dashboard/analytics': typeof DashboardAnalyticsRoute
+  '/dashboard/co-mapper': typeof DashboardCoMapperRouteWithChildren
   '/dashboard/evaluation': typeof DashboardEvaluationRouteWithChildren
   '/dashboard/profile': typeof DashboardProfileRoute
   '/dashboard/': typeof DashboardIndexRoute
+  '/dashboard/co-mapper/$coId/results': typeof DashboardCoMapperCoIdResultsRoute
   '/dashboard/evaluation/$evaluationId/results': typeof DashboardEvaluationEvaluationIdResultsRoute
 }
 export interface FileRouteTypes {
@@ -126,10 +145,12 @@ export interface FileRouteTypes {
     | '/features'
     | '/login'
     | '/register'
+    | '/dashboard/analytics'
     | '/dashboard/co-mapper'
     | '/dashboard/evaluation'
     | '/dashboard/profile'
     | '/dashboard/'
+    | '/dashboard/co-mapper/$coId/results'
     | '/dashboard/evaluation/$evaluationId/results'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -138,10 +159,12 @@ export interface FileRouteTypes {
     | '/features'
     | '/login'
     | '/register'
+    | '/dashboard/analytics'
     | '/dashboard/co-mapper'
     | '/dashboard/evaluation'
     | '/dashboard/profile'
     | '/dashboard'
+    | '/dashboard/co-mapper/$coId/results'
     | '/dashboard/evaluation/$evaluationId/results'
   id:
     | '__root__'
@@ -151,10 +174,12 @@ export interface FileRouteTypes {
     | '/features'
     | '/login'
     | '/register'
+    | '/dashboard/analytics'
     | '/dashboard/co-mapper'
     | '/dashboard/evaluation'
     | '/dashboard/profile'
     | '/dashboard/'
+    | '/dashboard/co-mapper/$coId/results'
     | '/dashboard/evaluation/$evaluationId/results'
   fileRoutesById: FileRoutesById
 }
@@ -239,6 +264,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardCoMapperRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/dashboard/analytics': {
+      id: '/dashboard/analytics'
+      path: '/analytics'
+      fullPath: '/dashboard/analytics'
+      preLoaderRoute: typeof DashboardAnalyticsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/evaluation/$evaluationId/results': {
       id: '/dashboard/evaluation/$evaluationId/results'
       path: '/$evaluationId/results'
@@ -246,8 +278,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardEvaluationEvaluationIdResultsRouteImport
       parentRoute: typeof DashboardEvaluationRoute
     }
+    '/dashboard/co-mapper/$coId/results': {
+      id: '/dashboard/co-mapper/$coId/results'
+      path: '/$coId/results'
+      fullPath: '/dashboard/co-mapper/$coId/results'
+      preLoaderRoute: typeof DashboardCoMapperCoIdResultsRouteImport
+      parentRoute: typeof DashboardCoMapperRoute
+    }
   }
 }
+
+interface DashboardCoMapperRouteChildren {
+  DashboardCoMapperCoIdResultsRoute: typeof DashboardCoMapperCoIdResultsRoute
+}
+
+const DashboardCoMapperRouteChildren: DashboardCoMapperRouteChildren = {
+  DashboardCoMapperCoIdResultsRoute: DashboardCoMapperCoIdResultsRoute,
+}
+
+const DashboardCoMapperRouteWithChildren =
+  DashboardCoMapperRoute._addFileChildren(DashboardCoMapperRouteChildren)
 
 interface DashboardEvaluationRouteChildren {
   DashboardEvaluationEvaluationIdResultsRoute: typeof DashboardEvaluationEvaluationIdResultsRoute
@@ -262,14 +312,16 @@ const DashboardEvaluationRouteWithChildren =
   DashboardEvaluationRoute._addFileChildren(DashboardEvaluationRouteChildren)
 
 interface DashboardRouteChildren {
-  DashboardCoMapperRoute: typeof DashboardCoMapperRoute
+  DashboardAnalyticsRoute: typeof DashboardAnalyticsRoute
+  DashboardCoMapperRoute: typeof DashboardCoMapperRouteWithChildren
   DashboardEvaluationRoute: typeof DashboardEvaluationRouteWithChildren
   DashboardProfileRoute: typeof DashboardProfileRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
 }
 
 const DashboardRouteChildren: DashboardRouteChildren = {
-  DashboardCoMapperRoute: DashboardCoMapperRoute,
+  DashboardAnalyticsRoute: DashboardAnalyticsRoute,
+  DashboardCoMapperRoute: DashboardCoMapperRouteWithChildren,
   DashboardEvaluationRoute: DashboardEvaluationRouteWithChildren,
   DashboardProfileRoute: DashboardProfileRoute,
   DashboardIndexRoute: DashboardIndexRoute,

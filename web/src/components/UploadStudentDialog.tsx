@@ -1,16 +1,19 @@
-import { useState, useRef, FormEvent } from 'react'
+import { useState, useRef, FormEvent, useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter, DialogClose } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Loader2, Upload, X, FileText } from 'lucide-react'
+import { Loader2, Upload, X, FileText, Brain, Search, ChevronDown, ArrowRight } from 'lucide-react'
+import { evaluationAPI, StudentRegno, SearchedStudent, RecentProgress } from '@/lib/evaluation-api'
 import { authStorage } from '@/lib/auth'
+import { useNavigate } from '@tanstack/react-router'
 
 interface UploadStudentDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   evaluation: {
     id: number
+    subject_id: number
     subject_name: string
     ia: string
     sem: number
@@ -18,12 +21,153 @@ interface UploadStudentDialogProps {
   onSuccess: () => void
 }
 
+interface StudentOption {
+  reg_no: string
+  name: string
+  progress_id?: number | null
+  upload_method?: string
+}
+
 export function UploadStudentDialog({ open, onOpenChange, evaluation, onSuccess }: UploadStudentDialogProps) {
+  const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
   const [studentRegNo, setStudentRegNo] = useState('')
   const [studentPdf, setStudentPdf] = useState<File | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isEvaluating, setIsEvaluating] = useState(false)
   const [error, setError] = useState('')
+
+  const [allStudents, setAllStudents] = useState<StudentOption[]>([])
+  const [recentProgress, setRecentProgress] = useState<RecentProgress[]>([])
+  const [loadingStudents, setLoadingStudents] = useState(false)
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+
+  useEffect(() => {
+    if (open && evaluation.id) {
+      loadStudents()
+      loadRecentProgress()
+    }
+  }, [open, evaluation.id])
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const loadRecentProgress = async () => {
+    try {
+      const token = authStorage.getToken()
+      if (!token) return
+
+      const progress = await evaluationAPI.fetchRecentProgress(evaluation.id, token)
+      setRecentProgress(progress)
+    } catch (err) {
+      console.error('Failed to load recent progress:', err)
+    }
+  }
+
+  const loadStudents = async () => {
+    try {
+      setLoadingStudents(true)
+      const token = authStorage.getToken()
+      if (!token) return
+
+      const regnos: StudentRegno[] = await evaluationAPI.fetchStudentsBySubject(evaluation.subject_id, token)
+
+      const studentsWithNames: StudentOption[] = regnos.map(r => ({
+        reg_no: r.regno,
+        name: '',
+      }))
+
+      setAllStudents(studentsWithNames)
+    } catch {
+      setAllStudents([])
+    } finally {
+      setLoadingStudents(false)
+    }
+  }
+
+  const searchStudents = async (query: string) => {
+    if (query.length < 2) return
+
+    try {
+      const token = authStorage.getToken()
+      if (!token) return
+
+      const results: SearchedStudent[] = await evaluationAPI.searchStudents(evaluation.id, query, token)
+
+      if (results.length > 0) {
+        setAllStudents(prev => {
+          const merged = [...prev]
+          for (const s of results) {
+            const existing = merged.find(m => m.reg_no === s.student_reg_no)
+            if (!existing) {
+              merged.push({ 
+                reg_no: s.student_reg_no, 
+                name: s.student_name,
+                progress_id: s.progress_id,
+                upload_method: s.upload_method,
+              })
+            } else {
+              existing.name = s.student_name
+              existing.progress_id = s.progress_id
+              existing.upload_method = s.upload_method
+            }
+          }
+          return merged
+        })
+      }
+    } catch {
+      // ignore search errors
+    }
+  }
+
+  const handleRegNoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setStudentRegNo(value)
+    setDropdownOpen(true)
+    searchStudents(value)
+  }
+
+  const handleSelectStudent = (student: StudentOption) => {
+    // Check if student already has progress
+    if (student.progress_id && student.upload_method) {
+      // Navigate directly to results
+      onOpenChange(false)
+      navigate({ 
+        to: `/dashboard/evaluation/${evaluation.id}/results`,
+        search: { studentRegNo: student.reg_no }
+      })
+      return
+    }
+    
+    setStudentRegNo(student.reg_no)
+    setDropdownOpen(false)
+  }
+
+  const handleRecentClick = (progress: RecentProgress) => {
+    // Navigate to results for this student
+    onOpenChange(false)
+    navigate({ 
+      to: `/dashboard/evaluation/${evaluation.id}/results`,
+      search: { studentRegNo: progress.student_reg_no }
+    })
+  }
+
+  const handleFocus = () => {
+    setDropdownOpen(true)
+  }
+
+  const filteredStudents = allStudents.filter(
+    s => s.reg_no.toLowerCase().includes(studentRegNo.toLowerCase()) ||
+         s.name.toLowerCase().includes(studentRegNo.toLowerCase())
+  )
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -54,7 +198,7 @@ export function UploadStudentDialog({ open, onOpenChange, evaluation, onSuccess 
     setError('')
 
     if (!studentRegNo.trim()) {
-      setError('Please enter student registration number')
+      setError('Please enter or select a student registration number')
       return
     }
 
@@ -69,43 +213,105 @@ export function UploadStudentDialog({ open, onOpenChange, evaluation, onSuccess 
       const token = authStorage.getToken()
       if (!token) {
         setError('Please log in again')
+        setIsLoading(false)
         return
       }
 
-      const formData = new FormData()
-      formData.append('pdf_file', studentPdf)
-      formData.append('evaluation_id', evaluation.id.toString())
-      formData.append('student_reg_no', studentRegNo.trim())
+      // Check if student already has been evaluated
+      const trimmedRegNo = studentRegNo.trim()
+      
+      // First check in recent progress
+      const existingInRecent = recentProgress.find(
+        p => p.student_reg_no.toLowerCase() === trimmedRegNo.toLowerCase()
+      )
+      
+      if (existingInRecent) {
+        setIsLoading(false)
+        setError(`Student ${trimmedRegNo} has already been evaluated. Redirecting to results...`)
+        setTimeout(() => {
+          onOpenChange(false)
+          navigate({ 
+            to: `/dashboard/evaluation/${evaluation.id}/results`,
+            search: { studentRegNo: trimmedRegNo }
+          })
+        }, 1500)
+        return
+      }
 
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/api/evaluation/upload-pdf`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      })
+      // Also check in the student list if we have progress info
+      const existingInList = allStudents.find(
+        s => s.reg_no.toLowerCase() === trimmedRegNo.toLowerCase() && 
+             s.progress_id && 
+             s.upload_method
+      )
+      
+      if (existingInList) {
+        setIsLoading(false)
+        setError(`Student ${trimmedRegNo} has already been evaluated. Redirecting to results...`)
+        setTimeout(() => {
+          onOpenChange(false)
+          navigate({ 
+            to: `/dashboard/evaluation/${evaluation.id}/results`,
+            search: { studentRegNo: trimmedRegNo }
+          })
+        }, 1500)
+        return
+      }
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to upload student PDF')
+      // If not found in local data, do a server check via search
+      const searchResults = await evaluationAPI.searchStudents(evaluation.id, trimmedRegNo, token)
+      const existingOnServer = searchResults.find(
+        s => s.student_reg_no.toLowerCase() === trimmedRegNo.toLowerCase() && 
+             s.progress_id && 
+             s.upload_method
+      )
+
+      if (existingOnServer) {
+        setIsLoading(false)
+        setError(`Student ${trimmedRegNo} has already been evaluated. Redirecting to results...`)
+        setTimeout(() => {
+          onOpenChange(false)
+          navigate({ 
+            to: `/dashboard/evaluation/${evaluation.id}/results`,
+            search: { studentRegNo: trimmedRegNo }
+          })
+        }, 1500)
+        return
+      }
+
+      // Proceed with upload if no existing evaluation found
+      const result = await evaluationAPI.uploadStudentPdf(
+        studentPdf,
+        evaluation.id,
+        trimmedRegNo,
+        token,
+      )
+
+      if (result.progress_id) {
+        setIsEvaluating(true)
+        await evaluationAPI.startEvaluation(result.progress_id, token)
       }
 
       setStudentRegNo('')
       setStudentPdf(null)
+      setAllStudents([])
       onSuccess()
       onOpenChange(false)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to upload student answer sheet')
     } finally {
       setIsLoading(false)
+      setIsEvaluating(false)
     }
   }
 
+  const buttonDisabled = isLoading || !studentRegNo.trim() || !studentPdf
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[95vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg">
         <DialogClose onClose={() => onOpenChange(false)} />
-        <DialogHeader className="mb-2">
+        <DialogHeader>
           <DialogTitle>Upload Student Answer Sheet</DialogTitle>
           <p className="text-sm text-muted-foreground">
             {evaluation.subject_name} · {evaluation.ia} · Semester {evaluation.sem}
@@ -120,16 +326,100 @@ export function UploadStudentDialog({ open, onOpenChange, evaluation, onSuccess 
               </div>
             )}
 
+            {/* Recent Evaluations Section */}
+            {recentProgress.length > 0 && (
+              <div className="space-y-2">
+                <Label>Recent Evaluations</Label>
+                <div className="flex gap-2 overflow-x-auto pb-2">
+                  {recentProgress.slice(0, 3).map((progress) => (
+                    <button
+                      key={progress.id}
+                      type="button"
+                      onClick={() => handleRecentClick(progress)}
+                      className="flex min-w-[140px] flex-col gap-2 rounded-lg border bg-card p-3 text-left transition-colors hover:bg-accent hover:text-accent-foreground"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-sm">{progress.student_reg_no}</span>
+                        <span className="rounded-md bg-black px-2 py-0.5 text-[10px] font-bold uppercase text-white">
+                          {progress.upload_method}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{new Date(progress.updated_at).toLocaleDateString()}</span>
+                        <ArrowRight className="h-3 w-3" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
-              <Label htmlFor="student_reg_no">Student Registration Number</Label>
-              <Input
-                id="student_reg_no"
-                type="text"
-                placeholder="e.g., 1MS21CS001"
-                value={studentRegNo}
-                onChange={(e) => setStudentRegNo(e.target.value)}
-                disabled={isLoading}
-              />
+              <Label htmlFor="student_reg_no">Student</Label>
+              <div className="relative" ref={dropdownRef}>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="student_reg_no"
+                    type="text"
+                    placeholder="Search by reg no or name..."
+                    value={studentRegNo}
+                    onChange={handleRegNoChange}
+                    onFocus={handleFocus}
+                    disabled={isLoading}
+                    className="pl-9 pr-9"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setDropdownOpen(!dropdownOpen)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground hover:text-foreground"
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {dropdownOpen && (
+                  <div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border bg-popover p-1 shadow-lg">
+                    {loadingStudents ? (
+                      <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Loading students...
+                      </div>
+                    ) : filteredStudents.length === 0 ? (
+                      <div className="py-6 text-center text-sm text-muted-foreground">
+                        {studentRegNo.length >= 2
+                          ? 'No students found'
+                          : allStudents.length === 0
+                            ? 'No students available. Type to search.'
+                            : 'Type to filter students'}
+                      </div>
+                    ) : (
+                      filteredStudents.map((student) => (
+                        <button
+                          key={student.reg_no}
+                          type="button"
+                          onClick={() => handleSelectStudent(student)}
+                          className="w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="font-medium">{student.reg_no}</span>
+                              {student.name && (
+                                <span className="ml-2 text-muted-foreground">({student.name})</span>
+                              )}
+                            </div>
+                            {student.progress_id && student.upload_method && (
+                              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                                EVALUATED
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -148,6 +438,7 @@ export function UploadStudentDialog({ open, onOpenChange, evaluation, onSuccess 
                       type="button"
                       onClick={removeFile}
                       className="rounded-lg p-1.5 text-destructive hover:bg-destructive/10 transition-colors"
+                      disabled={isLoading}
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -179,11 +470,10 @@ export function UploadStudentDialog({ open, onOpenChange, evaluation, onSuccess 
             </div>
           </DialogBody>
 
-          <DialogFooter className="mt-6 gap-2">
+          <DialogFooter className="mt-6">
             <Button
               type="button"
               variant="outline"
-              size="lg"
               onClick={() => onOpenChange(false)}
               disabled={isLoading}
             >
@@ -191,16 +481,20 @@ export function UploadStudentDialog({ open, onOpenChange, evaluation, onSuccess 
             </Button>
             <Button
               type="submit"
-              size="lg"
-              disabled={isLoading || !studentRegNo.trim() || !studentPdf}
+              disabled={buttonDisabled}
             >
-              {isLoading ? (
+              {isEvaluating ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Brain className="mr-2 h-4 w-4 animate-pulse" />
+                  Evaluating...
+                </>
+              ) : isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Uploading...
                 </>
               ) : (
-                'Upload'
+                'Upload & Evaluate'
               )}
             </Button>
           </DialogFooter>

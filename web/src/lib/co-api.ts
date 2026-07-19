@@ -25,6 +25,18 @@ export interface COCreateRequest {
   co_image: File;
 }
 
+export interface Student {
+  regno: string;
+}
+
+export interface SubjectInfo {
+  name: string;
+  ia: string;
+  branch: string;
+  sem: number;
+  student_count: number;
+}
+
 export const coAPI = {
   async fetchSubjects(semester: number, token: string): Promise<Subject[]> {
     const response = await fetch(`${API_BASE_URL}/subject_fetch/${semester}`, {
@@ -119,5 +131,54 @@ export const coAPI = {
     }
 
     return response.blob();
+  },
+
+  async fetchStudentsBySubject(subjectId: number, token: string): Promise<Student[]> {
+    const response = await fetch(`${API_BASE_URL}/students_by_subject/${subjectId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch students');
+    }
+
+    return response.json();
+  },
+
+  async fetchSubjectInfo(subjectId: number, token: string): Promise<SubjectInfo> {
+    const response = await fetch(`${API_BASE_URL}/co_subject_info/${subjectId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch subject info');
+    }
+
+    return response.json();
+  },
+
+  async uploadStudentSheet(subjectId: number, image: File, token: string): Promise<any> {
+    const formData = new FormData();
+    formData.append('subject_id', subjectId.toString());
+    formData.append('student_image', image);
+
+    const response = await fetch(`${API_BASE_URL}/student_sheet_upload`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || 'Failed to upload student sheet');
+    }
+
+    return response.json();
   },
 };

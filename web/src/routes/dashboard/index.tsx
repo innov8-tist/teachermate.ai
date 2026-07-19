@@ -1,5 +1,5 @@
 import { createFileRoute, Navigate } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/dashboard/')({
-  component: () => <Navigate to="/dashboard/co-mapper" />,
+  component: () => <Navigate to="/dashboard/analytics" />,
 })
