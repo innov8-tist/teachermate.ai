@@ -84,7 +84,7 @@ def health_check():
             "message": "Service is running",
             "environment": environment,
             "timestamp": datetime.now().isoformat(),
-            "version": "1.0.2",
+            "version": "1.1.0",
             "services": {
                 "database": {
                     "status": db_status,
