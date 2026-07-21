@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { authAPI, APIError } from '@/lib/api'
 import { authStorage } from '@/lib/auth'
 import { Eye, EyeOff, Loader2, Upload, X } from 'lucide-react'
+import { AnimatedBackground } from '@/components/AnimatedBackground'
 
 export const Route = createFileRoute('/register')({
   beforeLoad: () => {
@@ -126,17 +127,18 @@ function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-blue-50 p-4 py-8">
-      <Card className="w-full max-w-md shadow-xl border-gray-200">
+    <div className="min-h-screen flex items-center justify-center p-4 py-8 relative overflow-hidden">
+      <AnimatedBackground />
+      <Card className="w-full max-w-md shadow-2xl border-white/30 backdrop-blur-xl bg-white/10 relative z-10">
         <CardHeader className="space-y-4 text-center pb-6">
           <div className="mx-auto w-20 h-20 flex items-center justify-center">
-            <img src="/logo.svg" alt="TeacherMate AI" className="w-full h-full" />
+            <img src="/logo.svg" alt="TeacherMate AI" className="w-full h-full drop-shadow-lg" />
           </div>
           <div>
-            <CardTitle className="text-3xl font-bold text-gray-900">
+            <CardTitle className="text-3xl font-bold text-white drop-shadow-lg">
               Create Account
             </CardTitle>
-            <CardDescription className="text-base mt-2 text-gray-600">
+            <CardDescription className="text-base mt-2 text-white/90 drop-shadow">
               Join our teaching platform today
             </CardDescription>
           </div>
@@ -145,13 +147,13 @@ function RegisterPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-base" role="alert">
+              <div className="bg-red-500/20 backdrop-blur-sm border border-red-300/50 text-red-100 px-4 py-3 rounded-lg text-base" role="alert">
                 {error}
               </div>
             )}
 
             <div className="space-y-2">
-              <Label className="text-base text-gray-700 font-semibold">
+              <Label className="text-base text-white font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
                 Profile Picture (Optional)
               </Label>
               <div className="flex items-center gap-4">
@@ -160,7 +162,7 @@ function RegisterPage() {
                     <img
                       src={previewUrl}
                       alt="Profile preview"
-                      className="w-20 h-20 rounded-full object-cover border-2 border-blue-200"
+                      className="w-20 h-20 rounded-full object-cover border-2 border-white/40"
                     />
                     <button
                       type="button"
@@ -171,8 +173,8 @@ function RegisterPage() {
                     </button>
                   </div>
                 ) : (
-                  <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center border-2 border-dashed border-gray-300">
-                    <Upload className="w-8 h-8 text-gray-400" />
+                  <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border-2 border-dashed border-white/40">
+                    <Upload className="w-8 h-8 text-white/90" />
                   </div>
                 )}
                 <div className="flex-1">
@@ -189,7 +191,7 @@ function RegisterPage() {
                     variant="outline"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isLoading}
-                    className="w-full h-11 text-base border-blue-300 hover:bg-blue-50"
+                    className="w-full h-11 text-base bg-white/30 backdrop-blur-md border-white/40 text-gray-900 hover:bg-white/40 font-medium"
                   >
                     Choose Photo
                   </Button>
@@ -198,7 +200,7 @@ function RegisterPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="teacher_name" className="text-base text-gray-700 font-semibold">
+              <Label htmlFor="teacher_name" className="text-base text-white font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
                 Full Name
               </Label>
               <Input
@@ -209,13 +211,13 @@ function RegisterPage() {
                 value={formData.teacher_name}
                 onChange={handleInputChange}
                 disabled={isLoading}
-                className="h-12 text-base border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                className="h-12 text-base bg-white/30 backdrop-blur-md border-white/40 text-gray-900 placeholder:text-gray-600 focus:border-white/60 focus:ring-white/40 font-medium"
                 autoComplete="name"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-base text-gray-700 font-semibold">
+              <Label htmlFor="email" className="text-base text-white font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
                 Email Address
               </Label>
               <Input
@@ -226,13 +228,13 @@ function RegisterPage() {
                 value={formData.email}
                 onChange={handleInputChange}
                 disabled={isLoading}
-                className="h-12 text-base border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                className="h-12 text-base bg-white/30 backdrop-blur-md border-white/40 text-gray-900 placeholder:text-gray-600 focus:border-white/60 focus:ring-white/40 font-medium"
                 autoComplete="email"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="institution" className="text-base text-gray-700 font-semibold">
+              <Label htmlFor="institution" className="text-base text-white font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
                 Institution (Optional)
               </Label>
               <Input
@@ -243,13 +245,13 @@ function RegisterPage() {
                 value={formData.institution}
                 onChange={handleInputChange}
                 disabled={isLoading}
-                className="h-12 text-base border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                className="h-12 text-base bg-white/30 backdrop-blur-md border-white/40 text-gray-900 placeholder:text-gray-600 focus:border-white/60 focus:ring-white/40 font-medium"
                 autoComplete="organization"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-base text-gray-700 font-semibold">
+              <Label htmlFor="password" className="text-base text-white font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
                 Password
               </Label>
               <div className="relative">
@@ -261,13 +263,13 @@ function RegisterPage() {
                   value={formData.password}
                   onChange={handleInputChange}
                   disabled={isLoading}
-                  className="h-12 text-base pr-12 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                  className="h-12 text-base pr-12 bg-white/30 backdrop-blur-md border-white/40 text-gray-900 placeholder:text-gray-600 focus:border-white/60 focus:ring-white/40 font-medium"
                   autoComplete="new-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-900 focus:outline-none"
                   tabIndex={-1}
                 >
                   {showPassword ? (
@@ -280,7 +282,7 @@ function RegisterPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword" className="text-base text-gray-700 font-semibold">
+              <Label htmlFor="confirmPassword" className="text-base text-white font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
                 Confirm Password
               </Label>
               <div className="relative">
@@ -292,13 +294,13 @@ function RegisterPage() {
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
                   disabled={isLoading}
-                  className="h-12 text-base pr-12 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                  className="h-12 text-base pr-12 bg-white/30 backdrop-blur-md border-white/40 text-gray-900 placeholder:text-gray-600 focus:border-white/60 focus:ring-white/40 font-medium"
                   autoComplete="new-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-900 focus:outline-none"
                   tabIndex={-1}
                 >
                   {showConfirmPassword ? (
@@ -327,11 +329,11 @@ function RegisterPage() {
           </form>
 
           <div className="mt-6 text-center">
-            <p className="text-base text-gray-600">
+            <p className="text-base text-white/80 drop-shadow">
               Already have an account?{' '}
               <Link
                 to="/login"
-                className="text-blue-600 font-semibold hover:text-blue-700 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
+                className="text-white font-semibold hover:text-white/90 hover:underline focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 rounded"
               >
                 Sign In
               </Link>

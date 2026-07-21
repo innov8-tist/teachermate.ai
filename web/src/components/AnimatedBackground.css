@@ -1,0 +1,386 @@
+/* ===== CINEMATIC CAMERA ANIMATIONS ===== */
+@keyframes cinematicZoomPan {
+  0% {
+    transform: scale(1.2) translate(2%, 2%);
+  }
+  100% {
+    transform: scale(1.05) translate(-1%, -1%);
+  }
+}
+
+@keyframes subtleFloat {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+/* ===== PETAL FALLING ANIMATION ===== */
+@keyframes petalFall {
+  0% {
+    transform: translateY(-10vh) translateX(0) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(110vh) translateX(var(--drift, 50px)) rotate(var(--rotation, 360deg));
+    opacity: 0;
+  }
+}
+
+@keyframes petalSway {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(15px);
+  }
+  75% {
+    transform: translateX(-15px);
+  }
+}
+
+/* ===== CLOUD MOVEMENT ===== */
+@keyframes cloudDrift {
+  0% {
+    transform: translateX(-10%);
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translateX(110%);
+    opacity: 0.3;
+  }
+}
+
+/* ===== BIRD FLIGHT ===== */
+@keyframes birdFly {
+  0% {
+    transform: translateX(-5%) translateY(0) scale(0.3);
+  }
+  50% {
+    transform: translateX(50%) translateY(-20px) scale(0.4);
+  }
+  100% {
+    transform: translateX(105%) translateY(-10px) scale(0.3);
+  }
+}
+
+@keyframes birdWingFlap {
+  0%, 100% {
+    transform: scaleX(1);
+  }
+  50% {
+    transform: scaleX(0.7);
+  }
+}
+
+/* ===== LIGHTING EFFECTS ===== */
+@keyframes lightRays {
+  0% {
+    opacity: 0.1;
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    opacity: 0.15;
+    transform: rotate(5deg) scale(1.1);
+  }
+  100% {
+    opacity: 0.1;
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+@keyframes lensFlare {
+  0%, 100% {
+    opacity: 0;
+  }
+  10%, 90% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* ===== MAIN CONTAINER ===== */
+.cinematic-bg-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  z-index: 0;
+  background: #87CEEB;
+}
+
+/* ===== BACKGROUND IMAGE LAYER ===== */
+.bg-layer-main {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.bg-image-wrapper {
+  width: 100%;
+  height: 100%;
+  will-change: transform;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+.bg-college-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  animation: cinematicZoomPan 30s ease-in-out infinite alternate;
+  filter: brightness(1.03) contrast(1.03) saturate(0.8);
+  will-change: transform;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+
+/* ===== CINEMATIC OVERLAY & LIGHTING ===== */
+.cinematic-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.light-rays {
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(
+    ellipse at 30% 20%,
+    rgba(255, 248, 220, 0.15) 0%,
+    rgba(255, 248, 220, 0.05) 30%,
+    transparent 60%
+  );
+  animation: lightRays 15s ease-in-out infinite;
+}
+
+.vignette {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 20%,
+    rgba(0, 0, 0, 0.15) 80%,
+    rgba(0, 0, 0, 0.3) 100%
+  );
+  pointer-events: none;
+}
+
+/* ===== CLOUDS ===== */
+.clouds-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 40%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.cloud {
+  position: absolute;
+  width: 300px;
+  height: 80px;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 100px;
+  filter: blur(30px);
+  animation: cloudDrift linear infinite;
+}
+
+.cloud-1 {
+  top: 10%;
+  animation-duration: 80s;
+  animation-delay: 0s;
+}
+
+.cloud-2 {
+  top: 20%;
+  width: 400px;
+  animation-duration: 100s;
+  animation-delay: -30s;
+}
+
+.cloud-3 {
+  top: 15%;
+  width: 250px;
+  animation-duration: 90s;
+  animation-delay: -60s;
+}
+
+/* ===== FLOWER PETALS ===== */
+.petals-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.petal {
+  position: absolute;
+  top: -10vh;
+  width: 10px;
+  height: 15px;
+  background: linear-gradient(135deg, #ff6b9d 0%, #ffa6c9 50%, #ffb8d9 100%);
+  border-radius: 50% 0 50% 0;
+  opacity: 0;
+  animation: petalFall linear infinite, petalSway 3s ease-in-out infinite;
+  filter: blur(0.5px);
+  box-shadow: 0 2px 4px rgba(255, 107, 157, 0.3);
+  --drift: 30px;
+}
+
+.petal:nth-child(odd) {
+  --drift: -40px;
+}
+
+.petal:nth-child(3n) {
+  background: linear-gradient(135deg, #ff85a6 0%, #ffb3d0 50%, #ffc9e0 100%);
+}
+
+/* ===== BIRDS ===== */
+.birds-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.bird {
+  position: absolute;
+  width: 20px;
+  height: 8px;
+  top: 15%;
+  animation: birdFly linear infinite;
+}
+
+.bird::before,
+.bird::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 3px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 50%;
+  animation: birdWingFlap 0.3s ease-in-out infinite;
+}
+
+.bird::before {
+  left: 0;
+  transform-origin: right center;
+  border-top-left-radius: 80%;
+  border-bottom-left-radius: 80%;
+}
+
+.bird::after {
+  right: 0;
+  transform-origin: left center;
+  border-top-right-radius: 80%;
+  border-bottom-right-radius: 80%;
+}
+
+.bird-1 {
+  animation-duration: 25s;
+  animation-delay: 2s;
+}
+
+.bird-2 {
+  animation-duration: 30s;
+  animation-delay: 10s;
+  top: 20%;
+}
+
+.bird-3 {
+  animation-duration: 28s;
+  animation-delay: 18s;
+  top: 12%;
+}
+
+/* ===== LENS FLARE ===== */
+.lens-flare {
+  position: absolute;
+  top: 15%;
+  left: 25%;
+  width: 150px;
+  height: 150px;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.3) 0%,
+    rgba(255, 248, 220, 0.1) 30%,
+    transparent 70%
+  );
+  border-radius: 50%;
+  filter: blur(20px);
+  pointer-events: none;
+  z-index: 4;
+  animation: lensFlare 20s ease-in-out infinite;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  .bg-college-image {
+    animation: cinematicZoomPan 20s ease-in-out infinite alternate;
+  }
+  
+  .cloud {
+    width: 200px;
+    height: 60px;
+  }
+  
+  .petal {
+    width: 8px;
+    height: 12px;
+  }
+  
+  .bird {
+    width: 15px;
+    height: 6px;
+  }
+}
+
+/* ===== PERFORMANCE OPTIMIZATIONS ===== */
+@media (prefers-reduced-motion: reduce) {
+  .bg-college-image,
+  .petal,
+  .cloud,
+  .bird,
+  .light-rays,
+  .lens-flare {
+    animation: none !important;
+  }
+}
