@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router'
 import { useState, FormEvent, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,6 +9,11 @@ import { authStorage } from '@/lib/auth'
 import { Eye, EyeOff, Loader2, Upload, X } from 'lucide-react'
 
 export const Route = createFileRoute('/register')({
+  beforeLoad: () => {
+    if (authStorage.isAuthenticated()) {
+      throw redirect({ to: '/dashboard' })
+    }
+  },
   component: RegisterPage,
 })
 
