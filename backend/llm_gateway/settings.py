@@ -50,7 +50,7 @@ class Settings:
         self.groq_template = {
             "model_name": "groq",
             "litellm_params": {
-                "model": "groq/llama-3.3-70b-versatile",
+                "model": "groq/openai/gpt-oss-120b",
                 "api_key": None,
                 "rpm": 2,
                 "weight": 1,
