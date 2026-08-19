@@ -1,7 +1,7 @@
 from langchain_litellm import ChatLiteLLMRouter
 from langchain_core.prompts import ChatPromptTemplate
 from .lite_lllm_data import LiteLLMData
-from .schemas_prompts import GEMINI_PROMPT, GROQ_PROMPT
+from .schemas_prompts import GEMINI_PROMPT, GROQ_PROMPT, EvaluationResults
 from litellm import completion_cost
 from dotenv import load_dotenv
 import os
@@ -48,23 +48,52 @@ class LiteLLMConfig(LiteLLMData):
         print(f"Cost:         ${cost:.8f}")
         print("#"*100)
         return response.choices[0].message.content
-    async def groq(self,user_text:str):
+    async def groq(self, user_text: str):
         print("🔄 Structuring evaluation results with Groq...")
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", self.GROQ_PROMPT ),
-            ("human", """Convert the following evaluation text into structured format:
-            {evaluation_text}
-            Extract all questions, marks, and feedback accurately.""")
-        ])
-        formatted_prompt = prompt.format_messages(evaluation_text=user_text)
-        response =await self.groq_llm.ainvoke(formatted_prompt)
-        # deployment = response.response_metadata["model_info"]["id"]
-        print("#"*100)
-        # print(f"#{deployment:<32} Called Model")
-        print(f"✓ Structured {len(response.results)} question evaluations")
-        print(response)
-        print("#"*100)
-        return response
+
+        response = await self.groq_router.acompletion(
+            model="groq",
+            messages=[
+                {
+                    "role": "system",
+                    "content": self.GROQ_PROMPT
+                },
+                {
+                    "role": "user",
+                    "content": f"""
+                Convert the following evaluation text into structured format.
+
+                {user_text}
+
+                Extract all questions, marks, and feedback accurately.
+                """
+                }
+            ],
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "evaluation_results",
+                    "strict": True,
+                    "schema": EvaluationResults.model_json_schema()
+                }
+            }
+        )
+
+        result = EvaluationResults.model_validate_json(
+            response.choices[0].message.content
+        )
+
+        print("#" * 100)
+
+        deployment = response._hidden_params.get("model_id", "?")
+        print(f"#{deployment:<32} Called Model")
+        print(f"✓ Structured {len(result.results)} question evaluations")
+
+        print(result)
+
+        print("#" * 100)
+
+        return result
 async def main():
     obj = LiteLLMConfig(
         GEMINI_PROMPT=GEMINI_PROMPT,

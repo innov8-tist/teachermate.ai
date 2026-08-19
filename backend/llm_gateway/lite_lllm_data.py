@@ -29,7 +29,7 @@ class LiteLLMData(Settings):
                             set_verbose=True
                         )
         self.groq_litellm=ChatLiteLLMRouter(router=self.groq_router, model_name="groq",temperature=0)
-        self.groq_llm=self.groq_litellm.with_structured_output(EvaluationResults)
+        # self.groq_llm=self.groq_litellm.with_structured_output(EvaluationResults,)
         self.gemini_lanchain=ChatLiteLLMRouter(router=self.gemini_router,model_name="gemini",temperature=0)
         
         
