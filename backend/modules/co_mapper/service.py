@@ -36,7 +36,7 @@ class CoMapperService:
     
     # ========== CO Template Operations ==========
     
-    def create_co_template(self, subject_name: str, sem: int, ia_number: int,
+    async def create_co_template(self, subject_name: str, sem: int, ia_number: int,
                           student_count: int, teacher_id: int, image_content: bytes,
                           image_filename: str, temp_folder: Path):
         """
@@ -94,7 +94,7 @@ class CoMapperService:
             )
             
             # Extract CO mappings using LLM
-            extract_co_mappings_from_image(
+            await extract_co_mappings_from_image(
                 image_path=str(temp_path),
                 subject_id=created_subject.id
             )

@@ -64,7 +64,7 @@ async def create_co_template(
     file_content = await co_image.read()
     
     try:
-        created_subject = service.create_co_template(
+        created_subject = await service.create_co_template(
             subject_name=subject_name,
             sem=sem,
             ia_number=ia_number,

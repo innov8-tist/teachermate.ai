@@ -17,6 +17,8 @@ from modules.co_mapper.models import COQuestionMapping
 
 
 class COTEACHERPROCESSING(BaseModel):
+    model_config = {"extra": "forbid"}
+    
     qno: str = Field(
         description="Extract the Question No."
     )
@@ -26,6 +28,8 @@ class COTEACHERPROCESSING(BaseModel):
 
 
 class ListCO(BaseModel):
+    model_config = {"extra": "forbid"}
+    
     items: List[COTEACHERPROCESSING]
 
 
@@ -43,7 +47,7 @@ def format_for_groq(items):
     )
 
 
-def extract_co_mappings_from_image(image_path: str, subject_id: int):
+async def extract_co_mappings_from_image(image_path: str, subject_id: int):
     """
     Extract Q→CO mappings from image and save them to database.
     """
@@ -150,19 +154,17 @@ Normalize these question-to-CO mappings:
         }
     ]
 
-    response = asyncio.run(
-        obj.groq_router.acompletion(
-            model="groq",
-            messages=groq_messages,
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "list_co",
-                    "strict": True,
-                    "schema": ListCO.model_json_schema()
-                }
+    response = await obj.groq_router.acompletion(
+        model="groq",
+        messages=groq_messages,
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "list_co",
+                "strict": True,
+                "schema": ListCO.model_json_schema()
             }
-        )
+        }
     )
 
     # ---------------------------------------------------------

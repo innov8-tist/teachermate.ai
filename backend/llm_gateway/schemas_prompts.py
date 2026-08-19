@@ -3,6 +3,8 @@ from pydantic import BaseModel, Field
 from typing import List
 
 class QuestionAnswerEvaluation(BaseModel):
+    model_config = {"extra": "forbid"}
+    
     question_no: str = Field(
         description="The question number being evaluated sepereated by . if subquestion occured eg 6.i,6.ii all this convert to alphabetic order eg: 6.a,6.b"
     )
@@ -17,6 +19,8 @@ class QuestionAnswerEvaluation(BaseModel):
     )
 
 class EvaluationResults(BaseModel):
+    model_config = {"extra": "forbid"}
+    
     results: List[QuestionAnswerEvaluation] = Field(
         description="List of all question evaluations"
     )
