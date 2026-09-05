@@ -9,40 +9,49 @@ def seed_subjects(silent=False):
         import psycopg2.errors
         
         try:
-            existing = db.query(Subject).first()
-            if existing:
-                if not silent:
-                    print("✓ Subjects already seeded, skipping...")
-                return
+            # Check if table exists
+            db.query(Subject).first()
         except (ProgrammingError, psycopg2.errors.UndefinedTable) as e:
             # Table doesn't exist yet, skip silently
             if not silent:
                 print(f"⚠️  Subjects table doesn't exist yet, skipping...")
             return
         
-        subjects = [
-            Subject(id=5, name='Oops', branch='CSE', sem=3),
-            Subject(id=6, name='Maths', branch='CSE', sem=3),
-            Subject(id=7, name='Toc', branch='CSE', sem=3),
-            Subject(id=8, name='DSA', branch='CSE', sem=3),
+        subjects_data = [
+            {"id": 5, "name": 'Oops', "branch": 'CSE', "sem": 3},
+            {"id": 6, "name": 'Maths', "branch": 'CSE', "sem": 3},
+            {"id": 7, "name": 'Toc', "branch": 'CSE', "sem": 3},
+            {"id": 8, "name": 'DSA', "branch": 'CSE', "sem": 3},
 
-            Subject(id=1, name='MSS', branch='CSE', sem=4),
-            Subject(id=2, name='MPMC', branch='CSE', sem=4),
-            Subject(id=3, name='SS', branch='CSE', sem=4),
+            {"id": 1, "name": 'MSS', "branch": 'CSE', "sem": 4},
+            {"id": 2, "name": 'MPMC', "branch": 'CSE', "sem": 4},
+            {"id": 3, "name": 'SS', "branch": 'CSE', "sem": 4},
 
-            Subject(id=9, name='Microcontroller', branch='CSE', sem=5),
-            Subject(id=4, name='CN', branch='CSE', sem=5),
-            Subject(id=10, name='ML', branch='CSE', sem=5),
+            {"id": 9, "name": 'Microcontroller', "branch": 'CSE', "sem": 5},
+            {"id": 4, "name": 'CN', "branch": 'CSE', "sem": 5},
+            {"id": 10, "name": 'ML', "branch": 'CSE', "sem": 5},
 
-            Subject(id=11, name='AI', branch='CSE', sem=7),
-            Subject(id=12, name='Cloud', branch='CSE', sem=7),
-            Subject(id=13, name='EHS', branch='CSE', sem=7),
+            {"id": 11, "name": 'AI', "branch": 'CSE', "sem": 7},
+            {"id": 12, "name": 'Cloud', "branch": 'CSE', "sem": 7},
+            {"id": 13, "name": 'EHS', "branch": 'CSE', "sem": 7},
         ]
         
-        db.add_all(subjects)
+        added = 0
+        updated = 0
+        for data in subjects_data:
+            existing = db.query(Subject).filter(Subject.id == data["id"]).first()
+            if existing:
+                existing.name = data["name"]
+                existing.branch = data["branch"]
+                existing.sem = data["sem"]
+                updated += 1
+            else:
+                db.add(Subject(**data))
+                added += 1
+        
         db.commit()
         if not silent:
-            print(f"✓ Seeded {len(subjects)} subjects")
+            print(f"✓ Seeded subjects: {added} added, {updated} updated")
         
     except Exception as e:
         if not silent:
@@ -55,18 +64,15 @@ def seed_subjects(silent=False):
 
 
 def seed_students(silent=False):
-    """Insert default student information"""
+    """Insert or update default student information"""
     db = SessionLocal()
     try:
         from sqlalchemy.exc import ProgrammingError
         import psycopg2.errors
         
         try:
-            existing = db.query(STUDENTINFO).first()
-            if existing:
-                if not silent:
-                    print("✓ Students already seeded, skipping...")
-                return
+            # Check if table exists
+            db.query(STUDENTINFO).first()
         except (ProgrammingError, psycopg2.errors.UndefinedTable) as e:
             # Table doesn't exist yet, skip silently
             if not silent:
@@ -205,15 +211,23 @@ def seed_students(silent=False):
 
         ]
         
-        student_objects = [
-            STUDENTINFO(id=id, reg_no=reg_no, name=name, branch=branch, division=division)
-            for id, reg_no, name, branch, division in students
-        ]
+        added = 0
+        updated = 0
+        for id, reg_no, name, branch, division in students:
+            existing = db.query(STUDENTINFO).filter(STUDENTINFO.id == id).first()
+            if existing:
+                existing.reg_no = reg_no
+                existing.name = name
+                existing.branch = branch
+                existing.division = division
+                updated += 1
+            else:
+                db.add(STUDENTINFO(id=id, reg_no=reg_no, name=name, branch=branch, division=division))
+                added += 1
         
-        db.add_all(student_objects)
         db.commit()
         if not silent:
-            print(f"✓ Seeded {len(student_objects)} students")
+            print(f"✓ Seeded students: {added} added, {updated} updated")
         
     except Exception as e:
         if not silent:
