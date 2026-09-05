@@ -21,10 +21,22 @@ def seed_subjects(silent=False):
             return
         
         subjects = [
+            Subject(id=5, name='Oops', branch='CSE', sem=3),
+            Subject(id=6, name='Maths', branch='CSE', sem=3),
+            Subject(id=7, name='Toc', branch='CSE', sem=3),
+            Subject(id=8, name='DSA', branch='CSE', sem=3),
+
             Subject(id=1, name='MSS', branch='CSE', sem=4),
             Subject(id=2, name='MPMC', branch='CSE', sem=4),
             Subject(id=3, name='SS', branch='CSE', sem=4),
-            Subject(id=4, name='CN', branch='CSE', sem=4),
+
+            Subject(id=9, name='Microcontroller', branch='CSE', sem=5),
+            Subject(id=4, name='CN', branch='CSE', sem=5),
+            Subject(id=10, name='ML', branch='CSE', sem=5),
+
+            Subject(id=11, name='AI', branch='CSE', sem=7),
+            Subject(id=12, name='Cloud', branch='CSE', sem=7),
+            Subject(id=13, name='EHS', branch='CSE', sem=7),
         ]
         
         db.add_all(subjects)
@@ -186,6 +198,11 @@ def seed_students(silent=False):
             (122, 'TOC23CS122', 'UDAY KRISHNA JAYAN', 'CSE', 'B'),
             (123, 'TOC23CS123', 'VAISAKH AJITHAN', 'CSE', 'B'),
             (124, 'TOC23CS124', 'VISALDEV ANILKUMAR', 'CSE', 'B'),
+            (125, 'TOC-TEST1', 'Test-TM-1', 'CSE', 'B'),
+            (126, 'TOC-TEST2', 'Test-TM-2', 'CSE', 'B'),
+            (127, 'TOC-TEST3', 'Test-TM-3', 'CSE', 'B'),
+            (128, 'TOC-TEST4', 'Test-TM-4', 'CSE', 'B'),
+
         ]
         
         student_objects = [
